@@ -30,7 +30,8 @@
     <h2>権限</h2>
 {% set SCOPE_OF = {'system_admin':'全健保の加入者を閲覧',
                     'kenpo_user':'自組合全体の加入者を閲覧',
-                    'company_user':'選択した1社の加入者のみ閲覧'} %}
+                    'company_user':'選択した1社の加入者のみ閲覧',
+                    'occ_doctor':'担当する対象者の産業医面談記録のみ登録・閲覧（他機能は利用不可）'} %}
     {% set cur = (form.role if form else row.role) %}
     <div class="search-group"><label>権限ロール</label>
       <div class="role-pick">
@@ -77,14 +78,22 @@
 
 {% if acc.role == 'system_admin' %}
 {{ kenpo_picker(kenpos, (form.kenpo_id if form and form.kenpo_id else row.kenpo_id)) }}
+<div class="block" id="kenpo-hint" style="display:none">
+  <p class="hint">企業担当者・産業医は1つの健康保険組合の範囲内でしか担当範囲を持てません。
+    先に上の健康保険組合を選択してください。選択すると、その健保に属する企業・事業所・部署だけが選べるようになります。</p>
+</div>
 {% endif %}
 {{ company_picker(comps, selected, acc) }}
 
-{# ---- 事業所・部署の担当範囲（企業を跨いで選べる） ---- #}
+{# ---- 事業所・部署の担当範囲（上で選んだ企業の配下のみ） ---- #}
+<div class="block" id="scope-hint" style="display:none">
+  <p class="hint">先に上の「対象の企業」を1件以上選択してください。選択すると、その企業の事業所・部署も担当範囲に追加できるようになります。</p>
+</div>
 <div class="block" id="card-scope">
   <h2>担当する事業所・部署（任意）</h2>
   <p class="note" style="margin-bottom:12px">
-    企業・事業所・部署は<b>跨いで何件でも</b>選べます。選んだものすべての加入者が対象になります。</p>
+    事業所は上で選んだ企業の配下だけ、部署は左で選んだ事業所の配下だけを選べます。
+    事業所・部署までは指定せず企業単位で担当させたい場合は、ここで何も選ばなくてもかまいません。</p>
   <div class="scope-cols">
     <div>
       <div class="scope-head">事業所
@@ -94,7 +103,8 @@
                autocomplete="off" style="width:100%"></div>
       <div class="pick-rows" id="sc-offs">
         {% for o in offs %}
-        <label class="pick-row chk-row" data-text="{{ o.company_name }} {{ o.name }} {{ o.ext_code or o.code }}">
+        <label class="pick-row chk-row" data-text="{{ o.company_name }} {{ o.name }} {{ o.ext_code or o.code }}"
+               data-kenpo-id="{{ o.kenpo_id }}" data-company-id="{{ o.company_id }}">
           <input type="checkbox" name="office_ids" value="{{ o.id }}"
                  {{ 'checked' if o.id in sel_offices }}>
           <span class="pr-code">{{ o.ext_code or o.code }}</span>
@@ -110,10 +120,13 @@
       <div class="search-group" style="margin-bottom:6px">
         <input type="text" id="sc-dq" placeholder="企業名・事業所名・部署名で絞り込む"
                autocomplete="off" style="width:100%"></div>
+      <p class="hint" id="dept-hint" style="display:none">左で事業所を1件以上選択すると、その配下の部署が選べます。</p>
       <div class="pick-rows" id="sc-depts">
         {% for d in depts %}
         <label class="pick-row chk-row"
-               data-text="{{ d.company_name }} {{ d.office_name }} {{ d.name }} {{ d.ext_code or d.code }}">
+               data-text="{{ d.company_name }} {{ d.office_name }} {{ d.name }} {{ d.ext_code or d.code }}"
+               data-kenpo-id="{{ d.kenpo_id }}" data-company-id="{{ d.company_id }}"
+               data-office-id="{{ d.office_id }}">
           <input type="checkbox" name="dept_ids" value="{{ d.id }}"
                  {{ 'checked' if d.id in sel_depts }}>
           <span class="pr-code">{{ d.ext_code or d.code }}</span>
@@ -125,32 +138,6 @@
     </div>
   </div>
 </div>
-
-<script>
-/* 担当する事業所・部署の選択と絞り込み */
-(function(){
-  function wire(boxId, qId, outId){
-    var box = document.getElementById(boxId);
-    var q = document.getElementById(qId);
-    var out = document.getElementById(outId);
-    if(!box) return;
-    function upd(){
-      out.textContent = box.querySelectorAll('input[type=checkbox]:checked').length;
-    }
-    box.addEventListener('change', upd);
-    if(q) q.addEventListener('input', function(){
-      var t = q.value.trim().toLowerCase();
-      [].slice.call(box.querySelectorAll('.chk-row')).forEach(function(r){
-        r.style.display = (!t || (r.dataset.text || '').toLowerCase().indexOf(t) >= 0)
-          ? '' : 'none';
-      });
-    });
-    upd();
-  }
-  wire('sc-offs', 'sc-oq', 'sc-o-n');
-  wire('sc-depts', 'sc-dq', 'sc-d-n');
-})();
-</script>
 
 <div class="actions" style="justify-content:flex-end">
   <a class="btn-back" href="{{ url_for('accounts') }}" style="text-decoration:none">中止する</a>
@@ -227,25 +214,126 @@ function closeInvite(){
 {% endif %}
 
 
+{{ picker_script() }}
 <script>
-/* 権限ロールに応じて、選択が必要なカードだけ表示する */
+/* 権限ロールに応じて、選択が必要なカードだけ表示する。
+   企業担当者・産業医は「健保→企業→事業所・部署」の順で選ぶ（1健保内に限定）。
+   事業所・部署は、上で選んだ企業の配下のものだけを選べる（企業をまたいだ追加担当はできない）。 */
 (function(){
   var radios=[].slice.call(document.querySelectorAll('input[name="role"]'));
+  var isAdmin = {{ 'true' if acc.role == 'system_admin' else 'false' }};
+  var rowKenpoId = {{ (row.kenpo_id or 'null') }};
+  var selectedKenpo = null;
+
   function show(id, on){
     var el=document.getElementById(id);
     if(el) el.style.display = on ? '' : 'none';
   }
+  function checkedIds(selector){
+    var ids = {};
+    [].slice.call(document.querySelectorAll(selector))
+      .forEach(function(c){ ids[c.value] = true; });
+    return ids;
+  }
+  function checkedCompanyIds(){ return checkedIds('#compcard-list input[type=checkbox]:checked'); }
+  function anyCompanyChecked(){
+    return Object.keys(checkedCompanyIds()).length > 0;
+  }
+  /* 事業所・部署の一覧を、選択中の健保・企業・事業所・検索語に合わせて絞り込む。
+     事業所は選んだ企業の配下だけ、部署は選んだ事業所の配下だけを選べるようにする
+     （2段階なので、まず事業所側を確定させてから部署側を絞り込む）。 */
+  function scRefresh(){
+    var companyIds = checkedCompanyIds();
+    var qOff = ((document.getElementById('sc-oq') || {}).value || '').trim().toLowerCase();
+    var qDep = ((document.getElementById('sc-dq') || {}).value || '').trim().toLowerCase();
+
+    [].slice.call(document.querySelectorAll('#sc-offs .chk-row')).forEach(function(r){
+      var ok = (!selectedKenpo || r.dataset.kenpoId === selectedKenpo)
+            && !!companyIds[r.dataset.companyId]
+            && (!qOff || (r.dataset.text || '').toLowerCase().indexOf(qOff) >= 0);
+      if(!ok){
+        var inp = r.querySelector('input');
+        if(inp && inp.checked) inp.checked = false;
+      }
+      r.style.display = ok ? '' : 'none';
+    });
+
+    var officeIds = checkedIds('#sc-offs input[type=checkbox]:checked');
+    var anyOfficeChecked = Object.keys(officeIds).length > 0;
+    [].slice.call(document.querySelectorAll('#sc-depts .chk-row')).forEach(function(r){
+      var ok = anyOfficeChecked
+            && (!selectedKenpo || r.dataset.kenpoId === selectedKenpo)
+            && !!companyIds[r.dataset.companyId]
+            && !!officeIds[r.dataset.officeId]
+            && (!qDep || (r.dataset.text || '').toLowerCase().indexOf(qDep) >= 0);
+      if(!ok){
+        var inp = r.querySelector('input');
+        if(inp && inp.checked) inp.checked = false;
+      }
+      r.style.display = ok ? '' : 'none';
+    });
+    show('dept-hint', !anyOfficeChecked);
+
+    var oCount = document.getElementById('sc-o-n');
+    var dCount = document.getElementById('sc-d-n');
+    if(oCount) oCount.textContent = document.querySelectorAll('#sc-offs input[type=checkbox]:checked').length;
+    if(dCount) dCount.textContent = document.querySelectorAll('#sc-depts input[type=checkbox]:checked').length;
+  }
+  window.scUpd = scRefresh;
+  ['sc-oq', 'sc-dq'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener('input', scRefresh);
+  });
+  var scOffsBox = document.getElementById('sc-offs');
+  if(scOffsBox) scOffsBox.addEventListener('change', scRefresh);
+
   function upd(){
     var el=document.querySelector('input[name="role"]:checked');
     var v = el ? el.value : '';
-    show('kenpocard-search', v==='kenpo_user');
-    show('kenpocard-list',   v==='kenpo_user');
-    show('compcard-search',  v==='company_user');
-    show('compcard-list',    v==='company_user');
+    var needsScope = v === 'company_user' || v === 'occ_doctor';
+    var needKenpoStep = isAdmin && needsScope;
+    var kenpoReady = !needKenpoStep || !!selectedKenpo;
+    var companyReady = needsScope && kenpoReady && anyCompanyChecked();
+    show('kenpocard-search', v==='kenpo_user' || needKenpoStep);
+    show('kenpocard-list',   v==='kenpo_user' || needKenpoStep);
+    show('kenpo-hint',       needKenpoStep && !selectedKenpo);
+    show('compcard-search',  needsScope && kenpoReady);
+    show('compcard-list',    needsScope && kenpoReady);
+    show('scope-hint',       needsScope && kenpoReady && !companyReady);
+    show('card-scope',       companyReady);
+    if(!companyReady){
+      document.querySelectorAll('#card-scope input[type=checkbox]')
+        .forEach(function(c){ c.checked = false; });
+    }
+    scRefresh();
   }
+  /* pkSetKenpoFilter は cp-change を発火するため、cp-change のハンドラである upd() の
+     中から呼んではいけない（無限に呼び合ってスタックオーバーフローする）。
+     健保が変わった、この kp-select のタイミングでだけ呼ぶ。 */
+  document.addEventListener('kp-select', function(e){
+    selectedKenpo = (e.detail && e.detail.id) ? String(e.detail.id) : null;
+    if(window.pkSetKenpoFilter) window.pkSetKenpoFilter('cp', selectedKenpo);
+    upd();
+  });
+  document.addEventListener('cp-change', upd);
   radios.forEach(function(r){ r.addEventListener('change', upd); });
+
+  /* 既に選ばれている企業・事業所・部署（または編集対象の現在の所属健保）から健保を復元する。
+     これは最初の upd() より前に行うこと。先に upd() を呼ぶと、
+     selectedKenpo がまだ null のせいで「担当する事業所・部署」欄が
+     未読み込み扱いになり、サーバーから復元済みのチェックが消えてしまう。 */
+  if(isAdmin){
+    var preId = null;
+    var preRow = document.querySelector('#compcard-list tr.pt-row input:checked');
+    if(preRow) preId = preRow.closest('tr').dataset.kenpoId;
+    if(!preId){
+      var preChk = document.querySelector('#sc-offs input:checked, #sc-depts input:checked');
+      if(preChk) preId = preChk.closest('.chk-row').dataset.kenpoId;
+    }
+    if(!preId && rowKenpoId) preId = String(rowKenpoId);
+    if(preId && window.kpSelectById) window.kpSelectById(preId);
+  }
   upd();
 })();
 </script>
-{{ picker_script() }}
 {% endblock %}

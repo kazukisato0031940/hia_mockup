@@ -347,8 +347,8 @@ body.theme-km .perm-card.wide{background:#fdecea}
 .pick-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .pick-btn.on:hover{background:var(--primary);border-color:var(--primary)}
 .pick-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.result-table tr.pick-row.on td{background:#ebf8ff}
-body.theme-km .result-table tr.pick-row.on td{background:#e8f4ec}
+.result-table tr.pt-row.on td{background:#ebf8ff}
+body.theme-km .result-table tr.pt-row.on td{background:#e8f4ec}
 .pick-card .blk-head .count{font-weight:400}
 
 /* 権限カードのフッター（説明は左、ボタンは右下） */

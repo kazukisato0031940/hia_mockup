@@ -303,20 +303,26 @@ def scope_summary(scopes):
     if scopes.get("company"):
         q = ",".join("?" * len(scopes["company"]))
         names = [r["name"] for r in db.execute(
-            f"SELECT name FROM company WHERE id IN ({q}) ORDER BY code", scopes["company"])]
+            f"SELECT name FROM company WHERE id IN ({q})"
+            " ORDER BY COALESCE(NULLIF(ext_code,''), code)", scopes["company"])]
         parts.append("企業 " + "・".join(names))
     if scopes.get("office"):
         q = ",".join("?" * len(scopes["office"]))
         names = [f"{r['cname']}／{r['name']}" for r in db.execute(
             "SELECT o.name, c.name AS cname FROM office o JOIN company c ON c.id=o.company_id"
-            f" WHERE o.id IN ({q}) ORDER BY c.code, o.code", scopes["office"])]
+            f" WHERE o.id IN ({q})"
+            " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code),"
+            " COALESCE(NULLIF(o.ext_code,''), o.code)", scopes["office"])]
         parts.append("事業所 " + "・".join(names))
     if scopes.get("dept"):
         q = ",".join("?" * len(scopes["dept"]))
         names = [f"{r['cname']}／{r['oname']}／{r['name']}" for r in db.execute(
             "SELECT d.name, o.name AS oname, c.name AS cname FROM department d"
             " JOIN office o ON o.id=d.office_id JOIN company c ON c.id=o.company_id"
-            f" WHERE d.id IN ({q}) ORDER BY c.code, o.code, d.code", scopes["dept"])]
+            f" WHERE d.id IN ({q})"
+            " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code),"
+            " COALESCE(NULLIF(o.ext_code,''), o.code),"
+            " COALESCE(NULLIF(d.ext_code,''), d.code)", scopes["dept"])]
         parts.append("部署 " + "・".join(names))
     return "／".join(parts) or "指定なし"
 
@@ -325,7 +331,8 @@ def account_companies(aid):
     """アカウントが対象とする企業（コード順）"""
     return get_db().execute(
         "SELECT c.* FROM account_company ac JOIN company c ON c.id=ac.company_id"
-        " WHERE ac.account_id=? ORDER BY c.code", (aid,)).fetchall()
+        " WHERE ac.account_id=?"
+        " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code)", (aid,)).fetchall()
 
 
 def set_account_companies(aid, ids):
@@ -344,7 +351,8 @@ def company_names(ids):
         return "—"
     q = ",".join("?" * len(ids))
     rows = get_db().execute(
-        f"SELECT name FROM company WHERE id IN ({q}) ORDER BY code", ids).fetchall()
+        f"SELECT name FROM company WHERE id IN ({q})"
+        " ORDER BY COALESCE(NULLIF(ext_code,''), code)", ids).fetchall()
     return "、".join(r["name"] for r in rows)
 
 
@@ -353,11 +361,13 @@ def scoped_companies(acc):
     if acc["role"] == "system_admin":
         return db.execute(
             "SELECT c.*, k.name AS kenpo_name, k.code AS kenpo_code FROM company c"
-            " JOIN kenpo k ON k.id=c.kenpo_id ORDER BY k.code, c.code").fetchall()
+            " JOIN kenpo k ON k.id=c.kenpo_id"
+            " ORDER BY k.code, COALESCE(NULLIF(c.ext_code,''), c.code)").fetchall()
     if acc["role"] == "kenpo_user":
         return db.execute(
             "SELECT c.*, k.name AS kenpo_name, k.code AS kenpo_code FROM company c"
-            " JOIN kenpo k ON k.id=c.kenpo_id WHERE c.kenpo_id=? ORDER BY c.code",
+            " JOIN kenpo k ON k.id=c.kenpo_id WHERE c.kenpo_id=?"
+            " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code)",
             (acc["kenpo_id"],)).fetchall()
     # 担当範囲に含まれる企業＋担当事業所・部署の親企業
     sc = account_scope_ids(acc["id"])
@@ -377,7 +387,8 @@ def scoped_companies(acc):
     q = ",".join("?" * len(ids))
     return db.execute(
         "SELECT c.*, k.name AS kenpo_name, k.code AS kenpo_code FROM company c"
-        f" JOIN kenpo k ON k.id=c.kenpo_id WHERE c.id IN ({q}) ORDER BY c.code",
+        f" JOIN kenpo k ON k.id=c.kenpo_id WHERE c.id IN ({q})"
+        " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code)",
         ids).fetchall()
 
 
@@ -399,7 +410,9 @@ def scoped_departments(acc):
             return []
         q = ",".join("?" * len(ids))
         return db.execute(DEPT_SELECT + f" WHERE d.office_id IN ({q})"
-                          " ORDER BY c.code, o.code, d.code", ids).fetchall()
+                          " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code),"
+                          " COALESCE(NULLIF(o.ext_code,''), o.code),"
+                          " COALESCE(NULLIF(d.ext_code,''), d.code)", ids).fetchall()
     sc = account_scope_ids(acc["id"])
     conds, params = [], []
     if sc["company"]:
@@ -414,7 +427,9 @@ def scoped_departments(acc):
     if not conds:
         return []
     return db.execute(DEPT_SELECT + " WHERE " + " OR ".join(conds)
-                      + " ORDER BY c.code, o.code, d.code", params).fetchall()
+                      + " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code),"
+                        " COALESCE(NULLIF(o.ext_code,''), o.code),"
+                        " COALESCE(NULLIF(d.ext_code,''), d.code)", params).fetchall()
 
 
 def owns_department(acc, did):
@@ -434,7 +449,9 @@ def scoped_offices(acc):
             "SELECT o.*, c.name AS company_name, c.code AS company_code,"
             " c.ext_code AS company_ext, c.kenpo_id"
             " FROM office o JOIN company c ON c.id=o.company_id"
-            f" WHERE o.company_id IN ({q}) ORDER BY c.code, o.code", ids).fetchall()
+            f" WHERE o.company_id IN ({q})"
+            " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code),"
+            " COALESCE(NULLIF(o.ext_code,''), o.code)", ids).fetchall()
     sc = account_scope_ids(acc["id"])
     conds, params = [], []
     if sc["company"]:
@@ -453,7 +470,9 @@ def scoped_offices(acc):
         "SELECT o.*, c.name AS company_name, c.code AS company_code,"
         " c.ext_code AS company_ext, c.kenpo_id"
         " FROM office o JOIN company c ON c.id=o.company_id"
-        " WHERE " + " OR ".join(conds) + " ORDER BY c.code, o.code", params).fetchall()
+        " WHERE " + " OR ".join(conds)
+        + " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code),"
+          " COALESCE(NULLIF(o.ext_code,''), o.code)", params).fetchall()
 
 
 def member_where(acc):
@@ -3782,8 +3801,10 @@ def accounts():
               " a.is_primary DESC, a.id DESC", p).fetchall()
     # 担当範囲（企業・事業所・部署）を行ごとに付ける
     comp_map, scope_map = {}, {}
-    for r in db.execute("SELECT ac.account_id, c.name, c.code FROM account_company ac"
-                        " JOIN company c ON c.id=ac.company_id ORDER BY c.code"):
+    for r in db.execute(
+            "SELECT ac.account_id, c.name, c.code FROM account_company ac"
+            " JOIN company c ON c.id=ac.company_id"
+            " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code)"):
         comp_map.setdefault(r["account_id"], []).append(r["name"])
     for r in db.execute(
             "SELECT s.account_id, o.name AS name, c.name AS pname, 'office' AS kind"
@@ -3862,21 +3883,57 @@ def scope_kenpo_id(acc, scopes):
     return acc["kenpo_id"]
 
 
+def scope_kenpo_ids(scopes):
+    """担当範囲（企業・事業所・部署）が属する健康保険組合IDの集合を返す。
+    企業担当者は1つの健康保険組合の範囲内でのみ担当範囲を持てる。"""
+    db = get_db()
+    ids = set()
+    for kind, sql in (("company", "SELECT kenpo_id FROM company WHERE id=?"),
+                      ("office", "SELECT c.kenpo_id FROM office o"
+                                 " JOIN company c ON c.id=o.company_id WHERE o.id=?"),
+                      ("dept", "SELECT c.kenpo_id FROM department d"
+                               " JOIN office o ON o.id=d.office_id"
+                               " JOIN company c ON c.id=o.company_id WHERE d.id=?")):
+        for rid in scopes.get(kind) or []:
+            r = db.execute(sql, (rid,)).fetchone()
+            if r:
+                ids.add(r["kenpo_id"])
+    return ids
+
+
+def allowed_company_ids(acc):
+    """発行者が操作できる企業IDの集合（担当範囲チェック用）"""
+    return {c["id"] for c in scoped_companies(acc)}
+
+
 def _resolve_scope(acc, role, company_ids, office_ids=None, dept_ids=None):
     """ロールから閲覧範囲を決定する。手動指定はさせない。
-    企業担当者は、企業・事業所・部署を跨いで複数まとめて担当できる。
+    「対象の企業」は、その配下の事業所を1件も選ばなかった場合にかぎり企業全体への
+    閲覧権限になる。事業所を1件でも選んだ企業は、丸ごとの企業権限は付与せず、
+    選んだ事業所・その配下で選んだ部署だけに絞る（企業チェックは、配下の事業所・部署を
+    選ぶための入口という位置づけになる）。
+    事業所は選んだ企業の配下、部署は選んだ事業所の配下のものだけを選べる
+    （企業をまたいだ事業所、事業所をまたいだ部署の追加担当はできない）。
     指定できるのは発行者の操作範囲内のものだけ。"""
     if role == "system_admin":
         return "all", {"company": [], "office": [], "dept": []}
     if role == "kenpo_user":
         return "kenpo_all", {"company": [], "office": [], "dept": []}
-    ok_c = {c["id"] for c in scoped_companies(acc)}
-    ok_o = {o["id"] for o in scoped_offices(acc)}
-    ok_d = {d["id"] for d in scoped_departments(acc)}
+    ok_c = allowed_company_ids(acc)
+    off_company = {o["id"]: o["company_id"] for o in scoped_offices(acc)}
+    dept_office = {d["id"]: d["office_id"] for d in scoped_departments(acc)}
+    checked_companies = {i for i in (company_ids or []) if i in ok_c}
+    office_scope = {i for i in (office_ids or [])
+                    if i in off_company and off_company[i] in checked_companies}
+    dept_scope = {i for i in (dept_ids or [])
+                 if i in dept_office and dept_office[i] in office_scope}
+    # 事業所を1件も選ばなかった企業だけ、企業全体（丸ごと）の権限にする
+    narrowed_companies = {off_company[i] for i in office_scope}
+    company_scope = checked_companies - narrowed_companies
     scopes = {
-        "company": [i for i in (company_ids or []) if i in ok_c],
-        "office": [i for i in (office_ids or []) if i in ok_o],
-        "dept": [i for i in (dept_ids or []) if i in ok_d],
+        "company": list(company_scope),
+        "office": list(office_scope),
+        "dept": list(dept_scope),
     }
     return "own_company", scopes
 
@@ -3890,7 +3947,8 @@ def accounts_new():
     kenpos = db.execute("SELECT * FROM kenpo ORDER BY code").fetchall()
     if request.method == "GET":
         return render_template("accounts_new.html", comps=comps, roles=roles, kenpos=kenpos,
-                               selected=[], depts=scoped_departments(acc), offs=scoped_offices(acc))
+                               selected=[], depts=scoped_departments(acc), offs=scoped_offices(acc),
+                               sel_offices=set(), sel_depts=set())
 
     email = (request.form.get("email") or "").strip().lower()
     name = (request.form.get("name") or "").strip()
@@ -3917,10 +3975,16 @@ def accounts_new():
 
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
+    # 画面再表示時にチェック状態を復元するため、絞り込み（narrowing）前の
+    # 「チェックされていた企業」も別途保持しておく
+    ok_c = allowed_company_ids(acc)
+    checked_companies_for_display = [i for i in company_ids if i in ok_c]
     view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
     company_ids = scopes["company"]
     if view_scope == "own_company" and not any(scopes.values()):
         errs.append("担当する企業・事業所・部署のいずれかを1件以上選択してください。")
+    elif view_scope == "own_company" and len(scope_kenpo_ids(scopes)) > 1:
+        errs.append("担当する企業・事業所・部署は、1つの健康保険組合の範囲内で選んでください。")
     if role == "kenpo_user":
         if acc["role"] != "system_admin":
             kenpo_id = acc["kenpo_id"]
@@ -3930,7 +3994,9 @@ def accounts_new():
         for e in errs:
             flash(e, "error")
         return render_template("accounts_new.html", comps=comps, roles=roles, kenpos=kenpos,
-                               form=request.form, selected=company_ids, depts=scoped_departments(acc), offs=scoped_offices(acc))
+                               form=request.form, selected=checked_companies_for_display,
+                               depts=scoped_departments(acc), offs=scoped_offices(acc),
+                               sel_offices=set(scopes["office"]), sel_depts=set(scopes["dept"]))
 
     sel = [c for c in comps if c["id"] in set(company_ids)]
     if role == "company_user":
@@ -3943,6 +4009,7 @@ def accounts_new():
     return render_template("accounts_confirm.html", email=email, name=name, role=role,
                            view_scope=view_scope, can_dl=can_dl, is_primary=is_primary,
                            companies=sel, company_ids=company_ids,
+                           checked_companies=checked_companies_for_display,
                            kenpo=kenpo, kenpo_id=kenpo_id, vis=vis, scopes=scopes, scope_label=scope_summary(scopes))
 
 
@@ -3966,19 +4033,25 @@ def accounts_create():
             detail=f"権限外のロール（{ROLE_LABELS.get(role, role)}）を指定")
         flash("そのロールを発行する権限がありません。", "error")
         return redirect(url_for("accounts_new"))
-    requested = len(company_ids)
+    ok_c = allowed_company_ids(acc)
+    invalid_companies = [cid for cid in company_ids if cid not in ok_c]
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
     view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
     company_ids = scopes["company"]
     if view_scope == "own_company":
-        if requested != len(company_ids):
+        if invalid_companies:
             log("account", "アカウント発行をブロック", "blocked", target=email,
-                detail=f"スコープ外の企業が指定された（要求{requested}社／許可{len(company_ids)}社）")
+                detail=f"スコープ外の企業が指定された（{len(invalid_companies)}社）")
             flash("選択された企業のうち、操作する権限のないものが含まれています。", "error")
             return redirect(url_for("accounts_new"))
         if not any(scopes.values()):
             flash("担当する企業・事業所・部署のいずれかを1件以上選択してください。", "error")
+            return redirect(url_for("accounts_new"))
+        if len(scope_kenpo_ids(scopes)) > 1:
+            log("account", "アカウント発行をブロック", "blocked", target=email,
+                detail="複数の健康保険組合にまたがる担当範囲が指定された")
+            flash("担当する企業・事業所・部署は、1つの健康保険組合の範囲内で選んでください。", "error")
             return redirect(url_for("accounts_new"))
     if role == "kenpo_user" and acc["role"] != "system_admin":
         kenpo_id = acc["kenpo_id"]
@@ -4052,10 +4125,16 @@ def accounts_edit(aid):
         errs.append(f"「{ROLE_LABELS.get(role, role)}」へ変更する権限がありません。")
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
+    # 画面再表示時にチェック状態を復元するため、絞り込み（narrowing）前の
+    # 「チェックされていた企業」も別途保持しておく
+    ok_c = allowed_company_ids(acc)
+    checked_companies_for_display = [i for i in company_ids if i in ok_c]
     view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
     company_ids = scopes["company"]
     if view_scope == "own_company" and not any(scopes.values()):
         errs.append("担当する企業・事業所・部署のいずれかを1件以上選択してください。")
+    elif view_scope == "own_company" and len(scope_kenpo_ids(scopes)) > 1:
+        errs.append("担当する企業・事業所・部署は、1つの健康保険組合の範囲内で選んでください。")
     if role == "kenpo_user" and acc["role"] == "system_admin":
         kid = request.form.get("kenpo_id", type=int)
         if not kid:
@@ -4064,11 +4143,11 @@ def accounts_edit(aid):
         for e in errs:
             flash(e, "error")
         return render_template("accounts_edit.html", row=row, comps=comps, roles=roles,
-                               kenpos=kenpos, form=request.form, selected=company_ids,
+                               kenpos=kenpos, form=request.form,
+                               selected=checked_companies_for_display,
                                inv_url=inv_url, inv_expired=inv_expired,
                                offs=scoped_offices(acc), depts=scoped_departments(acc),
-                               sel_offices=set(account_scope_ids(aid)["office"]),
-                               sel_depts=set(account_scope_ids(aid)["dept"]))
+                               sel_offices=set(scopes["office"]), sel_depts=set(scopes["dept"]))
 
     sel = [c for c in comps if c["id"] in set(company_ids)]
     kenpo_id = scope_kenpo_id(acc, scopes) or row["kenpo_id"]
@@ -4098,7 +4177,8 @@ def accounts_edit(aid):
     ]
     return render_template("accounts_edit_confirm.html", row=row, name=name, role=role,
                            view_scope=view_scope, can_dl=can_dl, is_primary=is_primary,
-                           companies=sel, company_ids=company_ids, kenpo_id=kenpo_id,
+                           companies=sel, company_ids=company_ids,
+                           checked_companies=checked_companies_for_display, kenpo_id=kenpo_id,
                            kenpo=kenpo, vis=va, diff=diff,
                            changed=any(a != b for _, a, b in diff),
                            scopes=scopes, scope_label=scope_summary(scopes),
@@ -4126,19 +4206,25 @@ def accounts_edit_apply(aid):
             detail=f"権限外のロール（{ROLE_LABELS.get(role, role)}）への変更を試行")
         flash("そのロールへ変更する権限がありません。", "error")
         return redirect(url_for("accounts_edit", aid=aid))
-    requested = len(company_ids)
+    ok_c = allowed_company_ids(acc)
+    invalid_companies = [cid for cid in company_ids if cid not in ok_c]
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
     view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
     company_ids = scopes["company"]
     if view_scope == "own_company":
-        if requested != len(company_ids):
+        if invalid_companies:
             log("account", "権限変更をブロック", "blocked", target=row["email"],
-                detail=f"スコープ外の企業が指定された（要求{requested}社／許可{len(company_ids)}社）")
+                detail=f"スコープ外の企業が指定された（{len(invalid_companies)}社）")
             flash("選択された企業のうち、操作する権限のないものが含まれています。", "error")
             return redirect(url_for("accounts_edit", aid=aid))
         if not any(scopes.values()):
             flash("担当する企業・事業所・部署のいずれかを1件以上選択してください。", "error")
+            return redirect(url_for("accounts_edit", aid=aid))
+        if len(scope_kenpo_ids(scopes)) > 1:
+            log("account", "権限変更をブロック", "blocked", target=row["email"],
+                detail="複数の健康保険組合にまたがる担当範囲が指定された")
+            flash("担当する企業・事業所・部署は、1つの健康保険組合の範囲内で選んでください。", "error")
             return redirect(url_for("accounts_edit", aid=aid))
     old_ids = account_company_ids(aid)
     kenpo_id = row["kenpo_id"]
@@ -4399,6 +4485,7 @@ def accounts_purge(aid):
             detail="確認入力がメールアドレスと一致しない")
         flash("入力されたメールアドレスが一致しません。完全削除は実行していません。", "error")
         return render_template("accounts_purge.html", row=row)
+    db.execute("DELETE FROM account_scope WHERE account_id=?", (aid,))
     db.execute("DELETE FROM account_company WHERE account_id=?", (aid,))
     db.execute("DELETE FROM account WHERE id=?", (aid,))
     db.commit()

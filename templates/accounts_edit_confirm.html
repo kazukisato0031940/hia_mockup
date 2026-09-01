@@ -7,7 +7,10 @@
 <form method="post" action="{{ url_for('accounts_edit_apply', aid=row.id) }}">
   <input type="hidden" name="name" value="{{ name }}">
   <input type="hidden" name="role" value="{{ role }}">
-  {% for c in companies %}<input type="hidden" name="company_ids" value="{{ c.id }}">{% endfor %}
+  {# 事業所・部署を選んだことで「対象の企業」欄が0社に絞り込まれていても、
+     再送信時に企業チェックの事実そのものは伝える必要がある
+     （送らないと、次の検証で事業所・部署の親企業が特定できず全て弾かれてしまう） #}
+  {% for cid in checked_companies %}<input type="hidden" name="company_ids" value="{{ cid }}">{% endfor %}
   <input type="hidden" name="kenpo_id" value="{{ kenpo_id or '' }}">
   {% for i in (scopes.office if scopes else []) %}<input type="hidden" name="office_ids" value="{{ i }}">{% endfor %}
   {% for i in (scopes.dept if scopes else []) %}<input type="hidden" name="dept_ids" value="{{ i }}">{% endfor %}
