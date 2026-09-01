@@ -1,0 +1,290 @@
+{% extends LAYOUT %}{% block body %}
+{# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
+{% if not EMBED %}
+<h1 class="page-title">アカウント管理</h1>
+<p class="page-lead">アカウントの登録・編集・削除を行います。自分より広い権限は付与できません。</p>
+{% endif %}
+
+
+<div class="block">
+  <h2>検索条件</h2>
+  <div class="search-row">
+    <div class="search-group sg-suggest"><label for="f-name">利用者名</label>
+      <input type="text" id="f-name" autocomplete="off" style="width:170px">
+      <div class="suggest" id="f-name-sug"></div></div>
+    <div class="search-group sg-suggest"><label for="f-email">メールアドレス</label>
+      <input type="text" id="f-email" autocomplete="off" style="width:220px">
+      <div class="suggest" id="f-email-sug"></div></div>
+    <div class="search-group sg-suggest"><label for="f-company">所属企業名</label>
+      <input type="text" id="f-company" autocomplete="off" style="width:200px">
+      <div class="suggest" id="f-company-sug"></div></div>
+    {% if acc.role == 'system_admin' %}
+    <div class="search-group"><label for="f-kenpo">健康保険組合名</label>
+      <select id="f-kenpo">
+        <option value="">すべて</option>
+        {% for k in kenpos %}<option value="{{ k.name }}">{{ k.name }}</option>{% endfor %}
+      </select></div>
+    {% endif %}
+    <div class="search-group"><label for="f-role">権限ロール</label>
+      <select id="f-role">
+        <option value="">すべて</option>
+        {% for r in ROLE_LABELS %}<option value="{{ ROLE_LABELS[r] }}">{{ ROLE_LABELS[r] }}</option>{% endfor %}
+      </select></div>
+    <div class="search-group"><label for="f-status">ステータス</label>
+      <select id="f-status">
+        <option value="">すべて</option>
+        {% for v, l in STATUS_LABELS.items() %}<option value="{{ l }}">{{ l }}</option>{% endfor %}
+      </select></div>
+  </div>
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <h2>アカウント一覧<span class="count" id="acc-count">{{ rows|length }}件</span></h2>
+    <a class="btn-sm primary" href="{{ url_for('accounts_new') }}" style="text-decoration:none">アカウント登録</a>
+  </div>
+  {% if rows %}
+  <div class="table-scroll">
+  <table class="result-table">
+    <colgroup>
+      <col style="width:12%"><col style="width:18%"><col style="width:8%">
+      <col style="width:8%"><col style="width:10%"><col style="width:10%">
+      <col style="width:52px"><col style="width:74px"><col style="width:96px">
+      <col style="width:96px"><col style="width:158px">
+    </colgroup>
+    <thead><tr><th class="tl">利用者名</th><th class="tl">メールアドレス</th><th>権限ロール</th>
+      <th>閲覧範囲</th><th class="tl">健康保険組合名</th><th class="tl">所属企業名</th>
+      <th>DL</th><th>状態</th>
+      <th>登録日</th><th>最終<br>ログイン</th>
+      <th class="ops">操作</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr class="acc-row {{ 'muted' if r.status=='deleted' }}"
+        data-name="{{ r.name }}"
+        data-email="{{ r.email }}"
+        data-kenpo="{{ r.kenpo_name or '' }}"
+        data-company="{{ (r.companies + r.scopes) | join(' ') }}"
+        data-role="{{ ROLE_LABELS[r.role] }}"
+        data-status="{{ STATUS_LABELS.get(r.status, r.status) }}">
+      <td class="tl"><span class="ellip w130" title="{{ r.name }}">{{ r.name }}</span>{% if r.is_primary %}<span class="st st-role" style="margin-left:6px">代表者</span>{% endif %}</td>
+      <td class="tl code"><span class="ellip" title="{{ r.email }}">{{ r.email }}</span></td>
+      <td><span class="st st-role" title="{{ ROLE_LABELS[r.role] }}">{{ ROLE_LABELS[r.role] }}</span></td>
+      <td><span class="st {{ 'st-own' if r.view_scope=='own_company' else 'st-all' }}"
+                title="{{ SCOPE_LABELS[r.view_scope] }}">{{ SCOPE_LABELS[r.view_scope] }}</span></td>
+      <td class="tl"><span class="ellip w150" title="{{ r.kenpo_name or '—' }}">{{ r.kenpo_name or '—' }}</span></td>
+      <td class="tl">
+        {% if r.companies or r.scopes %}
+        <span class="ellip w150"
+              title="{{ (r.companies + r.scopes) | join('、') }}">{{ (r.companies + r.scopes)[0] }}</span>
+        {% set n = (r.companies + r.scopes) | length %}
+        {% if n > 1 %}<span class="st st-role"
+          title="{{ (r.companies + r.scopes) | join('、') }}">他{{ n - 1 }}件</span>{% endif %}
+        {% else %}—{% endif %}
+      </td>
+      <td>{% if r.can_download %}<span class="st st-dl">可</span>{% else %}不可{% endif %}</td>
+      <td><span class="st st-{{ r.status }}">{{ STATUS_LABELS.get(r.status, r.status) }}</span></td>
+      <td class="ts">{{ r.created_at[:10] if r.created_at else '—' }}</td>
+      <td class="ts">{% if r.last_login_at %}
+        <span title="{{ r.last_login_at }}">{{ r.last_login_at[:10] }}<br>
+        <span class="hint">{{ r.last_login_at[11:16] }}</span></span>
+        {% else %}—{% endif %}</td>
+      <td class="ops">
+        {% if r.status == 'deleted' %}
+          <a class="btn-sm" href="{{ url_for('accounts_purge', aid=r.id) }}"
+             style="text-decoration:none;color:var(--error);border-color:#fed7d7">完全削除</a>
+        {% elif r.id == acc.id %}
+          <span class="hint">自分のアカウント</span>
+        {% else %}
+          {% if r.status in ('invited', 'active') %}
+          <a class="btn-sm" href="{{ url_for('accounts_invite_link', aid=r.id) }}"
+             style="text-decoration:none"
+             title="メールが使えない場合に、案内リンクを画面に表示します">リンク</a>
+          <a class="btn-sm" href="{{ url_for('accounts_set_password', aid=r.id) }}"
+             style="text-decoration:none"
+             title="管理者がその場でパスワードを設定します">PW</a>
+          {% endif %}
+          <a class="btn-sm primary" href="{{ url_for('accounts_edit', aid=r.id) }}"
+             style="text-decoration:none">編集</a>
+          <form method="post" action="{{ url_for('accounts_delete', aid=r.id) }}" style="display:inline"
+                onsubmit="return confirm('{{ r.email }} を削除します。\n\nログインできなくなり、【復元はできません】。\n同じメールアドレスを使い直す場合は、続けて完全削除を行ってください。\n\n操作ログの記録は残ります。よろしいですか？')">
+            <button class="btn-sm" style="color:var(--error);border-color:#fed7d7">削除</button></form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    <tr id="acc-none" style="display:none"><td colspan="11" style="padding:22px;color:#a0aec0">
+      条件に一致するアカウントがありません。</td></tr>
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div class="empty-box">アカウントがまだありません。</div>{% endif %}
+</div>
+
+<script>
+/* ---- 検索条件：サジェスト＋即時絞り込み ---- */
+(function(){
+  var rows = [].slice.call(document.querySelectorAll('tr.acc-row'));
+  if(!rows.length) return;
+  var none = document.getElementById('acc-none');
+  var cnt  = document.getElementById('acc-count');
+  var F = {
+    name:    document.getElementById('f-name'),
+    email:   document.getElementById('f-email'),
+    company: document.getElementById('f-company'),
+    kenpo:   document.getElementById('f-kenpo'),
+    role:    document.getElementById('f-role'),
+    status:  document.getElementById('f-status')
+  };
+
+  function candidates(attr){
+    var set = {};
+    rows.forEach(function(r){
+      var v = (r.dataset[attr] || '').trim();
+      if(v) set[v] = 1;
+    });
+    return Object.keys(set).sort();
+  }
+
+  function apply(){
+    var vn = (F.name.value  || '').trim().toLowerCase();
+    var ve = (F.email.value || '').trim().toLowerCase();
+    var vc = (F.company.value || '').trim().toLowerCase();
+    var vk = F.kenpo ? F.kenpo.value : '';
+    var vr = F.role.value, vs = F.status.value;
+    var n = 0;
+    rows.forEach(function(r){
+      var d = r.dataset;
+      var ok = (!vn || (d.name    || '').toLowerCase().indexOf(vn) >= 0)
+            && (!ve || (d.email   || '').toLowerCase().indexOf(ve) >= 0)
+            && (!vc || (d.company || '').toLowerCase().indexOf(vc) >= 0)
+            && (!vk || d.kenpo === vk)
+            && (!vr || d.role === vr)
+            && (!vs || d.status === vs);
+      r.style.display = ok ? '' : 'none';
+      if(ok) n++;
+    });
+    if(none) none.style.display = n ? 'none' : '';
+    if(cnt)  cnt.textContent = n + '件';
+  }
+
+  function suggest(input, box, words){
+    var idx = -1;
+    function close(){ box.classList.remove('on'); box.innerHTML = ''; idx = -1; }
+    function open(){
+      var t = (input.value || '').trim().toLowerCase();
+      if(!t){ close(); return; }
+      var hit = words.filter(function(w){ return w.toLowerCase().indexOf(t) >= 0; }).slice(0, 8);
+      if(!hit.length || (hit.length === 1 && hit[0].toLowerCase() === t)){ close(); return; }
+      box.innerHTML = hit.map(function(w){
+        return '<div class="suggest-item" data-v="' + w.replace(/"/g, '&quot;') + '">' + w + '</div>';
+      }).join('');
+      box.classList.add('on');
+    }
+    input.addEventListener('input', function(){ open(); apply(); });
+    input.addEventListener('focus', open);
+    input.addEventListener('blur', function(){ setTimeout(close, 150); });
+    input.addEventListener('keydown', function(e){
+      var items = box.querySelectorAll('.suggest-item');
+      if(!items.length) return;
+      if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+        e.preventDefault();
+        idx += (e.key === 'ArrowDown') ? 1 : -1;
+        if(idx < 0) idx = items.length - 1;
+        if(idx >= items.length) idx = 0;
+        items.forEach(function(el, i){ el.classList.toggle('on', i === idx); });
+      } else if(e.key === 'Enter' && idx >= 0){
+        e.preventDefault();
+        input.value = items[idx].dataset.v; close(); apply();
+      } else if(e.key === 'Escape'){ close(); }
+    });
+    box.addEventListener('mousedown', function(e){
+      var it = e.target.closest('.suggest-item');
+      if(it){ e.preventDefault(); input.value = it.dataset.v; close(); apply(); }
+    });
+  }
+  suggest(F.name,    document.getElementById('f-name-sug'),    candidates('name'));
+  suggest(F.email,   document.getElementById('f-email-sug'),   candidates('email'));
+  suggest(F.company, document.getElementById('f-company-sug'), candidates('company'));
+  [F.kenpo, F.role, F.status].forEach(function(el){ if(el) el.addEventListener('change', apply); });
+})();
+
+</script>
+
+{% if rows | selectattr('status', 'equalto', 'invited') | list | length %}
+<div class="block note-card" style="margin-bottom:14px">
+  <h2>パスワード未設定のアカウントがあります</h2>
+  <p class="note" style="margin:8px 0 0">
+    メールが届かない場合は、一覧の「<b>案内リンク</b>」でリンクを画面に表示して
+    ご本人へお伝えするか、「<b>PW設定</b>」で管理者がその場でパスワードを設定できます。</p>
+</div>
+{% endif %}
+
+{# ------------ 案内リンクの送信モーダル（登録直後に開く） ------------ #}
+{% if inv %}
+<div class="modal-back open" id="inv-modal">
+  <div class="modal-card" style="max-width:600px" role="dialog" aria-modal="true"
+       aria-label="案内リンクの送信">
+    <div class="modal-head">
+      <h2>案内リンクを送信します</h2>
+      <button type="button" class="modal-x" onclick="closeInv()" aria-label="閉じる">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="note" style="margin-bottom:14px">
+        <b>{{ inv.name }}</b> 様（<span class="mono">{{ inv.email }}</span>）宛に、
+        パスワード設定用の案内メールを送信します。</p>
+
+      <div class="mail-prev">
+        <div class="mail-prev-head">送信されるメールの内容</div>
+        <div class="mail-prev-body">件名：【HIA】アカウント発行のご案内</div>
+        <div class="mail-prev-body">アカウントを発行しました。</div>
+        <div class="mail-prev-body">以下のリンクからパスワードを設定してください。</div>
+        <div class="mail-prev-body" style="word-break:break-all;color:var(--accent)">{{ inv_link }}</div>
+        <div class="mail-prev-body">有効期限：{{ inv.invite_expire }}（72時間）</div>
+      </div>
+
+      <div class="actions" style="margin-top:12px">
+        <button class="btn-sm" type="button" id="inv-copy"
+          onclick="navigator.clipboard.writeText(document.getElementById('inv-link').textContent.trim());
+                   this.textContent='コピーしました';">リンクをコピー</button>
+        <span class="hint" id="inv-link" style="display:none">{{ inv_link }}</span>
+      </div>
+
+      <p class="hint" style="margin-top:12px">
+        ・リンクは1回だけ使用できます。ご本人がパスワードを設定すると有効になります。<br>
+        ・メールにパスワードは含まれません。<br>
+        ・送信は操作ログに記録されます。
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn-back" onclick="closeInv()">あとで送信する</button>
+      <a class="btn-sm" href="{{ url_for('accounts_set_password', aid=inv.id) }}"
+         style="text-decoration:none">メールを使わずに設定する</a>
+      <form method="post" action="{{ url_for('accounts_send_invite', aid=inv.id) }}"
+            style="display:inline">
+        <button class="btn-submit">案内メールを送信する</button>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+function closeInv(){
+  var m = document.getElementById('inv-modal');
+  if(m) m.classList.remove('open');
+  document.body.style.overflow = '';
+  if(history.replaceState) history.replaceState(null, '', '{{ url_for("accounts") }}');
+}
+(function(){
+  var m = document.getElementById('inv-modal');
+  if(!m) return;
+  document.body.style.overflow = 'hidden';
+  var card = m.querySelector('.modal-card');
+  function center(){ if(window.hiaCenterModal) window.hiaCenterModal(card); }
+  center();
+  /* iframe の高さ調整が終わってから位置を確定させる */
+  window.addEventListener('load', function(){ center(); setTimeout(center, 120); });
+  m.addEventListener('click', function(e){ if(e.target === m) closeInv(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeInv(); });
+})();
+</script>
+{% endif %}
+{% endblock %}

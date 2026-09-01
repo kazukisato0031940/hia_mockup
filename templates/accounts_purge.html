@@ -1,0 +1,35 @@
+{% extends LAYOUT %}{% block body %}
+<h1 class="page-title">アカウントの完全削除</h1>
+<p class="page-lead">削除済みのアカウントをデータベースから消します。この操作は取り消せません。</p>
+
+<div class="scope-box wide-scope">
+  <div class="scope-ttl">削除される対象</div>
+  <dl>
+    <dt>利用者名</dt><dd>{{ row.name }}</dd>
+    <dt>メールアドレス</dt><dd class="mono">{{ row.email }}</dd>
+    <dt>権限ロール</dt><dd>{{ ROLE_LABELS.get(row.role, row.role) }}</dd>
+    <dt>閲覧範囲</dt><dd>{{ SCOPE_LABELS.get(row.view_scope, row.view_scope) }}</dd>
+    <dt>作成日時</dt><dd class="mono">{{ row.created_at }}</dd>
+    <dt>最終ログイン</dt><dd class="mono">{{ row.last_login_at or '—' }}</dd>
+  </dl>
+</div>
+
+<div class="block" style="border-left:4px solid var(--error)">
+  <h2 style="color:var(--error)">実行前の確認</h2>
+  <ul class="ol-steps">
+    <li>アカウントの行がデータベースから削除されます。<b>取り消しはできません。</b></li>
+    <li><b>操作ログは削除されません。</b>このアカウントが過去に行った操作の記録は残ります。</li>
+    <li>この操作のあと、<b>同じメールアドレスで新しいアカウントを登録できるようになります。</b></li>
+  </ul>
+  <form method="post">
+    <div class="search-group" style="max-width:420px">
+      <label for="confirm_email">確認のためメールアドレスを入力</label>
+      <input type="text" id="confirm_email" name="confirm_email" autocomplete="off"
+        placeholder="{{ row.email }}" required style="width:100%"></div>
+    <div class="actions" style="margin-top:14px;justify-content:flex-end">
+      <a class="btn-back" href="{{ url_for('accounts') }}" style="text-decoration:none">中止する</a>
+      <button class="btn-submit" style="background:var(--error)">完全に削除する</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

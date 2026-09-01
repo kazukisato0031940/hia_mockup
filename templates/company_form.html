@@ -1,0 +1,165 @@
+{% extends LAYOUT %}{% block body %}
+<h1 class="page-title">{{ '企業情報の編集' if row else '企業の登録' }}</h1>
+<p class="page-lead">
+  {% if row %}登録済みの企業情報を編集します。
+  {% else %}企業を1件ずつ登録します。まとめて登録する場合は一覧の「一括インポート」をお使いください。{% endif %}</p>
+
+{% if row %}
+{# ---- 編集時：いまの状態をひと目で ---- #}
+<div class="rec-head">
+  <div class="rec-main">
+    <span class="rec-code">{{ row.ext_code or '（番号なし）' }}</span>
+    <span class="rec-name">{{ row.name }}</span>
+  </div>
+  <div class="rec-meta">
+    {% if kenpo %}<span class="rec-tag">{{ kenpo.code }}　{{ kenpo.name }}</span>{% endif %}
+    <span class="rec-tag">内部コード {{ row.code }}</span>
+    {% if stat %}<span class="rec-tag">事業所 {{ stat.n_off }}件</span>
+    <span class="rec-tag">加入者 {{ '{:,}'.format(stat.n_mem) }}人</span>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+<form method="post">
+
+{# ================= 基本情報 ================= #}
+<div class="block">
+  <h2>基本情報</h2>
+
+  {% if kenpos %}
+  <div class="fld">
+    <label for="kenpo_id" class="fld-label">健康保険組合<span class="req">必須</span></label>
+    <select id="kenpo_id" name="kenpo_id" required class="w-l"
+            {{ 'disabled' if kenpos|length == 1 }}>
+      {% for k in kenpos %}<option value="{{ k.id }}"
+        {{ 'selected' if form and form.kenpo_id|int == k.id }}>{{ k.code }}　{{ k.name }}</option>{% endfor %}
+    </select>
+    {% if kenpos|length == 1 %}
+    <input type="hidden" name="kenpo_id" value="{{ kenpos[0].id }}">
+    <p class="fld-help">あなたが所属する健康保険組合に登録されます。</p>
+    {% else %}
+    <p class="fld-help">この企業が所属する健康保険組合を選びます。</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="fld">
+    <label for="ext_code" class="fld-label">事業所（企業）コード</label>
+    <input type="text" id="ext_code" name="ext_code" class="w-s" maxlength="20"
+      value="{{ (form.ext_code if form else (row.ext_code if row else '')) or '' }}"
+      placeholder="例：456">
+    <p class="fld-help"><b>健保が管理している番号</b>を入れます。
+      取込のときはこの番号で照合して更新するため、入れておくと更新が楽になります。</p>
+  </div>
+
+  <div class="fld">
+    <label for="name" class="fld-label">企業名<span class="req">必須</span></label>
+    <input type="text" id="name" name="name" required class="w-l"
+      value="{{ (form.name if form else (row.name if row else '')) or '' }}"
+      placeholder="例：光通信株式会社">
+    <p class="fld-help">正式名称で入力します。同じ健康保険組合内で重複できません。</p>
+  </div>
+
+  <div class="fld-row">
+    <div class="fld">
+      <label for="kana" class="fld-label">企業名（フリガナ）</label>
+      <input type="text" id="kana" name="kana" class="w-m"
+        value="{{ (form.kana if form else (row.kana if row else '')) or '' }}"
+        placeholder="例：ヒカリツウシン">
+    </div>
+    <div class="fld">
+      <label for="cert_mark" class="fld-label">被保険者証記号</label>
+      <input type="text" id="cert_mark" name="cert_mark" class="w-s"
+        value="{{ (form.cert_mark if form else (row.cert_mark if row else '')) or '' }}"
+        placeholder="例：1000">
+      <p class="fld-help">わかる場合に入力します。</p>
+    </div>
+  </div>
+
+  <div class="auto-note">
+    <span class="auto-ico" aria-hidden="true">＃</span>
+    <span><b>当社内部コード</b>は、健康保険組合名と企業名から自動で割り振ります。
+      {% if row %}この企業の内部コードは <b class="mono">{{ row.code }}</b> です。
+      {% else %}企業名を入れると決まります（同じ健保・同じ企業名なら常に同じコードです）。{% endif %}</span>
+  </div>
+</div>
+
+{# ================= 所在地 ================= #}
+<div class="block">
+  <h2>所在地</h2>
+  <div class="fld-row">
+    <div class="fld">
+      <label for="zip" class="fld-label">郵便番号</label>
+      <input type="text" id="zip" name="zip" class="w-s" maxlength="8"
+        value="{{ (form.zip if form else (row.zip if row else '')) or '' }}"
+        placeholder="例：1080023">
+      <p class="fld-help">ハイフンなしでも構いません。</p>
+    </div>
+    <div class="fld">
+      <label for="address" class="fld-label">住所</label>
+      <input type="text" id="address" name="address" class="w-xl"
+        value="{{ (form.address if form else (row.address if row else '')) or '' }}"
+        placeholder="例：東京都港区芝浦4-16-25　安全ビル4F">
+    </div>
+  </div>
+</div>
+
+{# ================= 連絡先 ================= #}
+<div class="block">
+  <h2>連絡先</h2>
+  <div class="fld-row">
+    <div class="fld">
+      <label for="tel" class="fld-label">電話番号</label>
+      <input type="text" id="tel" name="tel" class="w-s"
+        value="{{ (form.tel if form else (row.tel if row else '')) or '' }}"
+        placeholder="例：03-6365-1454">
+    </div>
+    <div class="fld">
+      <label for="email" class="fld-label">担当メールアドレス</label>
+      <input type="text" id="email" name="email" class="w-m"
+        value="{{ (form.email if form else (row.email if row else '')) or '' }}"
+        placeholder="例：soumu@example.co.jp">
+      <p class="fld-help">この企業の窓口となる方のアドレスです。通知の送信には使いません。</p>
+    </div>
+  </div>
+</div>
+
+{% if not row %}
+{# ================= 登録後の流れ ================= #}
+<div class="block next-steps">
+  <h2>登録したあとの流れ</h2>
+  <ol class="steps-flow">
+    <li><span class="sf-no">1</span>
+      <span class="sf-body"><b>部署（事業所）を登録します</b><br>
+        <span class="hint">「事業所情報」から、この企業の部署を登録します。</span></span></li>
+    <li><span class="sf-no">2</span>
+      <span class="sf-body"><b>加入者を登録します</b><br>
+        <span class="hint">「加入者情報」から登録、または一括インポートで取り込みます。</span></span></li>
+    <li><span class="sf-no">3</span>
+      <span class="sf-body"><b>加入者を企業・部署に紐づけます</b><br>
+        <span class="hint">「企業・部署の紐づけ」でまとめて紐づけられます。</span></span></li>
+  </ol>
+</div>
+{% endif %}
+
+<div class="actions" style="justify-content:flex-end">
+  <a class="btn-back" href="{{ url_for('companies') }}" style="text-decoration:none">中止する</a>
+  <button class="btn-submit">{{ '保存する' if row else 'この内容で登録する' }}</button>
+</div>
+</form>
+
+{% if kenpos and kenpos|length > 1 %}
+<script>
+/* 健康保険組合を変えると、採番される番号の表示も切り替える */
+(function(){
+  var sel = document.getElementById('kenpo_id');
+  var out = document.getElementById('next-code');
+  var map = {{ nexts | tojson }};
+  if(!sel || !out) return;
+  function upd(){ out.textContent = map[sel.value] || '—'; }
+  sel.addEventListener('change', upd);
+  upd();
+})();
+</script>
+{% endif %}
+{% endblock %}

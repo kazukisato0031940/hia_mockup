@@ -1,0 +1,141 @@
+{% extends LAYOUT %}{% block body %}
+<h1 class="page-title">加入者情報のコードで紐づける</h1>
+<p class="page-lead">
+  取込時の加入者情報に書かれていた企業・事業所のコードをもとに、まとめて紐づけます。</p>
+
+<div class="link-bar">
+  <div class="link-bar-info">
+    <span class="st st-invited">紐づけできる {{ ok|length }}件</span>
+    {% if ng %}<span class="st st-disabled">確認が必要 {{ ng|length }}件</span>{% endif %}
+  </div>
+  <div class="actions">
+    <a class="btn-sm" href="{{ url_for('members_link_page') }}"
+       style="text-decoration:none">紐づけ先を選んで紐づける</a>
+  </div>
+</div>
+
+<form method="post">
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left">
+      <h2>紐づけできる加入者</h2>
+      <span class="count">{{ ok|length }}件</span>
+    </div>
+    {% if ok %}
+    <div class="actions">
+      <button type="button" class="btn-sm" onclick="alAll(true)">すべて選択</button>
+      <button type="button" class="btn-sm" onclick="alAll(false)">選択を解除</button>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if ok %}
+  <p class="note" style="margin-bottom:12px">
+    加入者情報の「事業所（企業）コード」「所属コード」と一致する企業・事業所が見つかりました。
+    内容を確認して紐づけてください。</p>
+  <div class="table-scroll" style="max-height:420px;overflow-y:auto">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr>
+      <th style="width:44px"><input type="checkbox" id="al-all" checked
+            onchange="alAll(this.checked)"></th>
+      <th style="width:120px">被保険者証番号</th>
+      <th class="tl" style="width:150px">氏名</th>
+      <th style="width:110px">企業コード</th>
+      <th class="tl" style="width:200px">紐づけ先の企業</th>
+      <th style="width:100px">所属コード</th>
+      <th class="tl" style="width:190px">紐づけ先の事業所</th>
+    </tr></thead>
+    <tbody>
+    {% for r in ok %}
+    <tr class="ls-row">
+      <td><input type="checkbox" class="al-chk" name="member_ids" value="{{ r.id }}" checked></td>
+      <td class="code">{{ r.member_no }}{% if r.cert_branch %}<span class="hint">-{{ r.cert_branch }}</span>{% endif %}</td>
+      <td class="tl">{{ r.name }}</td>
+      <td class="code">{{ r.sc }}</td>
+      <td class="tl">{{ r.company }}</td>
+      <td class="code">{{ r.so or '—' }}</td>
+      <td class="tl">{% if r.office %}{{ r.office }}{% else %}<span class="hint">未設定</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-box">
+    加入者情報のコードで紐づけできる加入者はありません。<br>
+    <span class="hint">未紐づけの加入者にコードが入っていない、または一致する企業・事業所が
+      まだ登録されていない場合はここに出ません。</span></div>
+  {% endif %}
+</div>
+
+{% if ng %}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left">
+      <h2>確認が必要な加入者</h2>
+      <span class="count">{{ ng|length }}件</span>
+    </div>
+  </div>
+  <p class="note" style="margin-bottom:12px">
+    加入者情報にコードはありますが、一致する企業・事業所が見つかりません。
+    先に企業・事業所を登録するか、「紐づけ先を選んで紐づける」から手作業で紐づけてください。</p>
+  <div class="table-scroll" style="max-height:300px;overflow-y:auto">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr>
+      <th style="width:120px">被保険者証番号</th>
+      <th class="tl" style="width:150px">氏名</th>
+      <th style="width:110px">企業コード</th>
+      <th style="width:100px">所属コード</th>
+      <th class="tl">理由</th>
+    </tr></thead>
+    <tbody>
+    {% for r in ng %}
+    <tr class="ls-row">
+      <td class="code">{{ r.member_no }}{% if r.cert_branch %}<span class="hint">-{{ r.cert_branch }}</span>{% endif %}</td>
+      <td class="tl">{{ r.name }}</td>
+      <td class="code">{{ r.sc }}</td>
+      <td class="code">{{ r.so or '—' }}</td>
+      <td class="tl"><span style="color:#b45309">{{ r.reason }}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="link-foot">
+  <div class="lf-info">
+    <span class="hint" id="al-hint">選択した加入者を、加入者情報のコードのとおりに紐づけます。</span>
+  </div>
+  <div class="actions">
+    <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">一覧に戻る</a>
+    <button class="btn-submit" {{ 'disabled' if not ok }}>
+      選択した<span id="al-n">{{ ok|length }}</span>件を紐づける</button>
+  </div>
+</div>
+</form>
+
+<script>
+/* 選択の切り替えと件数表示 */
+(function(){
+  function chks(){ return [].slice.call(document.querySelectorAll('.al-chk')); }
+  function upd(){
+    var n = chks().filter(function(c){ return c.checked; }).length;
+    document.getElementById('al-n').textContent = n;
+    var b = document.querySelector('.link-foot .btn-submit');
+    if(b) b.disabled = !n;
+  }
+  window.alAll = function(on){
+    chks().forEach(function(c){ c.checked = on; });
+    var a = document.getElementById('al-all');
+    if(a) a.checked = on;
+    upd();
+  };
+  document.addEventListener('change', function(e){
+    if(e.target.classList.contains('al-chk')) upd();
+  });
+  upd();
+})();
+</script>
+{% endblock %}

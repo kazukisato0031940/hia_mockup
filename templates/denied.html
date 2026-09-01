@@ -1,0 +1,13 @@
+{% extends LAYOUT %}{% block body %}
+<h1 class="page-title">{% if notfound %}ページが見つかりません{% else %}この操作は許可されていません{% endif %}</h1>
+<p class="page-lead">操作の記録はログに残っています。</p>
+<div class="block">
+  <p class="note">{% if notfound %}指定されたページは存在しません。{% else %}
+  現在のロール「{{ ROLE_LABELS[acc.role] }}」では、この操作を行えません。操作の記録はログに残っています。{% endif %}</p>
+  <p class="mono hint">{{ path }}</p>
+  <div class="actions">
+    <a class="btn-back" href="{{ url_for('spa_km') if SHELL=='km' else url_for('spa') }}"
+       {% if EMBED %}target="_top"{% endif %} style="text-decoration:none">ホームへ戻る</a>
+  </div>
+</div>
+{% endblock %}

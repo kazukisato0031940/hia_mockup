@@ -1,0 +1,102 @@
+{% extends LAYOUT %}{% block body %}
+{# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
+{% if not EMBED %}
+<h1 class="page-title">操作ログ</h1>
+<p class="page-lead">認証・マスタ・取込・出力の記録です。追記のみで、変更・削除はできません。</p>
+{% endif %}
+
+<div class="block">
+  <h2>検索条件</h2>
+  <form method="get" class="search-row">
+    {% if acc.role == 'system_admin' %}
+    <div class="search-group"><label for="shell">画面</label>
+      <select id="shell" name="shell">
+        <option value="">すべて</option>
+        <option value="km" {{ 'selected' if shell=='km' }}>HIA総合管理（当社）</option>
+        <option value="kenpo" {{ 'selected' if shell=='kenpo' }}>HIA健保管理（健保・企業）</option>
+      </select></div>
+    {% endif %}
+    <div class="search-group"><label for="category">区分</label>
+      <select id="category" name="category">
+        <option value="">すべて</option>
+        {% for v,l in [('auth','auth（認証）'),('account','account（アカウント）'),('master','master（マスタ）'),('import','import（取込）'),('download','download（出力）')] %}
+        <option value="{{ v }}" {{ 'selected' if cat==v }}>{{ l }}</option>{% endfor %}
+      </select></div>
+    <div class="search-group"><label for="from">開始日</label><input type="date" id="from" name="from" value="{{ dfrom }}"></div>
+    <div class="search-group"><label for="to">終了日</label><input type="date" id="to" name="to" value="{{ dto }}"></div>
+    <div class="search-group" style="flex:1"><label for="q">実行者・操作・対象・詳細</label>
+      <input type="text" id="q" name="q" value="{{ kw }}" style="width:100%"></div>
+    <input type="hidden" name="focus" id="lg-focus" value="{{ request.args.get('focus','') }}">
+  </form>
+  <p class="hint">
+    {% if acc.role == 'system_admin' %}両画面のログを1つのデータベースに集約しています。{% else %}表示されるのは、あなたの権限範囲に関わるログだけです。{% endif %}
+    記録は追記のみで、変更・削除はデータベース側で拒否されます。</p>
+</div>
+
+<div class="block">
+  <div class="blk-head"><h2>記録</h2>
+    <span class="count">該当 {{ '{:,}'.format(total) }} 件（新しい順に最大300件）</span></div>
+  {% if rows %}
+  <div class="table-scroll">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr><th style="width:145px">日時</th><th style="width:100px">画面</th><th style="width:80px">区分</th>
+      <th class="tl">操作</th><th style="width:75px">結果</th><th class="tl">実行者</th>
+      <th style="width:115px">IPアドレス</th><th class="tl">対象</th><th class="tl">詳細</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr class="{{ 'bad' if r.result!='success' }}">
+      <td class="ts">{{ r.ts }}</td>
+      <td>{{ {'km':'総合管理','kenpo':'健保管理'}.get(r.shell, '—') }}</td>
+      <td>{{ r.category }}</td><td class="tl">{{ r.action }}</td>
+      <td class="res-{{ r.result }}">{{ {'success':'成功','failure':'失敗','blocked':'ブロック'}.get(r.result, r.result) }}</td>
+      <td class="tl code">{{ r.actor_email or '—' }}</td><td class="code">{{ r.ip }}</td>
+      <td class="tl">{{ r.target or '—' }}</td><td class="tl wrap">{{ r.detail or '' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div class="empty-box">条件に一致するログがありません。</div>{% endif %}
+</div>
+
+<script>
+/* 検索条件：選択したその場で、キーワードは入力が止まってから絞り込む
+   （ログ全体を対象にするため、サーバ側で検索する） */
+(function(){
+  var form = document.querySelector('form.search-row');
+  if(!form) return;
+  var focusField = document.getElementById('lg-focus');
+  var timer = null;
+
+  function submit(name){
+    if(focusField) focusField.value = name || '';
+    form.submit();
+  }
+  form.querySelectorAll('select, input[type=date]').forEach(function(el){
+    el.addEventListener('change', function(){ submit(el.id); });
+  });
+  var kw = document.getElementById('q');
+  if(kw){
+    kw.addEventListener('input', function(){
+      clearTimeout(timer);
+      timer = setTimeout(function(){ submit('q'); }, 600);
+    });
+    kw.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){ e.preventDefault(); clearTimeout(timer); submit('q'); }
+    });
+  }
+  /* 再読み込み後、操作していた欄にカーソルを戻す */
+  var back = "{{ request.args.get('focus','') }}";
+  if(back){
+    var el = document.getElementById(back);
+    if(el){
+      el.focus();
+      if(el.setSelectionRange && el.type === 'text'){
+        var n = el.value.length;
+        try{ el.setSelectionRange(n, n); }catch(e){}
+      }
+    }
+  }
+})();
+</script>
+{% endblock %}

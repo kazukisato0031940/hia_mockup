@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>パスワード再設定の申請｜HIA</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<style>body{margin:0}</style></head>
+<body class="theme-kenpo frag">
+<div class="auth-wrap"><div class="auth-box">
+  <div class="auth-mark"></div>
+  {% if done %}
+    <h1>受け付けました</h1>
+    <p class="auth-sub"><span class="mono">{{ email }}</span></p>
+    <div class="flash ok">
+      ご登録のメールアドレス宛に、パスワード再設定のリンクをお送りしました。
+      メールに記載のリンクから新しいパスワードを設定してください。
+    </div>
+    <div class="auth-foot">
+      リンクの有効期限は{{ RESET_HOURS }}時間です。1回だけ使用できます。<br>
+      メールが届かない場合は、迷惑メールフォルダをご確認のうえ、管理者にお問い合わせください。<br>
+      セキュリティのため、入力されたアドレスが登録済みかどうかはお伝えしていません。
+    </div>
+    <div class="actions" style="margin-top:14px;justify-content:center">
+      <a href="{{ url_for('login') }}" style="font-size:12.5px;color:var(--accent)">ログイン画面へ戻る</a>
+    </div>
+  {% else %}
+    <h1>パスワードの再設定</h1>
+    <p class="auth-sub">ご登録のメールアドレスに再設定のリンクをお送りします</p>
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+    {% endwith %}
+    <form method="post">
+      <div class="search-group"><label for="email">メールアドレス</label>
+        <input type="email" id="email" name="email" required autocomplete="username" autofocus></div>
+      <button class="btn-submit">再設定のリンクを送る</button>
+    </form>
+    <div class="actions" style="margin-top:14px;justify-content:center">
+      <a href="{{ url_for('login') }}" style="font-size:12.5px;color:var(--accent)">ログイン画面へ戻る</a>
+    </div>
+    <div class="auth-foot">
+      管理者が新しいパスワードを決めることはありません。<br>
+      パスワードはご本人が設定し、復元できない形式で保存されます。
+    </div>
+  {% endif %}
+</div></div>
+</body>
+</html>

@@ -1,0 +1,119 @@
+{% extends LAYOUT %}{% from "_scope.html" import scope_panel %}{% block body %}
+<h1 class="page-title">変更内容の確認</h1>
+<p class="page-lead"><span class="mono">{{ row.email }}</span>　変更後に閲覧できる加入者を確認してから保存してください。</p>
+
+{% if not changed %}<div class="flash ok">変更点はありません。</div>{% endif %}
+
+<form method="post" action="{{ url_for('accounts_edit_apply', aid=row.id) }}">
+  <input type="hidden" name="name" value="{{ name }}">
+  <input type="hidden" name="role" value="{{ role }}">
+  {% for c in companies %}<input type="hidden" name="company_ids" value="{{ c.id }}">{% endfor %}
+  <input type="hidden" name="kenpo_id" value="{{ kenpo_id or '' }}">
+  {% for i in (scopes.office if scopes else []) %}<input type="hidden" name="office_ids" value="{{ i }}">{% endfor %}
+  {% for i in (scopes.dept if scopes else []) %}<input type="hidden" name="dept_ids" value="{{ i }}">{% endfor %}
+  <input type="hidden" name="can_download" value="{{ 1 if can_dl else 0 }}">
+  <input type="hidden" name="is_primary" value="{{ 1 if is_primary else 0 }}">
+  <input type="hidden" name="confirmed" value="1">
+
+<div class="block">
+  <h2>変更前と変更後</h2>
+  <div class="table-scroll">
+  <table class="result-table diff-table" style="table-layout:auto">
+    <thead>
+      <tr><th style="width:78px" aria-label="区分"></th>
+        {% for label, before, after in diff %}
+        <th class="tl {{ 'chg' if before != after }}">{{ label }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th class="rowhead">変更前</th>
+        {% for label, before, after in diff %}
+        <td class="tl diff-old {{ 'chg' if before != after }}">{{ before }}</td>
+        {% endfor %}
+      </tr>
+      <tr>
+        <th class="rowhead now">変更後</th>
+        {% for label, before, after in diff %}
+        <td class="tl {{ 'diff-new chg' if before != after }}">{{ after }}</td>
+        {% endfor %}
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  {% if expanded %}
+  <div class="flash error" style="margin:12px 0 0">
+    この変更により、閲覧できる加入者が<b>増えます</b>。企業の担当者に対する変更の場合は、
+    ロールが「企業担当者」で、企業が正しく1社に限定されているか確認してください。
+  </div>
+  {% endif %}
+
+  <div class="diff-foot">
+    <p class="hint">色の付いた列が変更される項目です。</p>
+    <div class="actions">
+      <a class="btn-back" href="{{ url_for('accounts_edit', aid=row.id) }}" style="text-decoration:none">修正する</a>
+      <button type="button" class="btn-submit" onclick="openSave()">この内容で保存する</button>
+    </div>
+  </div>
+</div>
+
+{# ------------ 保存前の確認モーダル ------------ #}
+<div class="modal-back" id="save-modal">
+  <div class="modal-card" style="max-width:580px" role="dialog" aria-modal="true"
+       aria-label="保存の確認">
+    <div class="modal-head">
+      <h2>保存すると本人へ通知メールが届きます</h2>
+      <button type="button" class="modal-x" onclick="closeSave()" aria-label="閉じる">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="note" style="margin-bottom:14px">
+        保存すると <b class="mono">{{ row.email }}</b> 宛に、
+        設定変更のお知らせメールを自動送信します。</p>
+
+      {% set changed_rows = diff | selectattr(1, 'ne', none) | list %}
+      <div class="mail-prev">
+        <div class="mail-prev-head">送信されるメールの内容</div>
+        <div class="mail-prev-body">件名：【HIA】アカウント設定の変更のお知らせ</div>
+        <div class="mail-prev-body">■ 変更内容</div>
+        {% for label, before, after in diff %}{% if before != after %}
+        <div class="mail-prev-body">　{{ label }}：{{ before }} → {{ after }}</div>
+        {% endif %}{% endfor %}
+        <div class="mail-prev-body">■ 変更後に閲覧できる加入者</div>
+        <div class="mail-prev-body">　{{ '{:,}'.format(vis.total) }}件（{{ vis.companies }}社・{{ vis.offices }}事業所）</div>
+      </div>
+
+      <p class="hint" style="margin-top:12px">
+        ・メールにパスワードは含まれません。<br>
+        ・変更は本人の次のアクセスから適用されます。<br>
+        ・変更前後の内容と閲覧対象件数は操作ログに記録されます。
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn-back" onclick="closeSave()">キャンセル</button>
+      <button class="btn-submit">保存して通知メールを送信する</button>
+    </div>
+  </div>
+</div>
+</form>
+
+<script>
+function openSave(){
+  var back = document.getElementById('save-modal');
+  back.classList.add('open');
+  if(window.hiaCenterModal) window.hiaCenterModal(back.querySelector('.modal-card'));
+  document.body.style.overflow='hidden';
+}
+function closeSave(){
+  document.getElementById('save-modal').classList.remove('open');
+  document.body.style.overflow='';
+}
+document.getElementById('save-modal').addEventListener('click', function(e){
+  if(e.target === this) closeSave();
+});
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeSave(); });
+</script>
+
+{{ scope_panel(vis, view_scope, can_dl, kenpo, MAX_EXPORT_ROWS, heading='変更後に閲覧できる加入者', scope_label=scope_label) }}
+{% endblock %}

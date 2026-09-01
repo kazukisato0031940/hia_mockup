@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>パスワードの再設定｜HIA</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<style>body{margin:0}</style></head>
+<body class="theme-kenpo frag">
+<div class="auth-wrap"><div class="auth-box">
+  <div class="auth-mark"></div>
+  {% if state=='ok' %}
+    <h1>パスワードの再設定</h1>
+    <p class="auth-sub">{{ row.name }} 様（<span class="mono">{{ row.email }}</span>）</p>
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat,m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+    {% endwith %}
+    <form method="post">
+      <div class="search-group"><label for="password">パスワード</label>
+        <input type="password" id="password" name="password" required autocomplete="new-password" autofocus>
+        <p class="hint">12文字以上。英字と数字をそれぞれ1文字以上含めてください。</p></div>
+      <div class="search-group"><label for="password2">パスワード（確認）</label>
+        <input type="password" id="password2" name="password2" required autocomplete="new-password"></div>
+      <button class="btn-submit">パスワードを設定する</button>
+    </form>
+    <div class="auth-foot">設定したパスワードは復元できない形式で保存されます。管理者も内容を見ることはできません。</div>
+  {% else %}
+    <h1>このリンクは使用できません</h1>
+    <p class="auth-sub">
+      {% if state=='expired' %}有効期限が切れています。
+      {% elif state=='used' %}すでにパスワードの設定が完了しています。
+      {% else %}リンクが正しくありません。{% endif %}
+    </p>
+    <div class="auth-foot">
+      {% if state=='used' %}<a href="{{ url_for('login') }}" style="color:var(--accent)">ログイン画面へ</a>
+      {% else %}ログイン画面の「パスワードをお忘れの方」から、もう一度申請してください。<br>
+      <a href="{{ url_for('forgot') }}" style="color:var(--accent)">再設定を申請する</a>{% endif %}
+    </div>
+  {% endif %}
+</div></div>
+</body>
+</html>

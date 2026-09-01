@@ -1,0 +1,49 @@
+{% extends LAYOUT %}{% from "_scope.html" import scope_panel %}{% block body %}
+<h1 class="page-title">登録内容の確認</h1>
+<p class="page-lead">このアカウントが実際に閲覧できる加入者を確認してから登録してください。</p>
+
+<form method="post" action="{{ url_for('accounts_create') }}">
+  <input type="hidden" name="email" value="{{ email }}">
+  <input type="hidden" name="name" value="{{ name }}">
+  <input type="hidden" name="role" value="{{ role }}">
+  {% for c in companies %}<input type="hidden" name="company_ids" value="{{ c.id }}">{% endfor %}
+  <input type="hidden" name="kenpo_id" value="{{ kenpo_id or '' }}">
+  {% for i in (scopes.office if scopes else []) %}<input type="hidden" name="office_ids" value="{{ i }}">{% endfor %}
+  {% for i in (scopes.dept if scopes else []) %}<input type="hidden" name="dept_ids" value="{{ i }}">{% endfor %}
+  <input type="hidden" name="can_download" value="{{ 1 if can_dl else 0 }}">
+  <input type="hidden" name="is_primary" value="{{ 1 if is_primary else 0 }}">
+  <input type="hidden" name="confirmed" value="1">
+
+<div class="perm-card {{ 'wide' if view_scope != 'own_company' }}">
+  <div class="perm-head">
+    <span class="perm-ttl">登録される権限</span>
+    <span class="st st-role">{{ ROLE_LABELS[role] }}</span>
+    <span class="st {{ 'st-all' if view_scope != 'own_company' else 'st-own' }}">閲覧範囲：{{ SCOPE_LABELS[view_scope] }}{% if companies %}（{{ companies|length }}社）{% endif %}</span>
+    {% if scope_label and scope_label != '指定なし' %}<span class="st st-own">担当範囲：{{ scope_label }}</span>{% endif %}
+    {% if is_primary %}<span class="st st-role">代表者</span>{% endif %}
+    <span class="st {{ 'st-dl' if can_dl else 'st-disabled' }}">CSV出力{{ '可' if can_dl else '不可' }}</span>
+  </div>
+  <div class="perm-grid">
+    <div><span class="k">利用者名</span><span class="v">{{ name }}</span></div>
+    <div><span class="k">メールアドレス</span><span class="v mono">{{ email }}</span></div>
+    <div><span class="k">健康保険組合</span><span class="v">{{ kenpo.name if kenpo else '—' }}</span></div>
+    <div style="grid-column:span 2"><span class="k">対象の企業（{{ companies|length }}社）</span>
+      <span class="v" title="{{ companies | map(attribute='name') | join('、') }}">
+        {% if companies %}{{ companies | map(attribute='name') | join('、') }}{% else %}—{% endif %}</span></div>
+    <div><span class="k">1回の出力上限</span>
+      <span class="v {{ '' if can_dl else 'off' }}">{{ '{:,}'.format(MAX_EXPORT_ROWS) ~ ' 件' if can_dl else '—' }}</span></div>
+  </div>
+  <div class="perm-foot">
+    <p class="hint">閲覧できる加入者 <b>{{ '{:,}'.format(vis.total) }} 件</b>（{{ vis.companies }}社・{{ vis.offices }}事業所）。
+      初回パスワードは発行せず、案内メールのリンクからご本人が設定します。</p>
+    <div class="actions">
+      <a class="btn-back" href="{{ url_for('accounts_new') }}" style="text-decoration:none">修正する</a>
+      <button class="btn-submit">この内容で登録する</button>
+    </div>
+  </div>
+</div>
+</form>
+
+{{ scope_panel(vis, view_scope, can_dl, kenpo, MAX_EXPORT_ROWS,
+     warn_extra='企業の担当者へ発行する場合は、ロールを「企業担当者」に変更して1社に限定してください。', scope_label=scope_label) }}
+{% endblock %}

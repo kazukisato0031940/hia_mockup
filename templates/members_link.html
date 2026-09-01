@@ -1,0 +1,276 @@
+{% extends LAYOUT %}{% block body %}
+<h1 class="page-title">企業・部署の紐づけ</h1>
+<p class="page-lead">まず紐づけ先の企業と部署を選びます。次の画面で加入者を紐づけます。</p>
+
+<div class="link-bar">
+  <div class="link-bar-info">
+    <span class="st st-invited">未紐づけ {{ '{:,}'.format(n_unlinked) }}件</span>
+    <span class="dest-now" id="lk-place">紐づけ先：未選択</span>
+  </div>
+  <div class="actions">
+    <span class="hint">この画面では紐づけません。選んでから「次へ進む」を押してください。</span>
+  </div>
+</div>
+
+{% if n_auto or n_auto_ng %}
+<div class="block auto-link-card">
+  <div class="blk-head">
+    <div class="blk-head-left">
+      <h2>加入者情報のコードで紐づける</h2>
+      <span class="st st-invited">{{ n_auto }}件が自動で紐づけられます</span>
+      {% if n_auto_ng %}<span class="st st-disabled">確認が必要 {{ n_auto_ng }}件</span>{% endif %}
+    </div>
+    <div class="actions">
+      <a class="btn-sm primary" href="{{ url_for('members_link_auto') }}"
+         style="text-decoration:none">内容を確認して紐づける</a>
+    </div>
+  </div>
+  <p class="note" style="margin:0">
+    取込した加入者情報に「事業所（企業）コード」「所属コード」が入っているため、
+    <b>一件ずつ選ばなくても紐づけられます</b>。
+    一覧で内容を確認してから実行できます。</p>
+</div>
+{% endif %}
+
+<div class="dest-cols three">
+
+  {# ---- 企業 ---- #}
+  <div class="dest-col">
+    <div class="block">
+      <h2><span class="step-no">1</span>企業の検索</h2>
+      <div class="search-group"><label for="lk-ccode">企業コード</label>
+        <input type="text" id="lk-ccode" autocomplete="off" style="width:100%"></div>
+      <div class="search-group" style="margin-top:8px"><label for="lk-cname">企業名・フリガナ</label>
+        <input type="text" id="lk-cname" autocomplete="off" style="width:100%"></div>
+    </div>
+    <div class="block">
+      <div class="blk-head">
+        <div class="blk-head-left">
+          <h2>企業の一覧</h2>
+          <span class="count"><span id="lk-cshown">{{ comps|length }}</span>社</span>
+        </div>
+      </div>
+      {% if comps %}
+      <div class="pick-rows" id="lk-comps">
+        {% for c in comps %}
+        <div class="pick-row" data-company="{{ c.id }}" data-name="{{ c.name }}"
+             data-code="{{ c.ext_code or c.code }}" data-text="{{ c.name }} {{ c.kana or '' }}">
+          <span class="pr-code">{{ c.ext_code or c.code }}</span>
+          <span class="pr-name">{{ c.name }}</span>
+          <span class="pr-count">{{ counts.get(c.id, 0) }}人</span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="hint" id="lk-cnone" style="display:none">条件に一致する企業がありません。</p>
+      {% else %}
+      <div class="empty-box">操作できる企業がありません。</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ---- 事業所 ---- #}
+  <div class="dest-col">
+    <div class="block">
+      <h2><span class="step-no">2</span>事業所の検索</h2>
+      <div class="search-group"><label for="lk-ocode">所属コード</label>
+        <input type="text" id="lk-ocode" autocomplete="off" style="width:100%"></div>
+      <div class="search-group" style="margin-top:8px"><label for="lk-oname">事業所名・フリガナ</label>
+        <input type="text" id="lk-oname" autocomplete="off" style="width:100%"></div>
+    </div>
+    <div class="block">
+      <div class="blk-head">
+        <div class="blk-head-left">
+          <h2>事業所の一覧</h2>
+          <span class="count"><span id="lk-oshown">0</span>件</span>
+        </div>
+      </div>
+      <div class="pick-rows" id="lk-offs">
+        {% for o in offs %}
+        <div class="pick-row" data-company="{{ o.company_id }}" data-office="{{ o.id }}"
+             data-name="{{ o.name }}" data-code="{{ o.ext_code or o.code }}"
+             data-text="{{ o.name }} {{ o.kana or '' }}" style="display:none">
+          <span class="pr-code">{{ o.ext_code or o.code }}</span>
+          <span class="pr-name">{{ o.name }}</span>
+          <span class="pr-count">{{ ocounts.get(o.id, 0) }}人</span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="hint" id="lk-ohint">先に企業を選んでください。</p>
+    </div>
+  </div>
+
+  {# ---- 部署 ---- #}
+  <div class="dest-col">
+    <div class="block">
+      <h2><span class="step-no">3</span>部署の検索</h2>
+      <div class="search-group"><label for="lk-dcode">部署コード</label>
+        <input type="text" id="lk-dcode" autocomplete="off" style="width:100%"></div>
+      <div class="search-group" style="margin-top:8px"><label for="lk-dname">部署名・フリガナ</label>
+        <input type="text" id="lk-dname" autocomplete="off" style="width:100%"></div>
+    </div>
+    <div class="block">
+      <div class="blk-head">
+        <div class="blk-head-left">
+          <h2>部署の一覧</h2>
+          <span class="count"><span id="lk-dshown">0</span>件</span>
+        </div>
+      </div>
+      <div class="pick-rows" id="lk-depts">
+        {% for d in depts %}
+        <div class="pick-row" data-office="{{ d.office_id }}" data-dept="{{ d.id }}"
+             data-name="{{ d.name }}" data-code="{{ d.ext_code or d.code }}"
+             data-text="{{ d.name }} {{ d.kana or '' }}" style="display:none">
+          <span class="pr-code">{{ d.ext_code or d.code }}</span>
+          <span class="pr-name">{{ d.name }}</span>
+          <span class="pr-count">{{ dcounts.get(d.id, 0) }}人</span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="hint" id="lk-dhint">先に事業所を選んでください。</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="link-foot">
+  <div class="lf-info">
+    <span class="hint" id="lk-foot-hint">企業と部署の両方を選ぶと、次へ進めます。</span>
+  </div>
+  <div class="actions">
+    <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">一覧に戻る</a>
+    <button type="button" class="btn-submit" id="lk-next" disabled onclick="lkNext()">
+      次へ進む（加入者の紐づけ）</button>
+  </div>
+</div>
+
+<script>
+/* ============ 紐づけ先（企業 → 事業所 → 部署）を選ぶ ============
+   部署は任意。事業所まで選べば次へ進める。 */
+(function(){
+  var comps = document.getElementById('lk-comps');
+  var offs = document.getElementById('lk-offs');
+  var depts = document.getElementById('lk-depts');
+  var place = document.getElementById('lk-place');
+  var next = document.getElementById('lk-next');
+  var pick = {company: null, office: null, dept: null, cname: '', oname: '', dname: ''};
+
+  function refresh(){
+    var ok = pick.company && pick.office;
+    next.disabled = !ok;
+    var t = '未選択';
+    if(pick.company) t = pick.cname + (pick.office ? '／' + pick.oname : '／事業所が未選択');
+    if(ok && pick.dept) t += '／' + pick.dname;
+    else if(ok) t += '／部署なし';
+    place.textContent = '紐づけ先：' + t;
+    place.classList.toggle('ok', !!ok);
+    document.getElementById('lk-foot-hint').textContent = ok
+      ? '「次へ進む」で加入者の紐づけ画面に移ります。部署は選ばなくても進めます。'
+      : (pick.company ? '事業所を選んでください。' : '企業と事業所を選ぶと、次へ進めます。');
+  }
+  window.lkNext = function(){
+    if(!(pick.company && pick.office)) return;
+    var q = '?company_id=' + pick.company + '&office_id=' + pick.office;
+    if(pick.dept) q += '&dept_id=' + pick.dept;
+    location.href = '{{ url_for("members_link_assign") }}' + q;
+  };
+
+  function val(id){
+    var el = document.getElementById(id);
+    return el ? el.value.trim().toLowerCase() : '';
+  }
+  function hit(el, code, name){
+    return (!code || (el.dataset.code || '').toLowerCase().indexOf(code) >= 0)
+        && (!name || (el.dataset.text || '').toLowerCase().indexOf(name) >= 0);
+  }
+  function filterComps(){
+    if(!comps) return;
+    var code = val('lk-ccode'), name = val('lk-cname'), n = 0;
+    [].slice.call(comps.querySelectorAll('.pick-row')).forEach(function(r){
+      var ok = hit(r, code, name);
+      r.style.display = ok ? '' : 'none';
+      if(ok) n++;
+    });
+    document.getElementById('lk-cshown').textContent = n;
+    document.getElementById('lk-cnone').style.display = n ? 'none' : '';
+  }
+  function filterOffs(){
+    if(!offs) return;
+    var code = val('lk-ocode'), name = val('lk-oname'), n = 0;
+    [].slice.call(offs.querySelectorAll('.pick-row')).forEach(function(o){
+      var mine = pick.company && Number(o.dataset.company) === pick.company;
+      var ok = mine && hit(o, code, name);
+      o.style.display = ok ? '' : 'none';
+      if(ok) n++;
+    });
+    document.getElementById('lk-oshown').textContent = n;
+    var h = document.getElementById('lk-ohint');
+    if(!pick.company){ h.style.display = ''; h.textContent = '先に企業を選んでください。'; }
+    else if(!n){ h.style.display = '';
+      h.textContent = (code || name) ? '条件に一致する事業所がありません。'
+        : 'この企業には事業所が登録されていません。'; }
+    else h.style.display = 'none';
+  }
+  function filterDepts(){
+    if(!depts) return;
+    var code = val('lk-dcode'), name = val('lk-dname'), n = 0;
+    [].slice.call(depts.querySelectorAll('.pick-row')).forEach(function(d){
+      var mine = pick.office && Number(d.dataset.office) === pick.office;
+      var ok = mine && hit(d, code, name);
+      d.style.display = ok ? '' : 'none';
+      if(ok) n++;
+    });
+    document.getElementById('lk-dshown').textContent = n;
+    var h = document.getElementById('lk-dhint');
+    if(!pick.office){ h.style.display = ''; h.textContent = '先に事業所を選んでください。'; }
+    else if(!n){ h.style.display = '';
+      h.textContent = (code || name) ? '条件に一致する部署がありません。'
+        : 'この事業所には部署が登録されていません。部署なしで進められます。'; }
+    else h.style.display = 'none';
+  }
+  [['lk-ccode', filterComps], ['lk-cname', filterComps],
+   ['lk-ocode', filterOffs], ['lk-oname', filterOffs],
+   ['lk-dcode', filterDepts], ['lk-dname', filterDepts]].forEach(function(x){
+    var el = document.getElementById(x[0]);
+    if(el) el.addEventListener('input', x[1]);
+  });
+
+  function only(box, row){
+    [].slice.call(box.querySelectorAll('.pick-row')).forEach(function(r){
+      r.classList.toggle('on', r === row); });
+  }
+  if(comps) comps.addEventListener('click', function(e){
+    var row = e.target.closest('.pick-row');
+    if(!row) return;
+    only(comps, row);
+    pick.company = Number(row.dataset.company); pick.cname = row.dataset.name;
+    pick.office = null; pick.oname = ''; pick.dept = null; pick.dname = '';
+    only(offs, null); only(depts, null);
+    filterOffs(); filterDepts(); refresh();
+  });
+  if(offs) offs.addEventListener('click', function(e){
+    var row = e.target.closest('.pick-row');
+    if(!row || row.style.display === 'none') return;
+    only(offs, row);
+    pick.office = Number(row.dataset.office); pick.oname = row.dataset.name;
+    pick.dept = null; pick.dname = '';
+    only(depts, null);
+    filterDepts(); refresh();
+  });
+  if(depts) depts.addEventListener('click', function(e){
+    var row = e.target.closest('.pick-row');
+    if(!row || row.style.display === 'none') return;
+    only(depts, row);
+    pick.dept = Number(row.dataset.dept); pick.dname = row.dataset.name;
+    refresh();
+  });
+  /* 事業所・部署のダブルクリックでそのまま次へ */
+  [offs, depts].forEach(function(box){
+    if(box) box.addEventListener('dblclick', function(e){
+      if(e.target.closest('.pick-row')) window.lkNext();
+    });
+  });
+
+  filterComps(); filterOffs(); filterDepts(); refresh();
+})();
+</script>
+{% endblock %}

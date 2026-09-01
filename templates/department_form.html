@@ -1,0 +1,107 @@
+{% extends LAYOUT %}{% block body %}
+<h1 class="page-title">{{ '部署情報の編集' if row else '部署の登録' }}</h1>
+<p class="page-lead">
+  {% if row %}登録済みの部署を編集します。事業所は変更できません。
+  {% else %}事業所の下に置く部署を登録します。{% endif %}</p>
+
+{% if row %}
+<div class="rec-head">
+  <div class="rec-main">
+    <span class="rec-code">{{ row.ext_code or '（番号なし）' }}</span>
+    <span class="rec-name">{{ row.name }}</span>
+  </div>
+  <div class="rec-meta">
+    <span class="rec-tag">{{ row.company_ext or row.company_code }}　{{ row.company_name }}</span>
+    <span class="rec-tag">{{ row.office_ext or row.office_code }}　{{ row.office_name }}</span>
+    <span class="rec-tag">内部コード {{ row.code }}</span>
+    <span class="rec-tag">加入者 {{ '{:,}'.format(n_mem or 0) }}人</span>
+  </div>
+</div>
+{% endif %}
+
+<form method="post">
+<div class="block">
+  <h2>基本情報</h2>
+
+  <div class="fld">
+    <label {{ 'for="office_id"' if not row }} class="fld-label">
+      事業所{% if not row %}<span class="req">必須</span>{% endif %}</label>
+    {% if row %}
+    <input type="text" class="w-xl" disabled
+           value="{{ row.company_name }}　／　{{ row.office_ext or row.office_code }}　{{ row.office_name }}">
+    <p class="fld-help">所属する事業所は変更できません。変える場合は削除して登録し直してください。</p>
+    {% else %}
+    <select id="office_id" name="office_id" required class="w-xl">
+      {% for o in offs %}<option value="{{ o.id }}"
+        {{ 'selected' if form and form.office_id|int == o.id }}>{{ o.company_name }}　／　{{ o.ext_code or o.code }}　{{ o.name }}</option>{% endfor %}
+    </select>
+    <p class="fld-help">この部署が属する事業所を選びます。</p>
+    {% endif %}
+  </div>
+
+  <div class="fld">
+    <label for="ext_code" class="fld-label">部署コード</label>
+    <input type="text" id="ext_code" name="ext_code" class="w-s" maxlength="20"
+      value="{{ (form.ext_code if form else (row.ext_code if row else '')) or '' }}"
+      placeholder="例：01">
+    <p class="fld-help"><b>企業が管理している番号</b>があれば入れます（任意）。</p>
+  </div>
+
+  <div class="fld">
+    <label for="name" class="fld-label">部署名<span class="req">必須</span></label>
+    <input type="text" id="name" name="name" required class="w-l"
+      value="{{ (form.name if form else (row.name if row else '')) or '' }}"
+      placeholder="例：総務部">
+    <p class="fld-help">同じ事業所内で重複できません。</p>
+  </div>
+
+  <div class="fld">
+    <label for="kana" class="fld-label">部署名（フリガナ）</label>
+    <input type="text" id="kana" name="kana" class="w-m"
+      value="{{ (form.kana if form else (row.kana if row else '')) or '' }}"
+      placeholder="例：ソウムブ">
+  </div>
+
+  <div class="auto-note">
+    <span class="auto-ico" aria-hidden="true">＃</span>
+    <span><b>当社内部コード</b>は登録順に自動発番します。
+      {% if row %}この部署の内部コードは <b class="mono">{{ row.code }}</b> です。
+      {% else %}この登録では <b class="mono" id="next-code">{{ nexts.values()|list|first if nexts else '001' }}</b> が付きます。{% endif %}</span>
+  </div>
+</div>
+
+{% if not row %}
+<div class="block next-steps">
+  <h2>登録したあとの流れ</h2>
+  <ol class="steps-flow">
+    <li><span class="sf-no">1</span>
+      <span class="sf-body"><b>加入者をこの部署に紐づけます</b><br>
+        <span class="hint">「企業・部署の紐づけ」または加入者の編集画面から設定できます。</span></span></li>
+    <li><span class="sf-no">2</span>
+      <span class="sf-body"><b>必要なら部署の管理者を発行します</b><br>
+        <span class="hint">「アカウント管理」から、この部署だけを見る管理者を登録できます。</span></span></li>
+  </ol>
+</div>
+{% endif %}
+
+<div class="actions" style="justify-content:flex-end">
+  <a class="btn-back" href="{{ url_for('departments') }}" style="text-decoration:none">中止する</a>
+  <button class="btn-submit">{{ '保存する' if row else 'この内容で登録する' }}</button>
+</div>
+</form>
+
+{% if offs and offs|length > 1 %}
+<script>
+/* 事業所を変えると、採番される部署コードの表示も切り替える */
+(function(){
+  var sel = document.getElementById('office_id');
+  var out = document.getElementById('next-code');
+  var map = {{ nexts | tojson }};
+  if(!sel || !out) return;
+  function upd(){ out.textContent = map[sel.value] || '001'; }
+  sel.addEventListener('change', upd);
+  upd();
+})();
+</script>
+{% endif %}
+{% endblock %}

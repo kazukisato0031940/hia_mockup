@@ -1,0 +1,59 @@
+{% extends LAYOUT %}{% block body %}
+<h1 class="page-title">{{ '健康保険組合情報の編集' if row else '健康保険組合の登録' }}</h1>
+<p class="page-lead">
+  {% if row %}登録済みの健康保険組合を編集します。
+  {% else %}保険者番号と名称を登録します。登録後、この組合に企業・部署・加入者を登録できます。{% endif %}</p>
+
+{% if row %}
+<div class="rec-head">
+  <div class="rec-main">
+    <span class="rec-code">{{ row.code }}</span>
+    <span class="rec-name">{{ row.name }}</span>
+  </div>
+  <div class="rec-meta">
+    <span class="rec-tag">登録日 {{ row.created_at[:10] if row.created_at else '—' }}</span>
+  </div>
+</div>
+{% endif %}
+
+<form method="post">
+<div class="block">
+  <h2>健康保険組合の情報</h2>
+
+  <div class="fld">
+    <label for="code" class="fld-label">保険者番号<span class="req">必須</span></label>
+    <input type="text" id="code" name="code" required maxlength="20" class="w-s"
+           value="{{ form.code if form else (row.code if row else '') }}"
+           placeholder="例：6139166">
+    <p class="fld-help">各組合の保険者番号を入力します。英数字とハイフン、20文字以内。重複できません。</p>
+  </div>
+
+  <div class="fld">
+    <label for="name" class="fld-label">健康保険組合名<span class="req">必須</span></label>
+    <input type="text" id="name" name="name" required class="w-l"
+           value="{{ form.name if form else (row.name if row else '') }}"
+           placeholder="例：ひかり健康保険組合">
+    <p class="fld-help">正式名称で入力します。他の組合と同じ名称は登録できません。</p>
+  </div>
+</div>
+
+{% if not row %}
+<div class="block next-steps">
+  <h2>登録したあとの流れ</h2>
+  <ol class="steps-flow">
+    <li><span class="sf-no">1</span>
+      <span class="sf-body"><b>この組合の担当者アカウントを発行します</b><br>
+        <span class="hint">「アカウント管理」から健保担当者を登録します。</span></span></li>
+    <li><span class="sf-no">2</span>
+      <span class="sf-body"><b>企業・部署・加入者を登録します</b><br>
+        <span class="hint">HIA健保管理の「マスタ」から登録、または一括インポートで取り込みます。</span></span></li>
+  </ol>
+</div>
+{% endif %}
+
+<div class="actions" style="justify-content:flex-end">
+  <a class="btn-back" href="{{ url_for('kenpos') }}" style="text-decoration:none">中止する</a>
+  <button class="btn-submit">{{ '保存する' if row else 'この内容で登録する' }}</button>
+</div>
+</form>
+{% endblock %}

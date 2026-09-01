@@ -1,0 +1,254 @@
+{% extends LAYOUT %}{% block body %}
+<h1 class="page-title">{{ '加入者情報の編集' if row else '加入者の登録' }}</h1>
+<p class="page-lead">
+  {% if row %}登録済みの加入者を編集します。
+  {% else %}加入者を1件ずつ登録します。まとめて登録する場合は一覧の「一括インポート」をお使いください。{% endif %}</p>
+
+{% if row %}
+<div class="rec-head">
+  <div class="rec-main">
+    <span class="rec-code">{{ row.member_no }}{% if row.cert_branch %}-{{ row.cert_branch }}{% endif %}</span>
+    <span class="rec-name">{{ row.name }}</span>
+  </div>
+  <div class="rec-meta">
+    {% if row.relation %}<span class="rec-tag">{{ row.relation }}</span>{% endif %}
+    {% if row.company_name %}<span class="rec-tag">{{ row.company_name }}{% if row.office_name %}／{{ row.office_name }}{% endif %}{% if row.dept_name %}／{{ row.dept_name }}{% endif %}</span>
+    {% else %}<span class="rec-tag" style="color:#c05621;background:#fffaf0">未紐づけ</span>{% endif %}
+    {% if row.subscriber_id %}<span class="rec-tag">加入者ID {{ row.subscriber_id }}</span>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+<form method="post">
+
+{# ================= 被保険者証 ================= #}
+<div class="block">
+  <h2>被保険者証</h2>
+  <div class="fld-row">
+    <div class="fld">
+      <label for="cert_mark" class="fld-label">被保険者証記号</label>
+      <input type="text" id="cert_mark" name="cert_mark" class="w-s"
+        value="{{ (form.cert_mark if form else (row.cert_mark if row else '')) or '' }}"
+        placeholder="例：1000">
+    </div>
+    <div class="fld">
+      <label for="member_no" class="fld-label">被保険者証番号<span class="req">必須</span></label>
+      <input type="text" id="member_no" name="member_no" required class="w-s"
+        value="{{ (form.member_no if form else (row.member_no if row else '')) or '' }}"
+        placeholder="例：9001">
+    </div>
+    <div class="fld">
+      <label for="cert_branch" class="fld-label">枝番</label>
+      <input type="text" id="cert_branch" name="cert_branch" class="w-s" maxlength="4"
+        value="{{ (form.cert_branch if form else (row.cert_branch if row else '')) or '' }}"
+        placeholder="例：0">
+    </div>
+  </div>
+  <p class="fld-help" style="margin-top:-6px">
+    <b>本人と家族は同じ番号で枝番が異なります。</b>
+    記号・番号・枝番の組み合わせが同じ加入者は登録できません（本人=0、家族=1、2…）。</p>
+
+  <div class="fld-row" style="margin-top:16px">
+    <div class="fld">
+      <label for="relation" class="fld-label">続柄名称</label>
+      <input type="text" id="relation" name="relation" class="w-s"
+        value="{{ (form.relation if form else (row.relation if row else '')) or '' }}"
+        placeholder="例：本人">
+      <p class="fld-help">本人・妻・子など。</p>
+    </div>
+    <div class="fld">
+      <label for="attr" class="fld-label">被保険者属性名</label>
+      <input type="text" id="attr" name="attr" class="w-s"
+        value="{{ (form.attr if form else (row.attr if row else '')) or '' }}"
+        placeholder="例：一般">
+    </div>
+  </div>
+
+  {% if not row %}
+  <div class="auto-note">
+    <span class="auto-ico" aria-hidden="true">＃</span>
+    <span>加入者IDは<b>システムが自動で採番</b>します。
+      この登録では <b class="mono" id="next-sid">{{ nexts.get('', '00000001') if nexts else '00000001' }}</b> が付きます。</span>
+  </div>
+  {% endif %}
+</div>
+
+{# ================= 対象者 ================= #}
+<div class="block">
+  <h2>対象者</h2>
+  <div class="fld">
+    <label for="name" class="fld-label">対象者氏名（漢字）<span class="req">必須</span></label>
+    <input type="text" id="name" name="name" required class="w-m"
+      value="{{ (form.name if form else (row.name if row else '')) or '' }}"
+      placeholder="例：見本 一郎">
+  </div>
+  <div class="fld">
+    <label for="kana" class="fld-label">対象者氏名（カナ）</label>
+    <input type="text" id="kana" name="kana" class="w-m"
+      value="{{ (form.kana if form else (row.kana if row else '')) or '' }}"
+      placeholder="例：ミホン イチロウ">
+  </div>
+  <div class="fld-row">
+    <div class="fld">
+      <label for="sex" class="fld-label">性別</label>
+      {% set cs = (form.sex if form else (row.sex if row else '')) or '' %}
+      <select id="sex" name="sex" class="w-s">
+        <option value="" {{ 'selected' if cs=='' }}>未設定</option>
+        <option value="男" {{ 'selected' if cs=='男' }}>男</option>
+        <option value="女" {{ 'selected' if cs=='女' }}>女</option>
+      </select>
+    </div>
+    <div class="fld">
+      <label for="birth" class="fld-label">生年月日</label>
+      <input type="date" id="birth" name="birth" class="w-s"
+        value="{{ (form.birth if form else (row.birth if row else '')) or '' }}">
+    </div>
+  </div>
+  <div class="fld-row">
+    <div class="fld">
+      <label for="qualified_at" class="fld-label">資格取得日（家族認定日）</label>
+      <input type="date" id="qualified_at" name="qualified_at" class="w-s"
+        value="{{ (form.qualified_at if form else (row.qualified_at if row else '')) or '' }}">
+    </div>
+    <div class="fld">
+      <label for="lost_at" class="fld-label">資格喪失日（家族削除日）</label>
+      <input type="date" id="lost_at" name="lost_at" class="w-s"
+        value="{{ (form.lost_at if form else (row.lost_at if row else '')) or '' }}">
+      <p class="fld-help">まだ資格がある場合は空欄にします。</p>
+    </div>
+  </div>
+</div>
+
+{# ================= 所属 ================= #}
+<div class="block">
+  <h2>所属</h2>
+  <div class="fld">
+    <label for="company_id" class="fld-label">企業</label>
+    {% set cc = (form.company_id|int if form and form.company_id else (row.company_id if row else 0)) %}
+    <select id="company_id" name="company_id" class="w-l">
+      <option value="">未紐づけ（あとで紐づける）</option>
+      {% for c in comps %}<option value="{{ c.id }}" {{ 'selected' if cc==c.id }}>{{ c.ext_code or c.code }}　{{ c.name }}</option>{% endfor %}
+    </select>
+    <p class="fld-help">
+      空欄のまま登録し、あとで「企業・部署の紐づけ」からまとめて紐づけることもできます。</p>
+  </div>
+  <div class="fld">
+    <label for="office_id" class="fld-label">事業所</label>
+    {% set co = (form.office_id|int if form and form.office_id else (row.office_id if row else 0)) %}
+    <select id="office_id" name="office_id" class="w-l">
+      <option value="">未設定</option>
+      {% for o in offs %}<option value="{{ o.id }}" data-company="{{ o.company_id }}"
+        {{ 'selected' if co==o.id }}>{{ o.ext_code or o.code }}　{{ o.name }}</option>{% endfor %}
+    </select>
+    <p class="fld-help">企業を選ぶと、その企業の事業所だけが候補になります。</p>
+  </div>
+  <div class="fld">
+    <label for="dept_id" class="fld-label">部署</label>
+    {% set cd = (form.dept_id|int if form and form.dept_id else (row.dept_id if row else 0)) %}
+    <select id="dept_id" name="dept_id" class="w-l">
+      <option value="">未設定</option>
+      {% for d in depts %}<option value="{{ d.id }}" data-office="{{ d.office_id }}"
+        {{ 'selected' if cd==d.id }}>{{ d.ext_code or d.code }}　{{ d.name }}</option>{% endfor %}
+    </select>
+    <p class="fld-help">事業所を選ぶと、その事業所の部署だけが候補になります。</p>
+  </div>
+  <div class="fld-row">
+    <div class="fld">
+      <label for="employee_code" class="fld-label">社員コード</label>
+      <input type="text" id="employee_code" name="employee_code" class="w-s"
+        value="{{ (form.employee_code if form else (row.employee_code if row else '')) or '' }}"
+        placeholder="例：E0001">
+    </div>
+    <div class="fld">
+      <label for="delivery_code" class="fld-label">配付先コード</label>
+      <input type="text" id="delivery_code" name="delivery_code" class="w-s"
+        value="{{ (form.delivery_code if form else (row.delivery_code if row else '')) or '' }}">
+    </div>
+  </div>
+</div>
+
+{# ================= 連絡先 ================= #}
+<div class="block">
+  <h2>連絡先</h2>
+  <div class="fld-row">
+    <div class="fld">
+      <label for="zip" class="fld-label">郵便番号</label>
+      <input type="text" id="zip" name="zip" class="w-s" maxlength="8"
+        value="{{ (form.zip if form else (row.zip if row else '')) or '' }}"
+        placeholder="例：1710014">
+    </div>
+    <div class="fld">
+      <label for="address" class="fld-label">住所</label>
+      <input type="text" id="address" name="address" class="w-xl"
+        value="{{ (form.address if form else (row.address if row else '')) or '' }}"
+        placeholder="例：東京都豊島区池袋2-43-1">
+    </div>
+  </div>
+  <div class="fld-row">
+    <div class="fld">
+      <label for="address2" class="fld-label">住所（建物名）</label>
+      <input type="text" id="address2" name="address2" class="w-m"
+        value="{{ (form.address2 if form else (row.address2 if row else '')) or '' }}"
+        placeholder="例：池袋青柳ビル7F">
+    </div>
+    <div class="fld">
+      <label for="tel" class="fld-label">電話番号</label>
+      <input type="text" id="tel" name="tel" class="w-s"
+        value="{{ (form.tel if form else (row.tel if row else '')) or '' }}"
+        placeholder="例：03-6416-3872">
+    </div>
+  </div>
+  <div class="fld">
+    <label for="email" class="fld-label">メールアドレス</label>
+    <input type="text" id="email" name="email" class="w-m"
+      value="{{ (form.email if form else (row.email if row else '')) or '' }}"
+      placeholder="例：taro@example.jp">
+  </div>
+</div>
+
+<div class="actions" style="justify-content:flex-end">
+  <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">中止する</a>
+  <button class="btn-submit">{{ '保存する' if row else 'この内容で登録する' }}</button>
+</div>
+</form>
+
+<script>
+/* 企業 → 事業所 → 部署 の順に候補を絞り、採番される加入者IDも切り替える */
+(function(){
+  var c = document.getElementById('company_id');
+  var o = document.getElementById('office_id');
+  var dp = document.getElementById('dept_id');
+  var sid = document.getElementById('next-sid');
+  var map = {{ (nexts or {}) | tojson }};
+  if(!c || !o) return;
+  function snap(sel, key){
+    return [].slice.call(sel.options).map(function(op){
+      return {v: op.value, t: op.textContent, p: op.dataset[key] || ''};
+    });
+  }
+  var allO = snap(o, 'company');
+  var allD = dp ? snap(dp, 'office') : [];
+  function build(sel, list, parent){
+    var keep = sel.value;
+    sel.innerHTML = '';
+    list.forEach(function(x){
+      if(x.v === '' || x.p === parent){
+        var op = document.createElement('option');
+        op.value = x.v; op.textContent = x.t;
+        if(x.v === keep) op.selected = true;
+        sel.appendChild(op);
+      }
+    });
+  }
+  function fillO(){
+    build(o, allO, c.value);
+    if(sid && map[c.value]) sid.textContent = map[c.value];
+    fillD();
+  }
+  function fillD(){ if(dp) build(dp, allD, o.value); }
+  c.addEventListener('change', fillO);
+  o.addEventListener('change', fillD);
+  fillO();
+})();
+</script>
+{% endblock %}

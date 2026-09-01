@@ -1,0 +1,79 @@
+{% extends LAYOUT %}{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">判定グループ</h1>
+<p class="page-lead">複合した検査の値から、まとめて判定するためのルールです。
+検査マスタの検査項目に対応し、当社で管理します。</p>
+{% endif %}
+
+<div class="link-bar">
+  <div class="link-bar-info">
+    <span class="dest-now ok">{{ groups|length }}グループ</span>
+    <span class="hint">健診結果の取込時に、このルールで判定します</span>
+  </div>
+  <div class="actions">
+    <a class="btn-sm primary" href="{{ url_for('risk_group_edit') }}"
+       style="text-decoration:none">グループを登録する</a>
+  </div>
+</div>
+
+{% for g in groups %}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left">
+      <h2>{{ g.name }}</h2>
+      <span class="st st-role">{{ methods.get(g.method, g.method) }}</span>
+      <span class="count">{{ items[g.id]|length }}項目</span>
+    </div>
+    <div class="actions">
+      <a class="btn-sm primary" href="{{ url_for('risk_group_edit', gid=g.id) }}"
+         style="text-decoration:none">編集</a>
+      <form method="post" action="{{ url_for('risk_group_delete', gid=g.id) }}"
+            style="display:inline"
+            onsubmit="return confirm('判定グループ「{{ g.name }}」を削除しますか？')">
+        <button class="btn-sm danger">削除</button>
+      </form>
+    </div>
+  </div>
+  {% if g.note %}<p class="note" style="margin:0 0 12px">{{ g.note }}</p>{% endif %}
+  <table class="result-table">
+    <colgroup><col style="width:220px"><col style="width:210px"><col style="width:170px">
+      <col style="width:130px"><col style="width:130px"><col></colgroup>
+    <thead><tr>
+      <th class="tl">検査項目</th><th class="tl">項目コード</th><th>判定の向き</th>
+      <th>要注意（以上）</th><th>要医療（以上）</th><th class="tl">単位</th>
+    </tr></thead>
+    <tbody>
+    {% for it in items[g.id] %}
+    <tr class="ls-row">
+      <td class="tl">{{ it.name }}</td>
+      <td class="tl code"><span class="ellip" title="{{ it.code }}">{{ it.code or '—' }}</span></td>
+      <td>{% if it.direction == 'low' %}<span class="st st-own">低いほど悪い</span>
+        {% elif it.direction == 'mark' %}<span class="st st-role">記号（−／±／＋）</span>
+        {% else %}<span class="st st-all">高いほど悪い</span>{% endif %}</td>
+      <td class="num">{{ '—' if it.caution_min is none else it.caution_min }}</td>
+      <td class="num">{{ '—' if it.medical_min is none else it.medical_min }}</td>
+      <td class="tl"><span class="hint">{{ it.unit or '' }}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+
+<div class="block note-card">
+  <h2>判定方法の使い分け</h2>
+  <ul class="note-list">
+    <li><b>最も重い判定を採用</b>（既定）：どれか1つでも要医療なら要医療にします。
+      血圧（収縮期・拡張期）や血糖（空腹時血糖・HbA1c）のように、
+      <b>いずれかが基準を超えたら所見あり</b>とする項目に使います。</li>
+    <li><b>すべて該当したときだけ判定</b>：全項目が要医療のときだけ要医療にします。
+      複数の検査がそろって初めて判断する項目に使います。</li>
+    <li><b>上から順に、最初に判定できた項目を採用</b>：優先する検査が実施されていれば
+      それを使い、無ければ次の検査で判定します（代替検査がある項目向け）。</li>
+    <li>「低いほど悪い」はHDLコレステロールのように、
+      値が小さいほど所見が重くなる項目に使います。</li>
+    <li>このマスタは<b>当社スタッフのみ</b>が変更できます。全健保に共通で適用されます。</li>
+    <li>変更後に各健保で健診結果を取込み直すと、新しいルールで判定されます。</li>
+  </ul>
+</div>
+{% endblock %}

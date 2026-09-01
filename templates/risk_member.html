@@ -1,0 +1,88 @@
+{% extends LAYOUT %}{% block body %}
+<h1 class="page-title">予測の内訳</h1>
+<p class="page-lead">この加入者の健診結果と、{{ run.horizon if run else 3 }}年後のリスクの内訳です。</p>
+
+<div class="rec-head">
+  <div class="rec-main">
+    <span class="rec-code">{{ m.member_no }}{% if m.cert_branch %}-{{ m.cert_branch }}{% endif %}</span>
+    <span class="rec-name">{{ m.name }}</span>
+  </div>
+  <div class="rec-meta">
+    <span class="rec-tag">{{ age }}／{{ m.sex or '不明' }}</span>
+    {% if m.company_name %}<span class="rec-tag">{{ m.company_name }}</span>{% endif %}
+    {% if m.office_name %}<span class="rec-tag">{{ m.office_name }}</span>{% endif %}
+    {% if m.dept_name %}<span class="rec-tag">{{ m.dept_name }}</span>{% endif %}
+  </div>
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left">
+      <h2>健診結果の判定</h2>
+      {% if ks %}<span class="count">{{ ks.fiscal_year }}年度</span>{% endif %}
+    </div>
+  </div>
+  {% if kens %}
+  <table class="result-table">
+    <colgroup><col style="width:140px"><col style="width:110px"><col></colgroup>
+    <thead><tr><th class="tl">検査項目</th><th>判定</th><th class="tl">検査値</th></tr></thead>
+    <tbody>
+    {% for k in kens %}
+    <tr class="ls-row">
+      <td class="tl">{{ k.item }}</td>
+      <td><span class="st risk-tag risk-{{ '高' if k.judge == 'medical' else ('中' if k.judge == 'caution' else '低') }}">
+        {{ '要医療' if k.judge == 'medical' else ('要注意' if k.judge == 'caution' else '基準内') }}</span></td>
+      <td class="tl"><span class="hint">{{ k.detail or '—' }}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-box">この加入者の健診結果は取込まれていません。</div>
+  {% endif %}
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left">
+      <h2>{{ run.horizon if run else 3 }}年後のリスク</h2>
+      <span class="count">{{ scores|length }}疾病</span>
+    </div>
+  </div>
+  {% if scores %}
+  <table class="result-table">
+    <colgroup><col style="width:200px"><col><col style="width:110px"><col style="width:130px"></colgroup>
+    <thead><tr><th class="tl">疾病</th><th>リスクスコア</th><th>リスク区分</th>
+      <th>保健指導優先度</th></tr></thead>
+    <tbody>
+    {% for s in scores %}
+    <tr class="ls-row">
+      <td class="tl">{{ s.disease }}</td>
+      <td class="num">
+        <span class="score-bar" style="width:160px"><span class="score-fill" style="width:{{ s.score }}%"></span></span>
+        <b>{{ '%.1f'|format(s.score) }}</b></td>
+      <td><span class="st risk-tag risk-{{ s.level }}">{{ s.level }}</span></td>
+      <td><b>{{ s.priority }}</b></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-box">予測結果がありません。一覧から「予測を実行する」を押してください。</div>
+  {% endif %}
+</div>
+
+<div class="block note-card">
+  <h2>この結果の見かた</h2>
+  <ul class="note-list">
+    <li>スコアは<b>健診結果の判定</b>（要医療は重く、要注意は軽めに加点）に、
+      年代・性別と、属性区分の服薬状況（NSIPS連携時）を加えて算出しています。</li>
+    <li>予測結果は<b>参考情報</b>です。保健指導の要否は
+      <b>医師・保健師等の専門家</b>が判断してください。</li>
+  </ul>
+</div>
+
+<div class="actions" style="justify-content:flex-end">
+  <a class="btn-back" href="{{ url_for('risk_list') }}" style="text-decoration:none">一覧に戻る</a>
+</div>
+{% endblock %}

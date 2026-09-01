@@ -1,0 +1,150 @@
+{#
+  一括インポート用モーダル（ドラッグ＆ドロップ）
+  mid       … モーダルのID
+  title     … 見出し
+  action    … 送信先URL
+  tpl_url   … テンプレートCSVのURL
+  columns   … [(列名, 必須か, 説明), ...]
+  kenpos    … 健康保険組合の選択が必要な場合のみ
+#}
+{% macro import_modal(mid, title, action, tpl_url, columns, kenpos=None, sample=None) -%}
+<div class="modal-back" id="{{ mid }}">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-label="{{ title }}">
+    <div class="modal-head">
+      <h2>{{ title }}</h2>
+      <button type="button" class="modal-x" onclick="closeImport('{{ mid }}')" aria-label="閉じる">&times;</button>
+    </div>
+    <form method="post" action="{{ action }}" enctype="multipart/form-data" id="{{ mid }}-form">
+      <div class="modal-body">
+        {% if kenpos %}
+        <div class="search-group" style="max-width:320px;margin-bottom:16px">
+          <label for="{{ mid }}-kenpo">登録先の健康保険組合</label>
+          <select id="{{ mid }}-kenpo" name="kenpo_id" required>
+            {% for k in kenpos %}<option value="{{ k.id }}">{{ k.name }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endif %}
+
+        <div class="drop" id="{{ mid }}-drop" tabindex="0"
+             onclick="document.getElementById('{{ mid }}-file').click()"
+             onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('{{ mid }}-file').click();}">
+          <div class="drop-ico">⬆</div>
+          <div class="drop-main">ここにCSVファイルをドラッグ＆ドロップ</div>
+          <div class="drop-sub">またはクリックしてファイルを選択<br>
+            文字コードは Shift_JIS または UTF-8、拡張子は .csv</div>
+          <input type="file" id="{{ mid }}-file" name="file" accept=".csv,text/csv" required>
+        </div>
+        <div class="drop-file" id="{{ mid }}-info">
+          <span class="fn" id="{{ mid }}-name"></span>
+          <span class="fs" id="{{ mid }}-size"></span>
+          <button type="button" class="btn-sm" style="float:right"
+                  onclick="clearImport('{{ mid }}')">取り消す</button>
+        </div>
+        <div class="drop-err" id="{{ mid }}-err"></div>
+
+        <details class="col-help">
+          <summary>必要な列を確認する</summary>
+          <div class="table-scroll">
+          <table class="result-table" style="table-layout:auto">
+            <thead><tr><th style="width:130px">列名</th><th style="width:70px">必須</th><th class="tl">説明</th></tr></thead>
+            <tbody>
+            {% for name, req, desc in columns %}
+            <tr><td class="code">{{ name }}</td><td>{{ req }}</td>
+              <td class="tl">{{ desc }}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          </div>
+          <p class="hint" style="margin-top:8px">
+            この操作では登録されません。次の画面で内容とエラーを確認したうえで確定します。</p>
+        </details>
+      </div>
+      <div class="modal-foot">
+        <a class="btn-sm" href="{{ tpl_url }}" style="text-decoration:none">フォーマットをダウンロード</a>
+        {% if sample %}
+        <a class="btn-sm" href="{{ sample }}" style="text-decoration:none"
+           title="部署や家族まで入った、そのまま取り込めるサンプルです">サンプルをダウンロード</a>
+        {% endif %}
+        <span style="flex:1"></span>
+        <button type="button" class="btn-back" onclick="closeImport('{{ mid }}')">中止する</button>
+        <button class="btn-submit" id="{{ mid }}-go" disabled>内容を確認する</button>
+      </div>
+    </form>
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro import_script() -%}
+<script>
+/* ---- 一括インポート用モーダル（ドラッグ＆ドロップ）---- */
+function openImport(mid){
+  var back = document.getElementById(mid);
+  back.classList.add('open');
+  if(window.hiaCenterModal) window.hiaCenterModal(back.querySelector('.modal-card'));
+  document.body.style.overflow='hidden';
+}
+function closeImport(mid){
+  document.getElementById(mid).classList.remove('open');
+  document.body.style.overflow='';
+}
+function clearImport(mid){
+  document.getElementById(mid+'-file').value='';
+  document.getElementById(mid+'-info').classList.remove('on');
+  document.getElementById(mid+'-err').classList.remove('on');
+  document.getElementById(mid+'-go').disabled=true;
+}
+function setImportFile(mid, file){
+  var err=document.getElementById(mid+'-err');
+  if(!file){ clearImport(mid); return; }
+  if(!/\.csv$/i.test(file.name)){
+    err.textContent='CSVファイル（.csv）を選択してください。選択されたファイル：'+file.name;
+    err.classList.add('on');
+    clearImport(mid);
+    err.classList.add('on');
+    return;
+  }
+  err.classList.remove('on');
+  document.getElementById(mid+'-name').textContent=file.name;
+  document.getElementById(mid+'-size').textContent='（'+(file.size/1024).toFixed(1)+' KB）';
+  document.getElementById(mid+'-info').classList.add('on');
+  document.getElementById(mid+'-go').disabled=false;
+}
+document.querySelectorAll('.modal-back').forEach(function(back){
+  var mid=back.id;
+  var drop=document.getElementById(mid+'-drop');
+  var input=document.getElementById(mid+'-file');
+  if(!drop||!input) return;
+  input.addEventListener('change', function(){ setImportFile(mid, this.files[0]); });
+  ['dragenter','dragover'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation();
+      drop.classList.add('over'); });
+  });
+  ['dragleave','dragend'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation();
+      drop.classList.remove('over'); });
+  });
+  drop.addEventListener('drop', function(e){
+    e.preventDefault(); e.stopPropagation(); drop.classList.remove('over');
+    var f=e.dataTransfer.files;
+    if(f && f.length){
+      try{ input.files = e.dataTransfer.files; }catch(err){}
+      setImportFile(mid, f[0]);
+    }
+  });
+  back.addEventListener('click', function(e){ if(e.target===back) closeImport(mid); });
+  back.addEventListener('dragover', function(e){ e.preventDefault(); });
+  back.addEventListener('drop', function(e){ e.preventDefault(); });
+});
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape'){
+    document.querySelectorAll('.modal-back.open').forEach(function(b){ closeImport(b.id); });
+  }
+});
+/* 画面全体へのドロップで誤ってファイルを開かないようにする */
+['dragover','drop'].forEach(function(ev){
+  window.addEventListener(ev, function(e){
+    if(!e.target.closest || !e.target.closest('.drop')) e.preventDefault();
+  });
+});
+</script>
+{%- endmacro %}

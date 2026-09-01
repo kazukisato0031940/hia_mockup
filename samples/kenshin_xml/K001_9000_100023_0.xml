@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 特定健診情報（HL7 CDA R2）の見本データ。実在の個人の結果ではありません。 -->
+<ClinicalDocument xmlns="urn:hl7-org:v3">
+  <realmCode code="JP"/>
+  <typeId root="2.16.840.1.113883.1.3" extension="POCD_HD000040"/>
+  <templateId root="1.2.392.200119.6.1001"/>
+  <id root="1.2.392.200119.6.102" extension="202606011000230"/>
+  <code code="10" codeSystem="1.2.392.200119.6.1005" displayName="特定健診情報"/>
+  <title>特定健康診査結果</title>
+  <effectiveTime value="20260601"/>
+  <confidentialityCode code="N" codeSystem="2.16.840.1.113883.5.25"/>
+  <languageCode code="ja-JP"/>
+
+  <recordTarget>
+    <patientRole>
+      <!-- 被保険者証の記号・番号・枝番で加入者を特定します -->
+      <id root="1.2.392.200119.6.208" extension="9000"/>
+      <id root="1.2.392.200119.6.209" extension="100023"/>
+      <id root="1.2.392.200119.6.210" extension="0"/>
+      <patient>
+        <administrativeGenderCode code="1" codeSystem="1.2.392.200119.6.1101"/>
+        <birthTime value="19611224"/>
+      </patient>
+    </patientRole>
+  </recordTarget>
+
+  <author>
+    <time value="20260601"/>
+    <assignedAuthor>
+      <id root="1.2.392.200119.6.102" extension="9999999999"/>
+      <representedOrganization><name>見本健診センター</name></representedOrganization>
+    </assignedAuthor>
+  </author>
+
+  <custodian>
+    <assignedCustodian>
+      <representedCustodianOrganization>
+        <id root="1.2.392.200119.6.101" extension="K001"/>
+        <name>サンプル健康保険組合</name>
+      </representedCustodianOrganization>
+    </assignedCustodian>
+  </custodian>
+
+  <component><structuredBody><component><section>
+    <code code="1" codeSystem="1.2.392.200119.6.1002" displayName="検査結果"/>
+    <title>検査結果</title>
+    <entry><observation classCode="OBS" moodCode="EVN">
+      <code code="9N001000000000001" codeSystem="1.2.392.200119.6.1005" displayName="収縮期血圧"/>
+      <value xsi:type="PQ" value="165" unit="mmHg"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
+    </observation></entry>
+    <entry><observation classCode="OBS" moodCode="EVN">
+      <code code="9N006000000000001" codeSystem="1.2.392.200119.6.1005" displayName="拡張期血圧"/>
+      <value xsi:type="PQ" value="98" unit="mmHg"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
+    </observation></entry>
+    <entry><observation classCode="OBS" moodCode="EVN">
+      <code code="3D045000001927101" codeSystem="1.2.392.200119.6.1005" displayName="ＨｂＡ１ｃ（ＮＧＳＰ）"/>
+      <value xsi:type="PQ" value="7.4" unit="%"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
+    </observation></entry>
+    <entry><observation classCode="OBS" moodCode="EVN">
+      <code code="3D010000001926101" codeSystem="1.2.392.200119.6.1005" displayName="空腹時血糖"/>
+      <value xsi:type="PQ" value="142" unit="mg/dL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
+    </observation></entry>
+    <entry><observation classCode="OBS" moodCode="EVN">
+      <code code="3F077000002327101" codeSystem="1.2.392.200119.6.1005" displayName="ＬＤＬコレステロール"/>
+      <value xsi:type="PQ" value="172" unit="mg/dL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
+    </observation></entry>
+    <entry><observation classCode="OBS" moodCode="EVN">
+      <code code="3F070000002327101" codeSystem="1.2.392.200119.6.1005" displayName="ＨＤＬコレステロール"/>
+      <value xsi:type="PQ" value="35" unit="mg/dL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
+    </observation></entry>
+    <entry><observation classCode="OBS" moodCode="EVN">
+      <code code="3F015000002327201" codeSystem="1.2.392.200119.6.1005" displayName="中性脂肪"/>
+      <value xsi:type="PQ" value="328" unit="mg/dL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
+    </observation></entry>
+    <entry><observation classCode="OBS" moodCode="EVN">
+      <code code="3B035000002327101" codeSystem="1.2.392.200119.6.1005" displayName="ＡＳＴ（ＧＯＴ）"/>
+      <value xsi:type="PQ" value="46" unit="U/L"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
+    </observation></entry>
+    <entry><observation classCode="OBS" moodCode="EVN">
+      <code code="3B045000002327101" codeSystem="1.2.392.200119.6.1005" displayName="ＡＬＴ（ＧＰＴ）"/>
+      <value xsi:type="PQ" value="56" unit="U/L"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
+    </observation></entry>
+    <entry><observation classCode="OBS" moodCode="EVN">
+      <code code="3B090000002327101" codeSystem="1.2.392.200119.6.1005" displayName="γ－ＧＴ（γ－ＧＴＰ）"/>
+      <value xsi:type="PQ" value="123" unit="U/L"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
+    </observation></entry>
+    <entry><observation classCode="OBS" moodCode="EVN">
+      <code code="9N016000000000001" codeSystem="1.2.392.200119.6.1005" displayName="ＢＭＩ"/>
+      <value xsi:type="PQ" value="28.7" unit="kg/m2"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
+    </observation></entry>
+    <entry><observation classCode="OBS" moodCode="EVN">
+      <code code="1A020000019113201" codeSystem="1.2.392.200119.6.1005" displayName="尿蛋白"/>
+      <value xsi:type="ST"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">2+</value>
+    </observation></entry>
+  </section></component></structuredBody></component>
+</ClinicalDocument>

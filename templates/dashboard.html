@@ -1,0 +1,45 @@
+{% extends "base.html" %}{% block body %}
+<h1 class="page-title">ホーム</h1>
+<p class="page-lead">自分に付与されている権限と、閲覧できるデータの件数を表示します。</p>
+
+<div class="scope-box {{ 'wide-scope' if acc.view_scope!='own_company' }}">
+  <div class="scope-ttl">あなたのアカウントに付与されている権限</div>
+  <dl>
+    <dt>権限ロール</dt><dd>{{ ROLE_LABELS[acc.role] }}</dd>
+    <dt>閲覧範囲</dt><dd>{{ SCOPE_LABELS[acc.view_scope] }}</dd>
+    <dt>ダウンロード</dt>
+    <dd>{% if acc.can_download or acc.role=='system_admin' %}可（1回あたり {{ '{:,}'.format(MAX_EXPORT_ROWS) }} 件まで）{% else %}<span class="no">不可</span>{% endif %}</dd>
+  </dl>
+</div>
+
+<div class="stat-row">
+  <div class="stat-box"><div class="stat-l">閲覧できる企業</div><div class="stat-n">{{ stats.companies }}</div></div>
+  <div class="stat-box"><div class="stat-l">閲覧できる事業所</div><div class="stat-n">{{ stats.offices }}</div></div>
+  <div class="stat-box"><div class="stat-l">閲覧できる加入者</div><div class="stat-n">{{ '{:,}'.format(stats.members) }}</div></div>
+  <div class="stat-box"><div class="stat-l">アカウント</div><div class="stat-n">{{ stats.accounts }}</div></div>
+  <div class="stat-box"><div class="stat-l">パスワード未設定</div><div class="stat-n">{{ stats.invited }}</div></div>
+</div>
+
+{% if recent %}
+<div class="block">
+  <div class="blk-head"><h2>直近の操作ログ</h2>
+    <a class="btn-sm" href="{{ url_for('logs') }}" style="text-decoration:none">すべて見る</a></div>
+  <div class="table-scroll">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr><th style="width:145px">日時</th><th style="width:90px">画面</th><th style="width:80px">区分</th>
+      <th class="tl">操作</th><th style="width:75px">結果</th><th class="tl">実行者</th><th class="tl">対象</th></tr></thead>
+    <tbody>
+    {% for r in recent %}
+    <tr class="{{ 'bad' if r.result!='success' }}">
+      <td class="ts">{{ r.ts }}</td><td>{{ {'km':'総合管理','kenpo':'健保管理'}.get(r.shell, '—') }}</td>
+      <td>{{ r.category }}</td><td class="tl">{{ r.action }}</td>
+      <td class="res-{{ r.result }}">{{ {'success':'成功','failure':'失敗','blocked':'ブロック'}.get(r.result, r.result) }}</td>
+      <td class="tl code">{{ r.actor_email or '—' }}</td><td class="tl">{{ r.target or '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

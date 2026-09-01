@@ -1,0 +1,138 @@
+{% extends LAYOUT %}{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">NSIPS連携状況</h1>
+<p class="page-lead">自社の調剤システムとAPI連携し、個人を特定しない調剤実績を取込みます。</p>
+{% endif %}
+
+<div class="link-bar">
+  <div class="link-bar-info">
+    {% if latest %}
+    <span class="st {{ 'st-invited' if latest.status == 'ok' else 'st-disabled' }}">
+      最終連携 {{ (latest.finished_at or latest.started_at)[:16] }}</span>
+    <span class="dest-now ok">{{ '日次バッチ' if latest.mode == 'batch' else 'リアルタイム' }}</span>
+    {% else %}
+    <span class="st st-disabled">まだ連携していません</span>
+    {% endif %}
+  </div>
+  <div class="actions">
+    <a class="btn-sm" href="{{ url_for('risk_list') }}" style="text-decoration:none">予測結果一覧</a>
+  </div>
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>連携の実行</h2></div>
+    <div class="actions">
+      <form method="post" action="{{ url_for('risk_nsips_sync') }}"
+            style="display:flex;gap:10px;align-items:center;margin:0">
+        <label class="fld-label" style="margin:0">連携方式</label>
+        <select name="mode" class="w-s" style="width:150px">
+          <option value="batch" {{ 'selected' if mode == 'batch' }}>日次バッチ</option>
+          <option value="realtime" {{ 'selected' if mode == 'realtime' }}>リアルタイム</option>
+        </select>
+        <button class="btn-sm primary">いま連携する</button>
+      </form>
+    </div>
+  </div>
+  <p class="note" style="margin:0">
+    {% if endpoint %}接続先：<b>{{ endpoint }}</b>
+    {% else %}接続先が未設定のため、<b>加入者の属性から連携内容を再現</b>して動作を確認できます。
+    接続先は<b>サーバー側（run.bat）</b>で設定します。{% endif %}
+  </p>
+</div>
+
+{% if latest and latest.status == 'ok' %}
+<div class="rk-row" style="margin-bottom:14px">
+  <div class="rk-box"><span class="rk-label">取得件数</span>
+    <span class="rk-value">{{ '{:,}'.format(latest.fetched) }}</span><span class="rk-unit">件</span></div>
+  <div class="rk-box"><span class="rk-label">取込件数</span>
+    <span class="rk-value">{{ '{:,}'.format(latest.imported) }}</span><span class="rk-unit">件</span></div>
+  <div class="rk-box"><span class="rk-label">除外件数</span>
+    <span class="rk-value {{ 'risk-高' if latest.excluded else '' }}">{{ latest.excluded }}</span>
+    <span class="rk-unit">件</span></div>
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left">
+      <h2>取込んだ調剤実績（属性区分ごと）</h2>
+      <span class="count">{{ recs|length }}件</span>
+    </div>
+  </div>
+  {% if recs %}
+  <div class="table-scroll" style="max-height:420px;overflow-y:auto">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr>
+      <th class="tl" style="width:180px">薬効分類</th>
+      <th style="width:110px">年代</th>
+      <th style="width:80px">性別</th>
+      <th style="width:110px">服薬人数</th>
+      <th style="width:150px">平均処方継続月数</th>
+      <th style="width:130px">中断の割合</th>
+    </tr></thead>
+    <tbody>
+    {% for r in recs %}
+    <tr class="ls-row">
+      <td class="tl">{{ r.drug_class }}</td>
+      <td>{{ r.age_band }}</td>
+      <td>{{ r.sex }}</td>
+      <td class="num">{{ r.persons }}</td>
+      <td class="num">{{ '%.0f'|format(r.months) }}か月</td>
+      <td class="num">{{ '%.0f'|format(r.gap_rate * 100) }}%</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div class="empty-box">取込んだ実績がありません。</div>{% endif %}
+</div>
+{% endif %}
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>連携の履歴</h2><span class="count">{{ syncs|length }}件</span></div>
+  </div>
+  {% if syncs %}
+  <div class="table-scroll" style="max-height:320px;overflow-y:auto">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr>
+      <th style="width:150px">開始</th>
+      <th style="width:150px">終了</th>
+      <th style="width:100px">方式</th>
+      <th style="width:80px">結果</th>
+      <th style="width:80px">取得</th>
+      <th style="width:80px">取込</th>
+      <th style="width:80px">除外</th>
+      <th class="tl">内容</th>
+    </tr></thead>
+    <tbody>
+    {% for r in syncs %}
+    <tr class="ls-row">
+      <td class="code">{{ r.started_at[:16] }}</td>
+      <td class="code">{{ (r.finished_at or '—')[:16] }}</td>
+      <td>{{ '日次バッチ' if r.mode == 'batch' else 'リアルタイム' }}</td>
+      <td><span class="st {{ 'st-invited' if r.status == 'ok' else 'st-disabled' }}">
+        {{ '成功' if r.status == 'ok' else ('実行中' if r.status == 'running' else 'エラー') }}</span></td>
+      <td class="num">{{ r.fetched }}</td>
+      <td class="num">{{ r.imported }}</td>
+      <td class="num">{{ r.excluded }}</td>
+      <td class="tl"><span class="hint">{{ r.message or '' }}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div class="empty-box">まだ連携していません。</div>{% endif %}
+</div>
+
+<div class="block note-card">
+  <h2>個人情報の取り扱い</h2>
+  <ul class="note-list">
+    <li>取込むのは<b>薬効分類・服薬人数・処方継続月数・中断の割合</b>など、
+      属性区分でまとめた値だけです。</li>
+    <li>受信データに氏名・生年月日・被保険者証番号などが混ざっていた場合は、
+      <b>取込まずに除外</b>し、件数を上の「除外件数」に表示します。</li>
+    <li>突合は個人単位では行いません（年代・性別などの属性区分でまとめます）。</li>
+  </ul>
+</div>
+{% endblock %}

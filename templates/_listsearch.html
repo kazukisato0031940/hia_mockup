@@ -1,0 +1,195 @@
+{#
+  一覧画面の検索カード
+  項目ごとに入力欄を分け、サジェスト付きで自動的に絞り込む（検索ボタンなし）。
+  絞り込みはサーバ側で行うため、表示件数の上限を超えるデータも検索できる。
+    fields … [(パラメータ名, ラベル, 入力欄の幅), ...]
+#}
+
+{% macro search_card(fields, f, note='', selects=[]) -%}
+<div class="block">
+  <h2>検索条件</h2>
+  <form method="get" class="search-row" id="ls-form">
+    {% for key, label, width in fields %}
+    <div class="search-group sg-suggest">
+      <label for="ls-{{ key }}">{{ label }}</label>
+      <input type="text" id="ls-{{ key }}" name="{{ key }}" autocomplete="off"
+             value="{{ f[key] }}" style="width:{{ width }}">
+      <div class="suggest" id="ls-{{ key }}-sug"></div>
+    </div>
+    {% endfor %}
+    {% for key, label, opts in selects %}
+    <div class="search-group"><label for="ls-{{ key }}">{{ label }}</label>
+      <select id="ls-{{ key }}" name="{{ key }}" onchange="lsSubmit(this.id)">
+        {% for o in opts %}<option value="{{ '' if loop.first else o }}"
+          {{ 'selected' if f[key] == ('' if loop.first else o) }}>{{ o }}</option>{% endfor %}
+      </select></div>
+    {% endfor %}
+    <input type="hidden" name="focus" id="ls-focus" value="{{ request.args.get('focus','') }}">
+  </form>
+  {% if note %}<p class="hint">{{ note }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+
+{% macro search_script(keys) -%}
+<script>
+/* 一覧の検索：入力が止まったら自動で絞り込む（検索ボタンなし）
+   候補は表示中の一覧から作る。絞り込み自体はサーバ側で全件を対象に行う。 */
+(function(){
+  var form = document.getElementById('ls-form');
+  if(!form) return;
+  var focusField = document.getElementById('ls-focus');
+  var keys = {{ keys | tojson }};
+  var timer = null;
+
+  function submit(name){
+    if(focusField) focusField.value = name || '';
+    form.submit();
+  }
+  window.lsSubmit = submit;
+
+  /* 表示中の行から候補を集める */
+  function words(key){
+    var set = {};
+    document.querySelectorAll('tr.ls-row').forEach(function(r){
+      var v = (r.dataset[key] || '').trim();
+      if(v) set[v] = 1;
+    });
+    return Object.keys(set).sort();
+  }
+
+  function suggest(input, box, list){
+    var idx = -1;
+    function close(){ box.classList.remove('on'); box.innerHTML = ''; idx = -1; }
+    function open(){
+      var t = (input.value || '').trim().toLowerCase();
+      if(!t){ close(); return; }
+      var hit = list.filter(function(w){ return w.toLowerCase().indexOf(t) >= 0; }).slice(0, 8);
+      if(!hit.length || (hit.length === 1 && hit[0].toLowerCase() === t)){ close(); return; }
+      box.innerHTML = hit.map(function(w){
+        return '<div class="suggest-item" data-v="' + w.replace(/"/g, '&quot;') + '">' + w + '</div>';
+      }).join('');
+      box.classList.add('on');
+    }
+    input.addEventListener('input', function(){
+      open();
+      clearTimeout(timer);
+      timer = setTimeout(function(){ submit(input.id); }, 600);
+    });
+    input.addEventListener('focus', open);
+    input.addEventListener('blur', function(){ setTimeout(close, 150); });
+    input.addEventListener('keydown', function(e){
+      var items = box.querySelectorAll('.suggest-item');
+      if(e.key === 'Enter'){
+        e.preventDefault(); clearTimeout(timer);
+        if(idx >= 0 && items.length) input.value = items[idx].dataset.v;
+        close(); submit(input.id); return;
+      }
+      if(!items.length) return;
+      if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+        e.preventDefault();
+        idx += (e.key === 'ArrowDown') ? 1 : -1;
+        if(idx < 0) idx = items.length - 1;
+        if(idx >= items.length) idx = 0;
+        items.forEach(function(el, i){ el.classList.toggle('on', i === idx); });
+      } else if(e.key === 'Escape'){ close(); }
+    });
+    box.addEventListener('mousedown', function(e){
+      var it = e.target.closest('.suggest-item');
+      if(it){
+        e.preventDefault(); input.value = it.dataset.v; close();
+        clearTimeout(timer); submit(input.id);
+      }
+    });
+  }
+
+  keys.forEach(function(pair){
+    var el = document.getElementById('ls-' + pair[0]);
+    var box = document.getElementById('ls-' + pair[0] + '-sug');
+    if(el && box) suggest(el, box, words(pair[1]));
+  });
+
+  /* 再読み込み後、操作していた欄にカーソルを戻す */
+  var back = "{{ request.args.get('focus','') }}";
+  if(back){
+    var el = document.getElementById(back);
+    if(el){
+      el.focus();
+      try{ el.setSelectionRange(el.value.length, el.value.length); }catch(e){}
+    }
+  }
+})();
+</script>
+{%- endmacro %}
+
+
+{% macro rows_script() -%}
+<script>
+/* 一覧のスクロール読み込み。下端に近づいたら続きを取得して追加する */
+(function(){
+  var box = document.querySelector('.table-scroll.paged');
+  if(!box) return;
+  var body = box.querySelector('tbody');
+  var url = box.dataset.rowsUrl;
+  var loaded = parseInt(box.dataset.loaded, 10) || 0;
+  var total = parseInt(box.dataset.total, 10) || 0;
+  var busy = false, done = loaded >= total;
+
+  var note = document.createElement('div');
+  note.className = 'rows-loading';
+  note.style.display = 'none';
+  note.innerHTML = '<span class="spin"></span><span>読み込み中…</span>';
+  box.appendChild(note);
+
+  var end = document.createElement('div');
+  end.className = 'rows-end';
+  end.style.display = 'none';
+  box.appendChild(end);
+
+  function tell(){
+    if(done && total){
+      end.textContent = '全 ' + total.toLocaleString() + ' 件を表示しました';
+      end.style.display = '';
+    }
+  }
+
+  function load(){
+    if(busy || done) return;
+    busy = true;
+    note.style.display = '';
+    /* 検索条件を保ったまま次のページを取得する */
+    var qs = new URLSearchParams(location.search);
+    qs.delete('focus');
+    qs.set('offset', loaded);
+    fetch(url + '?' + qs.toString(), {credentials: 'same-origin'})
+      .then(function(r){ return r.ok ? r.text() : ''; })
+      .then(function(html){
+        busy = false;
+        note.style.display = 'none';
+        if(!html.trim()){ done = true; tell(); return; }
+        var tmp = document.createElement('tbody');
+        tmp.innerHTML = html;
+        var more = tmp.querySelector('tr.ls-more');
+        var add = [].slice.call(tmp.querySelectorAll('tr.ls-row'));
+        add.forEach(function(tr){ body.appendChild(tr); });
+        loaded += add.length;
+        box.dataset.loaded = loaded;
+        if(!add.length || !more || more.dataset.more !== '1'){ done = true; }
+        tell();
+        if(window.reportHeight) window.reportHeight();
+        /* 追加後もまだ下端が見えている場合は続けて読む */
+        if(!done && box.scrollTop + box.clientHeight >= box.scrollHeight - 40) load();
+      })
+      .catch(function(){
+        busy = false;
+        note.style.display = 'none';
+      });
+  }
+
+  box.addEventListener('scroll', function(){
+    if(box.scrollTop + box.clientHeight >= box.scrollHeight - 80) load();
+  });
+  tell();
+})();
+</script>
+{%- endmacro %}

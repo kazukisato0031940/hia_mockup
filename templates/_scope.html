@@ -1,0 +1,60 @@
+{% macro scope_panel(vis, view_scope, can_dl, kenpo, max_rows, heading='このアカウントが閲覧できる加入者', warn_extra=None, scope_label=None) -%}
+<div class="block" style="border-left:4px solid {{ 'var(--error)' if view_scope!='own_company' else 'var(--primary)' }}">
+  <h2 style="color:{{ 'var(--error)' if view_scope!='own_company' else 'var(--primary)' }}">{{ heading }}</h2>
+
+  {% if scope_label and scope_label != '指定なし' %}
+  <p class="note" style="margin-bottom:12px">担当範囲：<b>{{ scope_label }}</b></p>
+  {% endif %}
+
+  <div class="stat-row">
+    <div class="stat-box {{ 'warn' if view_scope!='own_company' }}">
+      <div class="stat-l">閲覧できる加入者</div><div class="stat-n">{{ '{:,}'.format(vis.total) }}</div></div>
+    <div class="stat-box"><div class="stat-l">対象となる企業</div><div class="stat-n">{{ vis.companies }}</div></div>
+    <div class="stat-box"><div class="stat-l">対象となる事業所</div><div class="stat-n">{{ vis.offices }}</div></div>
+    <div class="stat-box"><div class="stat-l">1回に出力できる件数</div>
+      <div class="stat-n">{% if can_dl %}{{ '{:,}'.format(max_rows) }}{% else %}0{% endif %}</div></div>
+  </div>
+
+  {% if view_scope != 'own_company' %}
+  <div class="flash error">
+    このアカウントは
+    {% if view_scope == 'all' %}<b>全健保</b>の{% else %}<b>{{ kenpo.name if kenpo else '健保組合' }}</b>に所属する{% endif %}
+    <b>{{ vis.companies }}社・{{ '{:,}'.format(vis.total) }}名</b>の加入者をすべて閲覧できます。
+    {% if warn_extra %}{{ warn_extra }}{% endif %}
+  </div>
+  {% endif %}
+
+  {% if vis.breakdown %}
+  <h3>企業・事業所別の内訳</h3>
+  <div class="table-scroll" style="max-height:280px;overflow-y:auto">
+  <table class="result-table">
+    <thead><tr><th style="width:100px">企業コード</th><th class="tl">企業名</th>
+      <th style="width:100px">事業所コード</th><th class="tl">事業所名</th><th style="width:90px">加入者数</th></tr></thead>
+    <tbody>
+    {% for b in vis.breakdown[:40] %}
+    <tr><td class="code">{{ b.ccode }}</td><td class="tl">{{ b.cname }}</td>
+      <td class="code">{{ b.ocode }}</td><td class="tl">{{ b.oname }}</td><td class="num">{{ b.cnt }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if vis.breakdown|length > 40 %}<p class="note">上位40事業所を表示（全 {{ vis.breakdown|length }} 事業所）。</p>{% endif %}
+
+  <h3>閲覧される加入者（先頭 {{ vis.sample|length }} 件）</h3>
+  <div class="table-scroll" style="max-height:280px;overflow-y:auto">
+  <table class="result-table">
+    <thead><tr><th style="width:100px">加入者番号</th><th class="tl">氏名</th><th class="tl">企業名</th><th class="tl">事業所名</th></tr></thead>
+    <tbody>
+    {% for m in vis.sample %}
+    <tr><td class="code">{{ m.member_no }}</td><td class="tl">{{ m.name }}</td>
+      <td class="tl">{{ m.cname }}</td><td class="tl">{{ m.oname }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="note">実際に閲覧できるのは全 {{ '{:,}'.format(vis.total) }} 件です。ここでは先頭のみを表示しています。</p>
+  {% else %}
+  <div class="empty-box">この範囲に該当する加入者はまだ登録されていません。</div>
+  {% endif %}
+</div>
+{%- endmacro %}

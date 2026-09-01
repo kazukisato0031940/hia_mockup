@@ -1,0 +1,251 @@
+{% extends LAYOUT %}{% from "_pickers.html" import kenpo_picker, company_picker, picker_script %}{% block body %}
+<h1 class="page-title">アカウントの編集</h1>
+<p class="page-lead"><span class="mono">{{ row.email }}</span>　権限を変更すると、閲覧できる加入者の範囲が変わります。</p>
+
+<form method="post">
+<div class="form-grid">
+  <div class="block">
+    <h2>利用者の情報</h2>
+    <div class="search-group"><label>メールアドレス（ログインID）</label>
+      <input type="text" value="{{ row.email }}" disabled style="width:100%">
+      <p class="hint">ログインIDは変更できません。変更が必要な場合は、削除して新しく登録してください。</p></div>
+    <div class="search-group"><label for="name">利用者名</label>
+      <input type="text" id="name" name="name" required style="width:100%"
+        value="{{ (form.name if form else row.name) }}"></div>
+    <hr class="switch-sep">
+    <label class="switch">
+      <input type="checkbox" name="is_primary" value="1"
+        {{ 'checked' if (form.is_primary if form else row.is_primary) }}>
+      <span class="track"></span>
+      <span class="sw-body"><b>代表者アカウント</b>
+        <span>健保・企業の代表者として登録します。一覧の先頭に表示されます。</span></span>
+    </label>
+    <div class="search-group" style="margin-top:12px"><label>登録日時 ／ 登録者</label>
+      <p class="mono" style="font-size:12px">{{ row.created_at or '—' }} ／ {{ row.created_by or '—' }}</p></div>
+    <div class="search-group"><label>最終ログイン</label>
+      <p class="mono" style="font-size:12px">{{ row.last_login_at or '—' }}</p></div>
+  </div>
+
+  <div class="block">
+    <h2>権限</h2>
+{% set SCOPE_OF = {'system_admin':'全健保の加入者を閲覧',
+                    'kenpo_user':'自組合全体の加入者を閲覧',
+                    'company_user':'選択した1社の加入者のみ閲覧'} %}
+    {% set cur = (form.role if form else row.role) %}
+    <div class="search-group"><label>権限ロール</label>
+      <div class="role-pick">
+        {% for r in roles %}
+        <label class="role-btn">
+          <input type="radio" name="role" value="{{ r }}" {{ 'checked' if cur==r }}>
+          <span class="role-box"><b>{{ ROLE_LABELS[r] }}</b><em>{{ SCOPE_OF[r] }}</em></span>
+        </label>
+        {% endfor %}
+      </div></div>
+    <hr class="switch-sep">
+    <label class="switch">
+      <input type="checkbox" name="can_download" value="1"
+        {{ 'checked' if (form.can_download if form else row.can_download) }}>
+      <span class="track"></span>
+      <span class="sw-body"><b>CSVのダウンロードを許可する</b>
+        <span>1回あたり {{ '{:,}'.format(MAX_EXPORT_ROWS) }} 件が上限です。
+          上限を超える出力はブロックし、操作ログに記録します。</span></span>
+    </label>
+
+    <hr class="switch-sep">
+    <div class="acc-state">
+      <div class="acc-state-info">
+        <span class="k">アカウントの状態</span>
+        <span class="st st-{{ row.status }}">{{ STATUS_LABELS.get(row.status, row.status) }}</span>
+      </div>
+      <div class="actions">
+        {% if row.status == 'invited' %}
+        <button type="button" class="btn-sm primary" onclick="openInvite()">案内メールを送信する</button>
+        {% endif %}
+        <button type="submit" form="state-form" class="btn-sm"
+                {% if row.status != 'disabled' %}style="color:var(--error);border-color:#fed7d7"{% endif %}>
+          {{ '有効化する' if row.status == 'disabled' else '無効化する' }}</button>
+      </div>
+    </div>
+    <p class="hint">
+      {% if row.status == 'disabled' %}有効化すると、これまでのパスワードでログインできるようになります。
+      {% else %}無効化するとログインできなくなりますが、パスワードは保持されます。有効化すればそのまま使えます。{% endif %}
+      パスワードを忘れた場合は、ご本人がログイン画面の「パスワードをお忘れの方」から申請すると、
+      再設定用のリンクがメールで自動送信されます。</p>
+  </div>
+</div>
+
+
+{% if acc.role == 'system_admin' %}
+{{ kenpo_picker(kenpos, (form.kenpo_id if form and form.kenpo_id else row.kenpo_id)) }}
+{% endif %}
+{{ company_picker(comps, selected, acc) }}
+
+{# ---- 事業所・部署の担当範囲（企業を跨いで選べる） ---- #}
+<div class="block" id="card-scope">
+  <h2>担当する事業所・部署（任意）</h2>
+  <p class="note" style="margin-bottom:12px">
+    企業・事業所・部署は<b>跨いで何件でも</b>選べます。選んだものすべての加入者が対象になります。</p>
+  <div class="scope-cols">
+    <div>
+      <div class="scope-head">事業所
+        <span class="count"><span id="sc-o-n">0</span>件選択中</span></div>
+      <div class="search-group" style="margin-bottom:6px">
+        <input type="text" id="sc-oq" placeholder="企業名・事業所名で絞り込む"
+               autocomplete="off" style="width:100%"></div>
+      <div class="pick-rows" id="sc-offs">
+        {% for o in offs %}
+        <label class="pick-row chk-row" data-text="{{ o.company_name }} {{ o.name }} {{ o.ext_code or o.code }}">
+          <input type="checkbox" name="office_ids" value="{{ o.id }}"
+                 {{ 'checked' if o.id in sel_offices }}>
+          <span class="pr-code">{{ o.ext_code or o.code }}</span>
+          <span class="pr-name">{{ o.company_name }}　／　{{ o.name }}</span>
+        </label>
+        {% endfor %}
+        {% if not offs %}<div class="ribbon-empty">選べる事業所がありません。</div>{% endif %}
+      </div>
+    </div>
+    <div>
+      <div class="scope-head">部署
+        <span class="count"><span id="sc-d-n">0</span>件選択中</span></div>
+      <div class="search-group" style="margin-bottom:6px">
+        <input type="text" id="sc-dq" placeholder="企業名・事業所名・部署名で絞り込む"
+               autocomplete="off" style="width:100%"></div>
+      <div class="pick-rows" id="sc-depts">
+        {% for d in depts %}
+        <label class="pick-row chk-row"
+               data-text="{{ d.company_name }} {{ d.office_name }} {{ d.name }} {{ d.ext_code or d.code }}">
+          <input type="checkbox" name="dept_ids" value="{{ d.id }}"
+                 {{ 'checked' if d.id in sel_depts }}>
+          <span class="pr-code">{{ d.ext_code or d.code }}</span>
+          <span class="pr-name">{{ d.company_name }}　／　{{ d.office_name }}　／　{{ d.name }}</span>
+        </label>
+        {% endfor %}
+        {% if not depts %}<div class="ribbon-empty">選べる部署がありません。</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 担当する事業所・部署の選択と絞り込み */
+(function(){
+  function wire(boxId, qId, outId){
+    var box = document.getElementById(boxId);
+    var q = document.getElementById(qId);
+    var out = document.getElementById(outId);
+    if(!box) return;
+    function upd(){
+      out.textContent = box.querySelectorAll('input[type=checkbox]:checked').length;
+    }
+    box.addEventListener('change', upd);
+    if(q) q.addEventListener('input', function(){
+      var t = q.value.trim().toLowerCase();
+      [].slice.call(box.querySelectorAll('.chk-row')).forEach(function(r){
+        r.style.display = (!t || (r.dataset.text || '').toLowerCase().indexOf(t) >= 0)
+          ? '' : 'none';
+      });
+    });
+    upd();
+  }
+  wire('sc-offs', 'sc-oq', 'sc-o-n');
+  wire('sc-depts', 'sc-dq', 'sc-d-n');
+})();
+</script>
+
+<div class="actions" style="justify-content:flex-end">
+  <a class="btn-back" href="{{ url_for('accounts') }}" style="text-decoration:none">中止する</a>
+  <button class="btn-submit">変更内容を確認する</button>
+</div>
+</form>
+
+{# 状態変更用（本フォームの入れ子を避けるため外に置き form 属性で送信する） #}
+<form id="state-form" method="post" action="{{ url_for('accounts_toggle', aid=row.id) }}"
+      onsubmit="return confirm('{{ row.email }} を{{ '有効化' if row.status == 'disabled' else '無効化' }}します。よろしいですか？')"></form>
+{% if row.status == 'invited' %}
+<form id="invite-form" method="post" action="{{ url_for('accounts_send_invite', aid=row.id) }}"></form>
+
+{# ------------ 案内メールの送信確認モーダル ------------ #}
+<div class="modal-back" id="invite-modal">
+  <div class="modal-card" style="max-width:580px" role="dialog" aria-modal="true"
+       aria-label="案内メールの送信">
+    <div class="modal-head">
+      <h2>案内リンクを送信します</h2>
+      <button type="button" class="modal-x" onclick="closeInvite()" aria-label="閉じる">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="note" style="margin-bottom:14px">
+        <b>{{ row.name }}</b> 様（<span class="mono">{{ row.email }}</span>）宛に、
+        パスワード設定用の案内メールを送信します。</p>
+
+      {% if inv_expired %}
+      <div class="flash error" style="margin:0 0 12px">
+        以前の案内リンクは有効期限が切れています。送信時に<b>新しいリンクを発行し直します</b>。
+      </div>
+      {% endif %}
+
+      <div class="mail-prev">
+        <div class="mail-prev-head">送信されるメールの内容</div>
+        <div class="mail-prev-body">件名：【HIA】アカウント発行のご案内</div>
+        <div class="mail-prev-body">アカウントを発行しました。</div>
+        <div class="mail-prev-body">以下のリンクからパスワードを設定してください。</div>
+        <div class="mail-prev-body" style="word-break:break-all;color:var(--accent)">
+          {% if inv_expired %}（送信時に発行されます）{% else %}{{ inv_url }}{% endif %}</div>
+        <div class="mail-prev-body">有効期限：{% if inv_expired %}送信から72時間{% else %}{{ row.invite_expire }}（72時間）{% endif %}</div>
+      </div>
+
+      <p class="hint" style="margin-top:12px">
+        ・リンクは1回だけ使用できます。ご本人がパスワードを設定すると有効になります。<br>
+        ・メールにパスワードは含まれません。<br>
+        ・送信は操作ログに記録されます。
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn-back" onclick="closeInvite()">キャンセル</button>
+      <button type="submit" form="invite-form" class="btn-submit">案内メールを送信する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openInvite(){
+  var back = document.getElementById('invite-modal');
+  back.classList.add('open');
+  if(window.hiaCenterModal) window.hiaCenterModal(back.querySelector('.modal-card'));
+  document.body.style.overflow = 'hidden';
+}
+function closeInvite(){
+  document.getElementById('invite-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+(function(){
+  var m = document.getElementById('invite-modal');
+  if(!m) return;
+  m.addEventListener('click', function(e){ if(e.target === m) closeInvite(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeInvite(); });
+})();
+</script>
+{% endif %}
+
+
+<script>
+/* 権限ロールに応じて、選択が必要なカードだけ表示する */
+(function(){
+  var radios=[].slice.call(document.querySelectorAll('input[name="role"]'));
+  function show(id, on){
+    var el=document.getElementById(id);
+    if(el) el.style.display = on ? '' : 'none';
+  }
+  function upd(){
+    var el=document.querySelector('input[name="role"]:checked');
+    var v = el ? el.value : '';
+    show('kenpocard-search', v==='kenpo_user');
+    show('kenpocard-list',   v==='kenpo_user');
+    show('compcard-search',  v==='company_user');
+    show('compcard-list',    v==='company_user');
+  }
+  radios.forEach(function(r){ r.addEventListener('change', upd); });
+  upd();
+})();
+</script>
+{{ picker_script() }}
+{% endblock %}

@@ -1,0 +1,30 @@
+{# 加入者一覧の行だけ #}
+{% for r in rows %}
+<tr class="ls-row" data-no="{{ r.member_no }}" data-name="{{ r.name }}"
+    data-cname="{{ r.company_name or '' }}" data-oname="{{ r.office_name or '' }}"
+    data-dname="{{ r.dept_name or '' }}">
+  <td><input type="checkbox" class="mk-chk" value="{{ r.id }}"
+             aria-label="{{ r.member_no }} {{ r.name }} を選択"></td>
+  <td class="code">{{ r.member_no }}{% if r.cert_branch %}<span class="hint">-{{ r.cert_branch }}</span>{% endif %}</td>
+  <td class="tl"><span class="ellip w150" title="{{ r.name }}">{{ r.name }}</span></td>
+  <td class="tl"><span class="ellip w150" title="{{ r.kana or '' }}">{{ r.kana or '' }}</span></td>
+  <td class="code">{{ r.birth or '' }}</td>
+  <td>{{ r.sex or '' }}</td>
+  <td class="tl">{% if r.company_name %}
+    <span class="ellip w190" title="{{ r.company_name }}（{{ r.company_code }}）">{{ r.company_name }}</span>
+    {% else %}<span class="st st-invited">未紐づけ</span>{% endif %}</td>
+  <td class="tl">{% if r.office_name %}
+    <span class="ellip w150" title="{{ r.office_name }}（{{ r.office_code }}）">{{ r.office_name }}</span>
+    {% else %}<span class="hint">未設定</span>{% endif %}</td>
+  <td class="tl">{% if r.dept_name %}
+    <span class="ellip w150" title="{{ r.dept_name }}（{{ r.dept_code }}）">{{ r.dept_name }}</span>
+    {% else %}<span class="hint">未設定</span>{% endif %}</td>
+  <td class="ops">
+    <a class="btn-sm primary" href="{{ url_for('member_edit', mid=r.id) }}" style="text-decoration:none">編集</a>
+    <form method="post" action="{{ url_for('member_delete', mid=r.id) }}" style="display:inline"
+          onsubmit="return confirm('被保険者証番号 {{ r.member_no }}（{{ r.name }}）を削除します。よろしいですか？')">
+      <button class="btn-sm" style="color:var(--error);border-color:#fed7d7">削除</button></form>
+  </td>
+</tr>
+{% endfor %}
+{% if more is defined %}<tr class="ls-more" data-more="{{ more }}" hidden></tr>{% endif %}

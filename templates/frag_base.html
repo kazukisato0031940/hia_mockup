@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}HIA{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<style>body{margin:0;background:transparent}</style>
+</head>
+<body class="theme-{{ SHELL }}{% if FIXED_HEIGHT is defined and FIXED_HEIGHT %} fixed-h{% endif %}">
+<div class="frag">
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+  {% endwith %}
+  {% block body %}{% endblock %}
+</div>
+<script>
+/* モーダルをブラウザの表示領域の中央に配置する。
+   iframe は内容の高さいっぱいに広がるため position:fixed だけでは中央にならない。
+   親の表示領域の中心を iframe 内の座標に変換して合わせ、
+   iframe の見えている範囲からはみ出す場合はその中に収める。 */
+function hiaCenterModal(card){
+  try{
+    var fe = window.frameElement;
+    if(!fe || !card){ if(card) card.style.marginTop = '40px'; return; }
+    var r  = fe.getBoundingClientRect();
+    var ph = window.parent.innerHeight;
+    var h  = card.offsetHeight;
+
+    var visTop = Math.max(0, -r.top);              // iframe内で見え始める位置
+    var visBot = Math.min(r.height, ph - r.top);   // iframe内で見え終わる位置
+    if(visBot - visTop < 120){                     // ほぼ見えていない場合
+      fe.scrollIntoView({block:'start'});
+      card.style.marginTop = '40px';
+      return;
+    }
+    var mt     = (ph / 2 - r.top) - h / 2;         // 表示領域の中央に合わせる
+    var minTop = visTop + 20;
+    var maxTop = visBot - h - 20;
+    if(maxTop < minTop) maxTop = minTop;
+    mt = Math.min(Math.max(mt, minTop), maxTop);
+    card.style.marginTop = Math.round(mt) + 'px';
+  }catch(e){ if(card) card.style.marginTop = '40px'; }
+}
+window.hiaCenterModal = hiaCenterModal;
+
+/* 高さを固定する画面（一覧など）は、親の表示領域いっぱいに合わせる。
+   中身の高さで伸び縮みしないので、行の読み込みや検索で画面が動かない。 */
+var FIXED_H = document.body.classList.contains('fixed-h');
+function reportHeight(){
+  try{
+    if (!(window.parent && window.parent !== window && window.parent.SYS)) return;
+    if (FIXED_H) {
+      if (window.parent.SYS.fitHeight) window.parent.SYS.fitHeight(window.frameElement);
+      return;
+    }
+    var h = document.documentElement.scrollHeight;
+    window.parent.SYS.resize(window.frameElement, h);
+  }catch(e){}
+}
+if (FIXED_H) {
+  window.addEventListener('resize', reportHeight);
+  setTimeout(reportHeight, 60);
+}
+/* この画面が自前の見出しを持つかを親へ伝える（見出しの重複を避けるため） */
+function reportHeader(){
+  try{
+    if (window.parent && window.parent !== window && window.parent.SYS
+        && window.parent.SYS.setHeader) {
+      var own = !!document.querySelector('.frag > h1.page-title');
+      window.parent.SYS.setHeader(window.frameElement, own);
+    }
+  }catch(e){}
+}
+window.addEventListener('load', function(){ reportHeader(); reportHeight(); });
+reportHeader();
+if (!FIXED_H) new ResizeObserver(reportHeight).observe(document.body);
+document.addEventListener('click', function(){ setTimeout(reportHeight, 60); });
+</script>
+
+<script>
+/* プルダウンの「選択してください」などの未選択表示を、
+   入力欄のプレースホルダーと同じ見え方にそろえる */
+(function(){
+  function mark(sel){
+    if(!sel || sel.multiple) return;
+    var v = sel.value;
+    var t = (sel.selectedOptions && sel.selectedOptions[0])
+      ? sel.selectedOptions[0].textContent.trim() : '';
+    var isPh = (v === '' ) ||
+      /^(選択してください|すべて|未設定|未紐づけ（あとで紐づける）)$/.test(t) && v === '';
+    sel.classList.toggle('ph-empty', !!isPh);
+  }
+  function all(){ [].forEach.call(document.querySelectorAll('select'), mark); }
+  document.addEventListener('change', function(e){
+    if(e.target.tagName === 'SELECT') mark(e.target);
+  });
+  document.addEventListener('DOMContentLoaded', all);
+  all();
+  /* 行が後から読み込まれる一覧にも効かせる */
+  if(window.MutationObserver){
+    new MutationObserver(all).observe(document.body, {childList:true, subtree:true});
+  }
+})();
+</script>
+</body>
+</html>

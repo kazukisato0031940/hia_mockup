@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}HIA{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<style>body{margin:0}</style>
+</head>
+<body class="theme-{{ SHELL }}">
+<div class="sa-bar">
+  <div class="sa-logo">{{ 'HIA総合管理' if SHELL=='km' else 'HIA健保管理' }}</div>
+  <div class="sa-right">
+    <span>{{ acc.name }}</span>
+    <span class="st st-role">{{ ROLE_LABELS[acc.role] }}</span>
+    <span class="st {{ 'st-own' if acc.view_scope=='own_company' else 'st-all' }}">{{ SCOPE_LABELS[acc.view_scope] }}</span>
+    <a href="{{ url_for('spa_km') if SHELL=='km' else url_for('spa') }}" style="color:var(--accent);text-decoration:none">統合画面へ</a>
+    <a href="{{ url_for('logout') }}" style="color:#718096;text-decoration:none">ログアウト</a>
+  </div>
+</div>
+<div class="sa-main frag">
+  <div class="sa-nav">
+    <a href="{{ url_for('dashboard') }}" class="{{ 'on' if request.endpoint=='dashboard' }}">ホーム</a>
+    <a href="{{ url_for('accounts') }}" class="{{ 'on' if request.endpoint and request.endpoint.startswith('accounts') }}">アカウント管理</a>
+    {% if SHELL != 'km' %}
+    <a href="{{ url_for('companies') }}" class="{{ 'on' if request.endpoint and request.endpoint.startswith('compan') }}">企業情報</a>
+    <a href="{{ url_for('offices') }}" class="{{ 'on' if request.endpoint and request.endpoint.startswith('office') }}">事業所情報</a>
+    <a href="{{ url_for('members') }}" class="{{ 'on' if request.endpoint and request.endpoint.startswith('member') }}">加入者情報</a>
+    {% endif %}
+    <a href="{{ url_for('logs') }}" class="{{ 'on' if request.endpoint=='logs' }}">操作ログ</a>
+  </div>
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+  {% endwith %}
+  {% block body %}{% endblock %}
+  <p class="hint" style="text-align:right;margin-top:26px">build {{ BUILD }}</p>
+</div>
+
+<script>
+/* プルダウンの「選択してください」などの未選択表示を、
+   入力欄のプレースホルダーと同じ見え方にそろえる */
+(function(){
+  function mark(sel){
+    if(!sel || sel.multiple) return;
+    var v = sel.value;
+    var t = (sel.selectedOptions && sel.selectedOptions[0])
+      ? sel.selectedOptions[0].textContent.trim() : '';
+    var isPh = (v === '' ) ||
+      /^(選択してください|すべて|未設定|未紐づけ（あとで紐づける）)$/.test(t) && v === '';
+    sel.classList.toggle('ph-empty', !!isPh);
+  }
+  function all(){ [].forEach.call(document.querySelectorAll('select'), mark); }
+  document.addEventListener('change', function(e){
+    if(e.target.tagName === 'SELECT') mark(e.target);
+  });
+  document.addEventListener('DOMContentLoaded', all);
+  all();
+  /* 行が後から読み込まれる一覧にも効かせる */
+  if(window.MutationObserver){
+    new MutationObserver(all).observe(document.body, {childList:true, subtree:true});
+  }
+})();
+</script>
+</body>
+</html>

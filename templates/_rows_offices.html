@@ -1,0 +1,20 @@
+{# 事業所一覧の行だけ #}
+{% for r in rows %}
+<tr class="ls-row" data-cname="{{ r.company_name }}" data-code="{{ r.code }}" data-name="{{ r.name }}">
+  <td class="code">{{ r.company_ext or r.company_code }}</td>
+  <td class="tl"><span class="ellip w230" title="{{ r.company_name }}">{{ r.company_name }}</span></td>
+  <td class="code">{{ r.ext_code or '—' }}</td>
+  <td class="code"><span class="hint">{{ r.code }}</span></td>
+  <td class="tl"><span class="ellip w210" title="{{ r.name }}">{{ r.name }}</span>
+    {% if r.kana %}<br><span class="hint">{{ r.kana }}</span>{% endif %}</td>
+  <td class="tl">{{ r.tel or '—' }}</td>
+  <td class="num">{{ counts.get(r.id, 0) }}</td>
+  <td class="ops">
+    <a class="btn-sm primary" href="{{ url_for('office_edit', oid=r.id) }}" style="text-decoration:none">編集</a>
+    <form method="post" action="{{ url_for('office_delete', oid=r.id) }}" style="display:inline"
+          onsubmit="return confirm('「{{ r.name }}」を削除します。よろしいですか？\n\n加入者が紐づいている場合は削除できません。')">
+      <button class="btn-sm" style="color:var(--error);border-color:#fed7d7">削除</button></form>
+  </td>
+</tr>
+{% endfor %}
+{% if more is defined %}<tr class="ls-more" data-more="{{ more }}" hidden></tr>{% endif %}

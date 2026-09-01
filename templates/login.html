@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ログイン｜HIA</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<style>body{margin:0}</style></head>
+<body class="theme-kenpo frag">
+<div class="auth-wrap"><div class="auth-box">
+  <div class="auth-mark"></div>
+  <h1>HIA ログイン</h1>
+  <p class="auth-sub">加入者情報・アカウントの管理コンソール</p>
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+  {% endwith %}
+  <form method="post">
+    <div class="search-group"><label for="email">メールアドレス</label>
+      <input type="email" id="email" name="email" required autocomplete="username" autofocus></div>
+    <div class="search-group"><label for="password">パスワード</label>
+      <input type="password" id="password" name="password" required autocomplete="current-password"></div>
+    <button class="btn-submit">ログイン</button>
+  </form>
+  <div class="actions" style="margin-top:14px;justify-content:center">
+    <a href="{{ url_for('forgot') }}" style="font-size:12.5px;color:var(--accent)">パスワードをお忘れの方</a>
+  </div>
+  <div class="auth-foot">
+    ログイン後は、権限に応じた画面が表示されます。<br>
+    ログインの成否はすべて操作ログに記録されます。
+  </div>
+</div></div>
+</body>
+</html>

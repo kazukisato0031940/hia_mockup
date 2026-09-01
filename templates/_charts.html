@@ -1,0 +1,113 @@
+{# ============================================================
+   グラフ部品（SVGで描画。外部ライブラリは使いません）
+   ============================================================ #}
+
+{# 横棒グラフ： items = [(ラベル, 値, 補足)] #}
+{% macro hbar(items, unit='名', color='#3182CE', label_w=150, height=26) %}
+{% set vmax = (items | map(attribute=1) | max) if items else 0 %}
+{% set vmax = vmax if vmax and vmax > 0 else 1 %}
+{% set h = items|length * height + 8 %}
+<svg class="chart" viewBox="0 0 620 {{ h }}" preserveAspectRatio="xMinYMin meet"
+     role="img" style="width:100%;height:{{ h }}px">
+  {% for it in items %}
+  {% set y = loop.index0 * height %}
+  <text x="0" y="{{ y + height/2 + 4 }}" class="c-label">{{ it[0] }}</text>
+  <rect x="{{ label_w }}" y="{{ y + 5 }}" width="{{ 620 - label_w - 56 }}"
+        height="{{ height - 12 }}" rx="3" fill="#edf2f7"/>
+  <rect x="{{ label_w }}" y="{{ y + 5 }}"
+        width="{{ ((620 - label_w - 56) * it[1] / vmax) | round(1) }}"
+        height="{{ height - 12 }}" rx="3" fill="{{ color }}"/>
+  <text x="620" y="{{ y + height/2 + 4 }}" class="c-value" text-anchor="end">
+    {{ it[1] }}{{ unit }}</text>
+  {% endfor %}
+</svg>
+{% endmacro %}
+
+
+{# 積み上げ横棒（高・中・低の内訳）： counts = {'高':n,'中':n,'低':n} #}
+{% macro stack(counts, height=34) %}
+{% set total = (counts.get('高',0) + counts.get('中',0) + counts.get('低',0)) or 1 %}
+<svg class="chart" viewBox="0 0 620 {{ height + 26 }}" preserveAspectRatio="none"
+     role="img" style="width:100%;height:{{ height + 26 }}px">
+  {% set w1 = (620 * counts.get('高',0) / total) %}
+  {% set w2 = (620 * counts.get('中',0) / total) %}
+  {% set w3 = 620 - w1 - w2 %}
+  <rect x="0" y="0" width="{{ w1|round(1) }}" height="{{ height }}" fill="#e53e3e"/>
+  <rect x="{{ w1|round(1) }}" y="0" width="{{ w2|round(1) }}" height="{{ height }}" fill="#dd6b20"/>
+  <rect x="{{ (w1 + w2)|round(1) }}" y="0" width="{{ w3|round(1) }}" height="{{ height }}" fill="#38a169"/>
+  {% if counts.get('高',0) %}
+  <text x="{{ (w1/2)|round(1) }}" y="{{ height/2 + 5 }}" class="c-in" text-anchor="middle">
+    高 {{ counts.get('高',0) }}</text>{% endif %}
+  {% if counts.get('中',0) %}
+  <text x="{{ (w1 + w2/2)|round(1) }}" y="{{ height/2 + 5 }}" class="c-in" text-anchor="middle">
+    中 {{ counts.get('中',0) }}</text>{% endif %}
+  {% if counts.get('低',0) %}
+  <text x="{{ (w1 + w2 + w3/2)|round(1) }}" y="{{ height/2 + 5 }}" class="c-in" text-anchor="middle">
+    低 {{ counts.get('低',0) }}</text>{% endif %}
+</svg>
+{% endmacro %}
+
+
+{# 縦棒グラフ（男女で並べる）： items = [(ラベル, 男の値, 女の値)] #}
+{% macro vbar(items, unit='名', h=190) %}
+{% set vals = [] %}
+{% for it in items %}{% set _ = vals.append(it[1]) %}{% set _ = vals.append(it[2]) %}{% endfor %}
+{% set vmax = (vals | max) if vals else 0 %}
+{% set vmax = vmax if vmax and vmax > 0 else 1 %}
+{% set n = items|length or 1 %}
+{% set gw = (620 / n) %}
+<svg class="chart" viewBox="0 0 620 {{ h }}" preserveAspectRatio="xMinYMin meet"
+     role="img" style="width:100%;height:{{ h }}px">
+  {# 目盛り #}
+  {% for g in [0, 1, 2, 3, 4] %}
+  {% set gy = 20 + (h - 60) * g / 4 %}
+  <line x1="0" y1="{{ gy }}" x2="620" y2="{{ gy }}" stroke="#edf2f7" stroke-width="1"/>
+  <text x="0" y="{{ gy - 3 }}" class="c-tick">{{ (vmax * (4 - g) / 4) | round(1) }}</text>
+  {% endfor %}
+  {% for it in items %}
+  {% set x = loop.index0 * gw %}
+  {% set bw = (gw - 16) / 2 %}
+  {% set h1 = ((h - 60) * it[1] / vmax) %}
+  {% set h2 = ((h - 60) * it[2] / vmax) %}
+  <rect x="{{ (x + 6)|round(1) }}" y="{{ (h - 40 - h1)|round(1) }}" width="{{ bw|round(1) }}"
+        height="{{ h1|round(1) }}" rx="2" fill="#3182CE"/>
+  <rect x="{{ (x + 8 + bw)|round(1) }}" y="{{ (h - 40 - h2)|round(1) }}" width="{{ bw|round(1) }}"
+        height="{{ h2|round(1) }}" rx="2" fill="#ED64A6"/>
+  {% if it[1] %}<text x="{{ (x + 6 + bw/2)|round(1) }}" y="{{ (h - 44 - h1)|round(1) }}"
+    class="c-value" text-anchor="middle">{{ it[1] }}</text>{% endif %}
+  {% if it[2] %}<text x="{{ (x + 8 + bw + bw/2)|round(1) }}" y="{{ (h - 44 - h2)|round(1) }}"
+    class="c-value" text-anchor="middle">{{ it[2] }}</text>{% endif %}
+  <text x="{{ (x + gw/2)|round(1) }}" y="{{ h - 22 }}" class="c-label" text-anchor="middle">
+    {{ it[0] }}</text>
+  {% endfor %}
+  <rect x="470" y="{{ h - 14 }}" width="10" height="10" rx="2" fill="#3182CE"/>
+  <text x="486" y="{{ h - 5 }}" class="c-label">男</text>
+  <rect x="520" y="{{ h - 14 }}" width="10" height="10" rx="2" fill="#ED64A6"/>
+  <text x="536" y="{{ h - 5 }}" class="c-label">女</text>
+</svg>
+{% endmacro %}
+
+
+{# スコアの分布（10点刻みのヒストグラム）： bins = [各区間の人数] #}
+{% macro hist(bins, h=170) %}
+{% set vmax = (bins | max) if bins else 0 %}
+{% set vmax = vmax if vmax and vmax > 0 else 1 %}
+{% set bw = 620 / 10 %}
+<svg class="chart" viewBox="0 0 620 {{ h }}" preserveAspectRatio="xMinYMin meet"
+     role="img" style="width:100%;height:{{ h }}px">
+  <line x1="0" y1="{{ h - 34 }}" x2="620" y2="{{ h - 34 }}" stroke="#e2e8f0"/>
+  {% for v in bins %}
+  {% set x = loop.index0 * bw %}
+  {% set lo = loop.index0 * 10 %}
+  {% set bh = ((h - 60) * v / vmax) %}
+  <rect x="{{ (x + 5)|round(1) }}" y="{{ (h - 34 - bh)|round(1) }}" width="{{ (bw - 10)|round(1) }}"
+        height="{{ bh|round(1) }}" rx="2"
+        fill="{{ '#e53e3e' if lo >= 60 else ('#dd6b20' if lo >= 30 else '#38a169') }}"/>
+  {% if v %}<text x="{{ (x + bw/2)|round(1) }}" y="{{ (h - 38 - bh)|round(1) }}"
+    class="c-value" text-anchor="middle">{{ v }}</text>{% endif %}
+  <text x="{{ (x + bw/2)|round(1) }}" y="{{ h - 18 }}" class="c-label" text-anchor="middle">
+    {{ lo }}</text>
+  {% endfor %}
+  <text x="620" y="{{ h - 4 }}" class="c-tick" text-anchor="end">リスクスコア</text>
+</svg>
+{% endmacro %}

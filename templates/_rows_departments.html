@@ -1,0 +1,22 @@
+{# 部署一覧の行だけ #}
+{% for r in rows %}
+<tr class="ls-row" data-cname="{{ r.company_name }}" data-oname="{{ r.office_name }}"
+    data-code="{{ r.code }}" data-name="{{ r.name }}">
+  <td class="tl"><span class="ellip w210" title="{{ r.company_name }}">{{ r.company_name }}</span></td>
+  <td class="code">{{ r.office_ext or r.office_code }}</td>
+  <td class="tl"><span class="ellip w190" title="{{ r.office_name }}">{{ r.office_name }}</span></td>
+  <td class="code">{{ r.ext_code or '—' }}</td>
+  <td class="code"><span class="hint">{{ r.code }}</span></td>
+  <td class="tl"><span class="ellip w210" title="{{ r.name }}">{{ r.name }}</span>
+    {% if r.kana %}<br><span class="hint">{{ r.kana }}</span>{% endif %}</td>
+  <td class="num">{{ counts.get(r.id, 0) }}</td>
+  <td class="ops">
+    <a class="btn-sm primary" href="{{ url_for('department_edit', did=r.id) }}"
+       style="text-decoration:none">編集</a>
+    <form method="post" action="{{ url_for('department_delete', did=r.id) }}" style="display:inline"
+          onsubmit="return confirm('「{{ r.name }}」を削除します。よろしいですか？\n\n加入者・管理者が紐づいている場合は削除できません。')">
+      <button class="btn-sm" style="color:var(--error);border-color:#fed7d7">削除</button></form>
+  </td>
+</tr>
+{% endfor %}
+{% if more is defined %}<tr class="ls-more" data-more="{{ more }}" hidden></tr>{% endif %}

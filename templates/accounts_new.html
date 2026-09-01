@@ -1,0 +1,163 @@
+{% extends LAYOUT %}{% from "_pickers.html" import kenpo_picker, company_picker, picker_script %}{% block body %}
+<h1 class="page-title">アカウントの登録</h1>
+<p class="page-lead">権限ロールを選ぶと、閲覧範囲は自動で決まります。範囲を手で指定することはできません。</p>
+
+<form method="post">
+<div class="form-grid">
+  <div class="block">
+    <h2>利用者の情報</h2>
+    <div class="search-group"><label for="email">メールアドレス（ログインID）</label>
+      <input type="email" id="email" name="email" required style="width:100%"
+        value="{{ (form.email if form else '') or '' }}"></div>
+    <div class="search-group"><label for="name">利用者名</label>
+      <input type="text" id="name" name="name" required style="width:100%"
+        value="{{ (form.name if form else '') or '' }}"></div>
+    <hr class="switch-sep">
+    <label class="switch">
+      <input type="checkbox" name="is_primary" value="1">
+      <span class="track"></span>
+      <span class="sw-body"><b>代表者アカウント</b>
+        <span>健保・企業の代表者として登録します。一覧の先頭に表示されます。</span></span>
+    </label>
+    <p class="hint">登録すると、このメールアドレス宛に<b>案内メールが自動送信されます</b>。
+      初回パスワードは発行せず、メールのリンクからご本人が設定します。</p>
+  </div>
+
+  <div class="block">
+    <h2>権限</h2>
+{% set SCOPE_OF = {'system_admin':'全健保の加入者を閲覧',
+                    'kenpo_user':'自組合全体の加入者を閲覧',
+                    'company_user':'選択した1社の加入者のみ閲覧'} %}
+    <div class="search-group"><label>権限ロール</label>
+      <div class="role-pick">
+        {% for r in roles %}
+        <label class="role-btn">
+          <input type="radio" name="role" value="{{ r }}" {{ 'checked' if loop.first }}>
+          <span class="role-box"><b>{{ ROLE_LABELS[r] }}</b><em>{{ SCOPE_OF[r] }}</em></span>
+        </label>
+        {% endfor %}
+      </div></div>
+    <hr class="switch-sep">
+    <label class="switch">
+      <input type="checkbox" name="can_download" value="1">
+      <span class="track"></span>
+      <span class="sw-body"><b>CSVのダウンロードを許可する</b>
+        <span>既定は不許可です。1回あたり {{ '{:,}'.format(MAX_EXPORT_ROWS) }} 件が上限です。
+          上限を超える出力はブロックし、操作ログに記録します。</span></span>
+    </label>
+  </div>
+</div>
+
+
+{% if acc.role == 'system_admin' %}
+{{ kenpo_picker(kenpos, form.kenpo_id if form else none) }}
+{% endif %}
+{{ company_picker(comps, selected, acc) }}
+
+{# ---- 事業所・部署も担当範囲に加えられる（企業を跨いで選べる） ---- #}
+<div class="block" id="card-scope">
+  <h2>担当する事業所・部署（任意）</h2>
+  <p class="note" style="margin-bottom:12px">
+    上で選んだ企業のほかに、<b>他の企業の事業所や部署だけ</b>を担当させることもできます。
+    企業・事業所・部署は<b>跨いで何件でも</b>選べます。選んだものすべての加入者が対象になります。</p>
+
+  <div class="scope-cols">
+    <div>
+      <div class="scope-head">事業所
+        <span class="count"><span id="sc-o-n">0</span>件選択中</span></div>
+      <div class="search-group" style="margin-bottom:6px">
+        <input type="text" id="sc-oq" placeholder="企業名・事業所名で絞り込む"
+               autocomplete="off" style="width:100%"></div>
+      <div class="pick-rows" id="sc-offs">
+        {% for o in offs %}
+        <label class="pick-row chk-row" data-text="{{ o.company_name }} {{ o.name }} {{ o.ext_code or o.code }}">
+          <input type="checkbox" name="office_ids" value="{{ o.id }}">
+          <span class="pr-code">{{ o.ext_code or o.code }}</span>
+          <span class="pr-name">{{ o.company_name }}　／　{{ o.name }}</span>
+        </label>
+        {% endfor %}
+        {% if not offs %}<div class="ribbon-empty">選べる事業所がありません。</div>{% endif %}
+      </div>
+    </div>
+    <div>
+      <div class="scope-head">部署
+        <span class="count"><span id="sc-d-n">0</span>件選択中</span></div>
+      <div class="search-group" style="margin-bottom:6px">
+        <input type="text" id="sc-dq" placeholder="企業名・事業所名・部署名で絞り込む"
+               autocomplete="off" style="width:100%"></div>
+      <div class="pick-rows" id="sc-depts">
+        {% for d in depts %}
+        <label class="pick-row chk-row"
+               data-text="{{ d.company_name }} {{ d.office_name }} {{ d.name }} {{ d.ext_code or d.code }}">
+          <input type="checkbox" name="dept_ids" value="{{ d.id }}">
+          <span class="pr-code">{{ d.ext_code or d.code }}</span>
+          <span class="pr-name">{{ d.company_name }}　／　{{ d.office_name }}　／　{{ d.name }}</span>
+        </label>
+        {% endfor %}
+        {% if not depts %}<div class="ribbon-empty">選べる部署がありません。</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="actions" style="justify-content:flex-end">
+  <a class="btn-back" href="{{ url_for('accounts') }}" style="text-decoration:none">中止する</a>
+  <button class="btn-submit">確認画面へ進む</button>
+</div>
+</form>
+<script>
+/* 権限ロールに応じて、選択が必要なカードだけ表示する */
+(function(){
+  var radios=[].slice.call(document.querySelectorAll('input[name="role"]'));
+  function show(id, on){
+    var el=document.getElementById(id);
+    if(el) el.style.display = on ? '' : 'none';
+  }
+  function upd(){
+    var el=document.querySelector('input[name="role"]:checked');
+    var v = el ? el.value : '';
+    show('kenpocard-search', v==='kenpo_user');
+    show('kenpocard-list',   v==='kenpo_user');
+    show('compcard-search',  v==='company_user');
+    show('compcard-list',    v==='company_user');
+    show('card-scope',       v==='company_user');
+    /* 企業担当者以外では事業所・部署の指定を外す */
+    if(v !== 'company_user'){
+      document.querySelectorAll('#card-scope input[type=checkbox]')
+        .forEach(function(c){ c.checked = false; });
+      if(window.scUpd) window.scUpd();
+    }
+  }
+  radios.forEach(function(r){ r.addEventListener('change', upd); });
+  upd();
+})();
+</script>
+<script>
+/* 担当する事業所・部署の選択と絞り込み */
+(function(){
+  function wire(boxId, qId, outId){
+    var box = document.getElementById(boxId);
+    var q = document.getElementById(qId);
+    var out = document.getElementById(outId);
+    if(!box) return function(){};
+    function upd(){
+      out.textContent = box.querySelectorAll('input[type=checkbox]:checked').length;
+    }
+    box.addEventListener('change', upd);
+    if(q) q.addEventListener('input', function(){
+      var t = q.value.trim().toLowerCase();
+      [].slice.call(box.querySelectorAll('.chk-row')).forEach(function(r){
+        r.style.display = (!t || (r.dataset.text || '').toLowerCase().indexOf(t) >= 0)
+          ? '' : 'none';
+      });
+    });
+    upd();
+    return upd;
+  }
+  var a = wire('sc-offs', 'sc-oq', 'sc-o-n');
+  var b = wire('sc-depts', 'sc-dq', 'sc-d-n');
+  window.scUpd = function(){ a(); b(); };
+})();
+</script>
+{{ picker_script() }}
+{% endblock %}

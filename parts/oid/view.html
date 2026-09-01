@@ -1,0 +1,101 @@
+<div class="view" id="view-master-oid">
+      <div class="back-row"><h1>OID結果マスタ</h1><button class="back-btn" onclick="navigate('master')">← 戻る</button></div>
+      <div class="panel-col">
+        <div class="right-panel no-flex">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <h2 class="m0">OIDコード一覧</h2>
+              <span class="totals-text" id="oid-count"></span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <select id="oid-filter-cat" onchange="OID.render()" style="height:38px;padding:0 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;background:#fff;">
+                <option value="">分類：すべて</option>
+                <option value="基本情報">基本情報</option>
+                <option value="報告">報告関連</option>
+                <option value="区分">区分</option>
+                <option value="検査">検査項目</option>
+                <option value="判定">判定・結果</option>
+                <option value="問診">問診</option>
+                <option value="保健指導">保健指導</option>
+                <option value="後期">後期高齢者</option>
+                <option value="その他">その他</option>
+              </select>
+              <input type="text" id="oid-filter-kw" oninput="OID.render()" placeholder="コード・名称で検索" style="width:220px;height:38px;padding:0 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">
+              <button type="button" class="tbl-btn tbl-btn-confirm" style="height:38px;padding:0 22px;min-width:110px;" onclick="OID.openNewModal()">＋ 新規作成</button>
+            </div>
+          </div>
+          <div class="tbl-scroll" style="max-height:640px;">
+          <table class="fee-table" style="width:100%;min-width:1200px;">
+            <thead><tr>
+              <th style="width:48px;">No</th>
+              <th style="width:110px;">分類</th>
+              <th style="width:270px;">OIDコード</th>
+              <th style="width:230px;">名称</th>
+              <th>値・説明</th>
+              <th style="width:180px;">備考</th>
+              <th style="width:140px;">操作</th>
+            </tr></thead>
+            <tbody id="oid-tbody"></tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OID 新規作成/編集モーダル -->
+    <div class="modal-overlay" id="oid-modal">
+      <div class="modal-card" style="max-width:600px;width:92vw;border-radius:14px;overflow:hidden;box-shadow:0 24px 48px -12px rgba(0,0,0,0.18);">
+        <div style="position:relative;padding:22px 28px 18px;background:#fff;border-bottom:1px solid #f0f1f4;">
+          <div style="display:flex;align-items:flex-start;gap:14px;">
+            <div style="width:44px;height:44px;background:linear-gradient(135deg,#ede9fe 0%,#c4b5fd 100%);border-radius:10px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="22" height="22" fill="none" stroke="#6d28d9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 9h16"/><path d="M9 4v16"/><circle cx="15" cy="14" r="2"/></svg>
+            </div>
+            <div style="flex:1;">
+              <h2 style="margin:0 0 4px;font-size:18px;font-weight:700;color:#0f172a;letter-spacing:0.01em;" id="oid-modalTitle">OID結果の新規作成</h2>
+              <p style="margin:0;font-size:13px;color:#64748b;line-height:1.6;">判定結果に対応するOIDコード（HL7準拠）を登録します。</p>
+            </div>
+            <button class="modal-close" onclick="OID.closeModal()" style="position:relative;top:-4px;color:#94a3b8;background:transparent;border:none;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;" onmouseover="this.style.background='#f1f5f9';" onmouseout="this.style.background='transparent';">✕</button>
+          </div>
+        </div>
+        <div class="modal-body" style="padding:24px 28px;">
+          <div class="ms-grid-2" style="gap:16px;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" style="font-size:12px;color:#64748b;font-weight:500;">分類<span style="color:#dc2626;margin-left:4px;">必須</span></label>
+              <select class="form-control" id="oid-inp-cat">
+                <option value="基本情報">基本情報</option>
+                <option value="報告">報告関連</option>
+                <option value="区分">区分</option>
+                <option value="検査">検査項目</option>
+                <option value="判定">判定・結果</option>
+                <option value="問診">問診</option>
+                <option value="保健指導">保健指導</option>
+                <option value="後期">後期高齢者</option>
+                <option value="その他">その他</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" style="font-size:12px;color:#64748b;font-weight:500;">OIDコード<span style="color:#dc2626;margin-left:4px;">必須</span></label>
+              <input type="text" class="form-control" id="oid-inp-code" placeholder="例: 1.2.392.200119.6.1002" style="font-family:monospace;letter-spacing:0.02em;">
+            </div>
+          </div>
+          <div class="form-group" style="margin-top:14px;margin-bottom:0;">
+            <label class="form-label" style="font-size:12px;color:#64748b;font-weight:500;">名称<span style="color:#dc2626;margin-left:4px;">必須</span></label>
+            <input type="text" class="form-control" id="oid-inp-name" placeholder="例: プログラム種別コード">
+          </div>
+          <div class="form-group" style="margin-top:14px;margin-bottom:0;">
+            <label class="form-label" style="font-size:12px;color:#64748b;font-weight:500;">値・説明</label>
+            <textarea class="form-control" id="oid-inp-values" placeholder="例: 010：特定健診、020：広域連合の保健事業…" rows="4" style="font-family:inherit;line-height:1.5;"></textarea>
+          </div>
+          <div class="form-group" style="margin-top:14px;margin-bottom:0;">
+            <label class="form-label" style="font-size:12px;color:#64748b;font-weight:500;">備考</label>
+            <input type="text" class="form-control" id="oid-inp-note" placeholder="例: このOIDは自治体健診でも使用">
+          </div>
+        </div>
+        <div class="modal-footer" style="background:#fafbfc;border-top:1px solid #f0f1f4;padding:16px 28px;justify-content:flex-end;gap:10px;">
+          <button class="btn-cancel" onclick="OID.closeModal()" style="border-radius:8px;font-weight:500;">キャンセル</button>
+          <button class="btn-save" onclick="OID.save()" style="border-radius:8px;font-weight:600;">登録</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 検査マスタ ========== -->

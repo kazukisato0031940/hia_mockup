@@ -1,0 +1,239 @@
+{#
+  健康保険組合・企業の選択カード
+  検索カード（サジェスト入力）と一覧カード（表・選択ボタン）を分けて表示する。
+    kenpo_picker   … 健康保険組合（1つだけ選ぶ）
+    company_picker … 対象の企業（複数選べる）
+    picker_script  … 両方で使う絞り込みと選択の処理
+#}
+
+{% macro kenpo_picker(kenpos, selected) -%}
+<div class="block pick-card" id="kenpocard-search">
+  <h2>健康保険組合の検索</h2>
+  <div class="search-row">
+    <div class="search-group sg-suggest"><label for="kp-code">保険者番号</label>
+      <input type="text" id="kp-code" autocomplete="off" style="width:180px">
+      <div class="suggest" id="kp-code-sug"></div></div>
+    <div class="search-group sg-suggest" style="flex:1;max-width:420px">
+      <label for="kp-name">健康保険組合名</label>
+      <input type="text" id="kp-name" autocomplete="off" style="width:100%">
+      <div class="suggest" id="kp-name-sug"></div></div>
+  </div>
+</div>
+
+<div class="block pick-card" id="kenpocard-list">
+  <div class="blk-head">
+    <h2>健康保険組合の一覧<span class="count" id="kp-count">未選択</span></h2>
+  </div>
+  <div class="table-scroll pick-scroll">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr>
+      <th style="width:88px">選択</th>
+      <th style="width:130px">保険者番号</th>
+      <th class="tl">健康保険組合名</th>
+    </tr></thead>
+    <tbody>
+    {% for k in kenpos %}
+    {% set on = selected and selected|int == k.id %}
+    <tr class="pick-row {{ 'on' if on }}" data-code="{{ k.code }}" data-name="{{ k.name }}">
+      <td>
+        <button type="button" class="pick-btn {{ 'on' if on }}"
+                onclick="kpSelect(this)">{{ '選択中' if on else '選択' }}</button>
+        <input type="radio" name="kenpo_id" value="{{ k.id }}" hidden {{ 'checked' if on }}>
+      </td>
+      <td class="code">{{ k.code }}</td>
+      <td class="tl">{{ k.name }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="pick-none" style="display:none"><td colspan="3" style="padding:22px;color:#a0aec0">
+      該当する健康保険組合がありません。</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="hint">健保担当者は、選んだ健康保険組合に所属する全企業の加入者を閲覧できます。</p>
+</div>
+{%- endmacro %}
+
+
+{% macro company_picker(comps, selected, acc) -%}
+<div class="block pick-card" id="compcard-search">
+  <h2>企業の検索</h2>
+  <div class="search-row">
+    <div class="search-group sg-suggest"><label for="cp-code">企業コード</label>
+      <input type="text" id="cp-code" autocomplete="off" style="width:180px">
+      <div class="suggest" id="cp-code-sug"></div></div>
+    <div class="search-group sg-suggest" style="flex:1;max-width:420px">
+      <label for="cp-name">企業名</label>
+      <input type="text" id="cp-name" autocomplete="off" style="width:100%">
+      <div class="suggest" id="cp-name-sug"></div></div>
+  </div>
+</div>
+
+<div class="block pick-card" id="compcard-list">
+  <div class="blk-head">
+    <h2>対象の企業<span class="count" id="cp-count">0社を選択</span></h2>
+    <button type="button" class="btn-sm" onclick="cpAll()">表示中をすべて選択</button>
+  </div>
+  <div class="table-scroll pick-scroll">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr>
+      <th style="width:88px">選択</th>
+      {% if acc.role == 'system_admin' %}
+      <th class="tl" style="width:240px">健康保険組合</th>
+      <th style="width:130px">保険者番号</th>
+      {% endif %}
+      <th style="width:120px">企業コード</th>
+      <th class="tl">企業名</th>
+    </tr></thead>
+    <tbody>
+    {% for c in comps %}
+    {% set on = selected and c.id in selected %}
+    <tr class="pick-row {{ 'on' if on }}"
+        data-code="{{ c.ext_code or c.code }}"
+        data-name="{{ c.name }} {{ c.kana or '' }}"
+        data-kenpo="{{ c.kenpo_name }} {{ c.kenpo_code }}">
+      <td>
+        <button type="button" class="pick-btn {{ 'on' if on }}"
+                onclick="cpToggle(this)">{{ '選択中' if on else '選択' }}</button>
+        <input type="checkbox" name="company_ids" value="{{ c.id }}" hidden {{ 'checked' if on }}>
+      </td>
+      {% if acc.role == 'system_admin' %}
+      <td class="tl">{{ c.kenpo_name }}</td>
+      <td class="code">{{ c.kenpo_code }}</td>
+      {% endif %}
+      <td class="code">{{ c.ext_code or c.code }}</td>
+      <td class="tl">{{ c.name }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="pick-none" style="display:none">
+      <td colspan="{{ 5 if acc.role == 'system_admin' else 3 }}"
+          style="padding:22px;color:#a0aec0">該当する企業がありません。</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="hint">選択した企業の加入者だけを閲覧・操作できます。複数選択できます。</p>
+</div>
+{%- endmacro %}
+
+
+{% macro picker_script() -%}
+<script>
+/* ---- 健保・企業の選択カード ---- */
+function pkCard(prefix){
+  return document.getElementById((prefix === 'kp' ? 'kenpocard' : 'compcard') + '-list');
+}
+function pkRows(prefix){
+  var card = pkCard(prefix);
+  return card ? [].slice.call(card.querySelectorAll('tr.pick-row')) : [];
+}
+function pkCount(prefix){
+  var el = document.getElementById(prefix + '-count');
+  if(!el) return;
+  if(prefix === 'cp'){
+    el.textContent = pkRows('cp').filter(function(r){
+      return r.querySelector('input').checked; }).length + '社を選択';
+  } else {
+    var r = pkRows('kp').filter(function(x){ return x.querySelector('input').checked; })[0];
+    el.textContent = r ? r.dataset.name : '未選択';
+  }
+}
+function pkMark(row, on){
+  row.classList.toggle('on', on);
+  var b = row.querySelector('.pick-btn');
+  b.classList.toggle('on', on);
+  b.textContent = on ? '選択中' : '選択';
+  row.querySelector('input').checked = on;
+}
+function cpToggle(btn){
+  var row = btn.closest('tr');
+  pkMark(row, !row.querySelector('input').checked);
+  pkCount('cp');
+}
+function kpSelect(btn){
+  var row = btn.closest('tr');
+  pkRows('kp').forEach(function(r){ pkMark(r, r === row); });
+  pkCount('kp');
+}
+function cpAll(){
+  pkRows('cp').forEach(function(r){ if(r.style.display !== 'none') pkMark(r, true); });
+  pkCount('cp');
+}
+
+/* 絞り込み（コードと名称を別々に指定できる） */
+function pkFilter(prefix){
+  var c = document.getElementById(prefix + '-code');
+  var n = document.getElementById(prefix + '-name');
+  if(!c || !n) return;
+  var vc = (c.value || '').trim().toLowerCase();
+  var vn = (n.value || '').trim().toLowerCase();
+  var shown = 0;
+  pkRows(prefix).forEach(function(r){
+    var ok = (!vc || (r.dataset.code || '').toLowerCase().indexOf(vc) >= 0)
+          && (!vn || (r.dataset.name || '').toLowerCase().indexOf(vn) >= 0);
+    r.style.display = ok ? '' : 'none';
+    if(ok) shown++;
+  });
+  var card = pkCard(prefix);
+  var none = card && card.querySelector('tr.pick-none');
+  if(none) none.style.display = shown ? 'none' : '';
+}
+
+/* サジェスト */
+function pkSuggest(input, box, words){
+  var idx = -1;
+  function close(){ box.classList.remove('on'); box.innerHTML = ''; idx = -1; }
+  function fire(){ input.dispatchEvent(new Event('pkchange')); }
+  function open(){
+    var t = (input.value || '').trim().toLowerCase();
+    if(!t){ close(); return; }
+    var hit = words.filter(function(w){ return w.toLowerCase().indexOf(t) >= 0; }).slice(0, 8);
+    if(!hit.length || (hit.length === 1 && hit[0].toLowerCase() === t)){ close(); return; }
+    box.innerHTML = hit.map(function(w){
+      return '<div class="suggest-item" data-v="' + w.replace(/"/g, '&quot;') + '">' + w + '</div>';
+    }).join('');
+    box.classList.add('on');
+  }
+  input.addEventListener('input', function(){ open(); fire(); });
+  input.addEventListener('focus', open);
+  input.addEventListener('blur', function(){ setTimeout(close, 150); });
+  input.addEventListener('keydown', function(e){
+    var items = box.querySelectorAll('.suggest-item');
+    if(!items.length) return;
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      e.preventDefault();
+      idx += (e.key === 'ArrowDown') ? 1 : -1;
+      if(idx < 0) idx = items.length - 1;
+      if(idx >= items.length) idx = 0;
+      items.forEach(function(el, i){ el.classList.toggle('on', i === idx); });
+    } else if(e.key === 'Enter' && idx >= 0){
+      e.preventDefault(); input.value = items[idx].dataset.v; close(); fire();
+    } else if(e.key === 'Escape'){ close(); }
+  });
+  box.addEventListener('mousedown', function(e){
+    var it = e.target.closest('.suggest-item');
+    if(it){ e.preventDefault(); input.value = it.dataset.v; close(); fire(); }
+  });
+}
+
+['kp', 'cp'].forEach(function(prefix){
+  var rows = pkRows(prefix);
+  if(!rows.length) return;
+  var codes = [], names = [];
+  rows.forEach(function(r){
+    if(r.dataset.code) codes.push(r.dataset.code);
+    var nm = (r.dataset.name || '').trim().split(' ')[0];
+    if(nm) names.push(nm);
+  });
+  var uniq = function(a){
+    return Object.keys(a.reduce(function(o, v){ o[v] = 1; return o; }, {})).sort();
+  };
+  [['code', uniq(codes)], ['name', uniq(names)]].forEach(function(pair){
+    var el = document.getElementById(prefix + '-' + pair[0]);
+    var box = document.getElementById(prefix + '-' + pair[0] + '-sug');
+    if(!el || !box) return;
+    pkSuggest(el, box, pair[1]);
+    el.addEventListener('pkchange', function(){ pkFilter(prefix); });
+  });
+  pkCount(prefix);
+});
+</script>
+{%- endmacro %}

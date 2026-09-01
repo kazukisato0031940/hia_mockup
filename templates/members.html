@@ -1,0 +1,272 @@
+{% set FIXED_HEIGHT = true %}
+{% extends LAYOUT %}
+{% from "_import_modal.html" import import_modal, import_script %}
+{% from "_listsearch.html" import search_card, search_script, rows_script %}
+{% block body %}
+{# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
+{% if not EMBED %}
+<h1 class="page-title">加入者情報</h1>
+<p class="page-lead">加入者の登録・編集・削除とCSV取込を行います。閲覧範囲内の加入者だけが表示されます。</p>
+{% endif %}
+
+{{ search_card([('no', '被保険者証番号', '140px'), ('name', '氏名・カナ', '180px'),
+                ('cname', '企業名', '200px'), ('oname', '事業所名', '170px'),
+                ('dname', '部署名', '170px')], f,
+   selects=[('link', '紐づけ', ['すべて', '紐づけ済み', '未紐づけ'])],
+   note='表示されるのは閲覧範囲「' ~ SCOPE_LABELS[acc.view_scope] ~
+        '」に含まれる加入者だけです。一覧は最大500件まで表示します（検索は全件を対象に行います）。') }}
+
+<div class="block list-card">
+  <div class="blk-head">
+    <div class="blk-head-left">
+      <h2>加入者一覧</h2>
+      <div class="actions">
+        <button type="button" class="btn-sm primary" id="mk-open" onclick="mkOpen()" disabled
+                title="選択した加入者に企業・事業所・部署を設定します">
+          選択した<span id="mk-n">0</span>件を紐づける</button>
+        <button type="button" class="btn-sm" id="mk-open-all" onclick="mkOpen(true)"
+                title="いま絞り込んでいる条件に一致する全件を紐づけます">
+          検索結果すべて（{{ '{:,}'.format(total) }}件）を紐づける</button>
+        <a class="btn-sm" href="{{ url_for('members_link_auto') }}" style="text-decoration:none"
+           title="取込した加入者情報のコードで、まとめて紐づけます">コードで紐づける</a>
+        <a class="btn-sm" href="{{ url_for('members_link_page') }}" style="text-decoration:none"
+           title="紐づけ先を選んでから、ドラッグで紐づける専用ページを開きます">紐づけページ</a>
+        <button type="button" class="btn-sm" onclick="openImport('imp-member')">一括インポート</button>
+        <a class="btn-sm" href="{{ url_for('members_export') }}" style="text-decoration:none">CSVで出力</a>
+      </div>
+    </div>
+    <div class="actions">
+      <a class="btn-sm primary" href="{{ url_for('member_new') }}" style="text-decoration:none">加入者を登録する</a>
+    </div>
+  </div>
+  {% if rows %}
+  <div class="table-scroll paged grow" data-rows-url="{{ url_for('members_rows') }}"
+       data-loaded="{{ rows|length }}" data-total="{{ total }}">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr>
+      <th style="width:44px"><input type="checkbox" id="mk-all"
+            title="表示中をすべて選択" onchange="mkAll(this.checked)"></th>
+      <th style="width:130px">被保険者証番号</th>
+      <th class="tl" style="width:160px">氏名</th>
+      <th class="tl" style="width:160px">カナ</th>
+      <th style="width:110px">生年月日</th>
+      <th style="width:60px">性別</th>
+      <th class="tl" style="width:180px">企業名</th>
+      <th class="tl" style="width:160px">事業所名</th>
+      <th class="tl" style="width:150px">部署名</th>
+      <th class="ops">操作</th>
+    </tr></thead>
+    <tbody>
+    {% include "_rows_members.html" %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div class="empty-box">
+    {% if f.no or f.name or f.cname or f.oname %}条件に一致する加入者がありません。
+    {% else %}加入者がまだ登録されていません。{% endif %}
+  </div>{% endif %}
+</div>
+
+{# ------------ 選択した加入者の紐づけ ------------ #}
+<div class="modal-back" id="mk-modal">
+  <div class="modal-card" style="max-width:620px" role="dialog" aria-modal="true"
+       aria-label="加入者の紐づけ">
+    <div class="modal-head">
+      <h2>企業・事業所・部署を紐づける</h2>
+      <button type="button" class="modal-x" onclick="mkClose()" aria-label="閉じる">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="note" id="mk-target" style="margin-bottom:14px"></p>
+
+      <div class="fld">
+        <label for="mk-company" class="fld-label">企業<span class="req">必須</span></label>
+        <select id="mk-company" class="w-l" onchange="mkFill()">
+          <option value="">選択してください</option>
+          {% for c in comps %}<option value="{{ c.id }}">{{ c.ext_code or c.code }}　{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fld">
+        <label for="mk-office" class="fld-label">事業所</label>
+        <select id="mk-office" class="w-l" onchange="mkFillDept()">
+          <option value="">未設定</option>
+          {% for o in offs %}<option value="{{ o.id }}" data-company="{{ o.company_id }}">{{ o.ext_code or o.code }}　{{ o.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fld">
+        <label for="mk-dept" class="fld-label">部署</label>
+        <select id="mk-dept" class="w-l">
+          <option value="">未設定</option>
+          {% for d in depts %}<option value="{{ d.id }}" data-office="{{ d.office_id }}">{{ d.ext_code or d.code }}　{{ d.name }}</option>{% endfor %}
+        </select>
+        <p class="fld-help">企業を選ぶとその企業の事業所、事業所を選ぶとその部署だけが候補になります。</p>
+      </div>
+
+      <p class="hint" id="mk-msg" style="margin-top:12px"></p>
+      <p class="hint">
+        ・既に紐づいている加入者を選んだ場合は、紐づけ先が置き換わります。<br>
+        ・紐づけの内容は操作ログに記録されます。</p>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn-back" onclick="mkClose()">キャンセル</button>
+      <button type="button" class="btn-submit" id="mk-go" onclick="mkRun()">この内容で紐づける</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ 加入者一覧から紐づける ============
+   検索結果をそのまま対象にできる。個別に選ぶこともできる。 */
+(function(){
+  var mode = 'selected';   /* selected（選択した分）または filtered（検索結果すべて） */
+
+  function chks(){ return [].slice.call(document.querySelectorAll('.mk-chk')); }
+  function picked(){ return chks().filter(function(c){ return c.checked; }); }
+  function upd(){
+    var n = picked().length;
+    var el = document.getElementById('mk-n');
+    if(el) el.textContent = n;
+    var b = document.getElementById('mk-open');
+    if(b) b.disabled = n === 0;
+    var all = document.getElementById('mk-all');
+    if(all) all.checked = n > 0 && n === chks().length;
+  }
+  window.mkAll = function(on){
+    chks().forEach(function(c){ c.checked = on; });
+    upd();
+  };
+  /* 行が追加読み込みされたときも数え直す */
+  document.addEventListener('change', function(e){
+    if(e.target.classList && e.target.classList.contains('mk-chk')) upd();
+  });
+  var box = document.querySelector('.table-scroll.paged');
+  if(box) new MutationObserver(upd).observe(box, {childList:true, subtree:true});
+
+  function filters(){
+    return {no: v('ls-no'), name: v('ls-name'), cname: v('ls-cname'),
+            oname: v('ls-oname'), dname: v('ls-dname'), link: v('ls-link')};
+    function v(id){ var e = document.getElementById(id); return e ? e.value : ''; }
+  }
+  function condText(){
+    var f = filters();
+    var labels = {no:'被保険者証番号', name:'氏名', cname:'企業名', oname:'事業所名',
+                  dname:'部署名', link:'紐づけ'};
+    var parts = Object.keys(f).filter(function(k){ return f[k]; })
+      .map(function(k){ return labels[k] + '「' + f[k] + '」'; });
+    return parts.length ? parts.join('・') : '絞り込みなし（全件）';
+  }
+
+  window.mkOpen = function(all){
+    mode = all ? 'filtered' : 'selected';
+    var n = mode === 'filtered' ? {{ total }} : picked().length;
+    document.getElementById('mk-target').innerHTML = mode === 'filtered'
+      ? '検索結果の <b>' + n.toLocaleString() + '件</b> を紐づけます。<br>'
+        + '<span class="hint">条件：' + condText() + '</span>'
+      : '選択した <b>' + n + '件</b> の加入者を紐づけます。';
+    document.getElementById('mk-msg').textContent = '';
+    var back = document.getElementById('mk-modal');
+    back.classList.add('open');
+    if(window.hiaCenterModal) window.hiaCenterModal(back.querySelector('.modal-card'));
+    document.body.style.overflow = 'hidden';
+  };
+  window.mkClose = function(){
+    document.getElementById('mk-modal').classList.remove('open');
+    document.body.style.overflow = '';
+  };
+
+  /* 企業 → 事業所 → 部署 の絞り込み */
+  var co = document.getElementById('mk-company');
+  var of = document.getElementById('mk-office');
+  var dp = document.getElementById('mk-dept');
+  var allO = of ? [].slice.call(of.options).map(snap) : [];
+  var allD = dp ? [].slice.call(dp.options).map(snap) : [];
+  function snap(o){
+    return {v:o.value, t:o.textContent, p:o.dataset.company || o.dataset.office || ''};
+  }
+  function build(sel, list, parent){
+    sel.innerHTML = '';
+    list.forEach(function(x){
+      if(x.v === '' || x.p === parent){
+        var op = document.createElement('option');
+        op.value = x.v; op.textContent = x.t;
+        sel.appendChild(op);
+      }
+    });
+  }
+  window.mkFill = function(){ build(of, allO, co.value); mkFillDept(); };
+  window.mkFillDept = function(){ build(dp, allD, of.value); };
+
+  window.mkRun = function(){
+    var msg = document.getElementById('mk-msg');
+    if(!co.value){ msg.textContent = '企業を選んでください。';
+      msg.style.color = 'var(--error)'; return; }
+    var go = document.getElementById('mk-go');
+    go.disabled = true;
+    msg.style.color = '';
+    msg.textContent = '紐づけています…';
+    var body = {company_id: Number(co.value),
+                office_id: of.value ? Number(of.value) : null,
+                dept_id: dp.value ? Number(dp.value) : null};
+    var url = '/api/members/link';
+    if(mode === 'filtered'){
+      url = '/api/members/link-filtered';
+      Object.assign(body, filters());
+    } else {
+      body.member_ids = picked().map(function(c){ return Number(c.value); });
+    }
+    fetch(url, {method:'POST', credentials:'same-origin',
+                headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        go.disabled = false;
+        if(!d.ok){ msg.textContent = d.message; msg.style.color = 'var(--error)'; return; }
+        /* 反映した内容を見せるため一覧を読み直す */
+        location.reload();
+      }).catch(function(){
+        go.disabled = false;
+        msg.textContent = '紐づけできませんでした。通信状態を確認してください。';
+        msg.style.color = 'var(--error)';
+      });
+  };
+
+  var m = document.getElementById('mk-modal');
+  if(m){
+    m.addEventListener('click', function(e){ if(e.target === m) mkClose(); });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape') mkClose(); });
+  }
+  if(co) mkFill();
+  upd();
+})();
+</script>
+
+{{ search_script([('no','no'), ('name','name'), ('cname','cname'), ('oname','oname'),
+                  ('dname','dname')]) }}
+{{ rows_script() }}
+{{ import_modal('imp-member', '加入者の一括インポート', url_for('members_import'),
+   url_for('members_template'),
+   [('加入者ID','任意','**当システムで採番**します。ファイルの値は使いません'),
+    ('被保険者証記号','任意','—'),
+    ('被保険者証番号','必須','健保内で一意。既にある場合は内容を更新します'),
+    ('被保険者証枝番','任意','—'),
+    ('被保険者属性名','任意','—'),
+    ('続柄名称','任意','本人・妻・子など'),
+    ('対象者氏名（漢字）','必須','—'),
+    ('対象者氏名（カナ）','任意','—'),
+    ('性別','任意','—'),
+    ('生年月日','任意','1961/10/16 のように年月日を区切って入力'),
+    ('資格取得日（家族認定日）','任意','同上'),
+    ('資格喪失日（家族削除日）','任意','同上'),
+    ('郵便番号','任意','—'),
+    ('住所','任意','—'),
+    ('住所（建物名）','任意','—'),
+    ('電話番号','任意','—'),
+    ('メールアドレス','任意','—'),
+    ('事業所（企業）コード','必須','健保が管理する番号（当社内部コードでも引けます）'),
+    ('所属コード','任意','企業が管理する番号（当社内部コードでも引けます）'),
+    ('配付先コード','任意','—'),
+    ('社員コード','任意','—'),
+    ('connectID','任意','—'),
+    ('個人ID','任意','—')],
+   kenpos if acc.role == 'system_admin' else None,
+   sample=url_for('sample_csv', name='subscriber')) }}
+{{ import_script() }}
+{% endblock %}

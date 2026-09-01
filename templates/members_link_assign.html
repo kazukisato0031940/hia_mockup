@@ -1,0 +1,302 @@
+{% extends LAYOUT %}{% block body %}
+<h1 class="page-title">加入者の紐づけ</h1>
+<p class="page-lead">左の加入者を右へドラッグ（またはダブルクリック）して紐づけます。</p>
+
+<div class="link-bar">
+  <div class="link-bar-info">
+    <span class="st st-invited">未紐づけ {{ '{:,}'.format(n_unlinked) }}件</span>
+    <span class="dest-now ok" id="lk-place">紐づけ先：{{ comp.name }}／{{ off.name }}{% if dept %}／{{ dept.name }}{% endif %}</span>
+    <span class="hint" id="lk-msg"></span>
+  </div>
+  <div class="actions">
+    <label class="chk" style="margin:0">
+      <input type="checkbox" id="lk-linked" {{ 'checked' if show_linked }}
+             onchange="lkToggleLinked(this.checked)">
+      <span>{% if dept %}他の部署{% else %}他の事業所{% endif %}に紐づけ済みも表示する</span></label>
+    <a class="btn-sm" href="{{ url_for('members_link_page') }}"
+       style="text-decoration:none">紐づけ先を選び直す</a>
+  </div>
+</div>
+
+<div class="link-cols">
+  {# ---------------- 左：紐づけ前 ---------------- #}
+  <div class="block link-col">
+    <div class="blk-head">
+      <div class="blk-head-left">
+        <h2>紐づけ前</h2>
+        <span class="count"><span id="lk-shown">{{ rows|length }}</span>件</span>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn-sm" onclick="lkPickAll(true)">表示中をすべて選択</button>
+        <button type="button" class="btn-sm" onclick="lkPickAll(false)">選択を解除</button>
+      </div>
+    </div>
+    <div class="search-row" style="margin-bottom:10px">
+      <div class="search-group" style="flex:1"><label for="lk-q">被保険者証番号・氏名で絞り込む</label>
+        <input type="text" id="lk-q" autocomplete="off" style="width:100%"></div>
+    </div>
+    <div class="ribbon-list" id="lk-list">
+      {% for r in rows %}
+      <div class="ribbon{{ ' done' if r.company_id }}" draggable="true" data-id="{{ r.id }}"
+           data-text="{{ r.member_no }} {{ r.name }} {{ r.kana or '' }}">
+        <span class="rb-grip" aria-hidden="true">⋮⋮</span>
+        <span class="rb-no">{{ r.member_no }}{% if r.cert_branch %}-{{ r.cert_branch }}{% endif %}</span>
+        <span class="rb-name">{{ r.name }}
+          {% if r.kana %}<span class="rb-kana">{{ r.kana }}</span>{% endif %}</span>
+        <span class="rb-meta">
+          {% if r.relation %}{{ r.relation }}{% endif %}
+          {% if r.sex %}・{{ r.sex }}{% endif %}
+          {% if r.birth %}・{{ r.birth }}{% endif %}</span>
+        {% if r.company_id %}
+        <span class="rb-now" title="現在の紐づけ">{{ r.company_name }}{% if r.office_name %}／{{ r.office_name }}{% endif %}</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% if not rows %}
+      <div class="ribbon-empty">
+        {% if show_linked %}紐づける加入者がありません。
+        {% else %}未紐づけの加入者はありません。<br>
+        「他の部署に紐づけ済みも表示する」で紐づけ先の変更もできます。{% endif %}</div>
+      {% endif %}
+    </div>
+    <p class="hint" id="lk-none" style="display:none">条件に一致する加入者がありません。</p>
+    <p class="hint">最大300件まで表示します。クリックで選択、Shiftで範囲選択。
+      <b>ダブルクリックでその場で紐づけ</b>できます。</p>
+  </div>
+
+  {# ---------------- 右：紐づけ後 ---------------- #}
+  <div class="block link-col">
+    <div class="blk-head">
+      <div class="blk-head-left">
+        <h2>紐づけ後</h2>
+        <span class="count"><span id="lk-after-n">{{ after|length }}</span>人</span>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn-sm primary" id="lk-go" disabled onclick="lkGo()">
+          選択した<span id="lk-n2">0</span>件を紐づける</button>
+      </div>
+    </div>
+    <div class="drop-zone active" id="lk-zone">
+      <div class="dz-hint">左の加入者をここにドロップ、またはダブルクリックで紐づけ</div>
+      <div class="ribbon-list after" id="lk-after">
+        {% for r in after %}
+        <div class="ribbon fixed" data-id="{{ r.id }}">
+          <span class="rb-no">{{ r.member_no }}{% if r.cert_branch %}-{{ r.cert_branch }}{% endif %}</span>
+          <span class="rb-name">{{ r.name }}</span>
+          <span class="rb-meta">
+            {% if r.relation %}{{ r.relation }}{% endif %}
+            {% if r.sex %}・{{ r.sex }}{% endif %}
+            {% if r.birth %}・{{ r.birth }}{% endif %}</span>
+        </div>
+        {% endfor %}
+        {% if not after %}
+        <div class="ribbon-empty">
+          {% if dept %}この部署{% else %}この事業所{% endif %}に紐づいた加入者はまだいません。</div>
+        {% endif %}
+      </div>
+    </div>
+    <p class="hint">{{ comp.ext_code or comp.code }}　{{ comp.name }}　／　{{ off.ext_code or off.code }}　{{ off.name }}{% if dept %}　／　{{ dept.ext_code or dept.code }}　{{ dept.name }}{% else %}　／　部署なし{% endif %}</p>
+  </div>
+</div>
+
+<div class="link-foot">
+  <div class="lf-info">
+    <span class="lf-done" id="lk-done-box" style="display:none">
+      このページで <b><span id="lk-done">0</span>件</b> を紐づけました</span>
+    <span class="hint" id="lk-foot-hint">
+      紐づけ先：{{ comp.name }}／{{ off.name }}{% if dept %}／{{ dept.name }}{% endif %}　に加入者を移します。</span>
+  </div>
+  <div class="actions">
+    <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">中止して一覧へ</a>
+    <button type="button" class="btn-submit" onclick="lkFinish()">紐づけを完了する</button>
+  </div>
+</div>
+
+<script>
+/* ============ 選んだ企業・部署へ加入者を紐づける ============ */
+(function(){
+  var list = document.getElementById('lk-list');
+  var after = document.getElementById('lk-after');
+  var msg = document.getElementById('lk-msg');
+  var zone = document.getElementById('lk-zone');
+  var go = document.getElementById('lk-go');
+  var CID = {{ comp.id }}, OID = {{ off.id }}, DID = {{ dept.id if dept else 'null' }};
+  var doneCount = 0;
+
+  function say(text, ok){
+    msg.textContent = text || '';
+    msg.style.color = ok === false ? 'var(--error)' : (ok ? '#15803d' : '');
+  }
+  function ribbons(){ return [].slice.call(list.querySelectorAll('.ribbon')); }
+  function picked(){ return ribbons().filter(function(r){ return r.classList.contains('on'); }); }
+  function shown(){
+    var n = ribbons().filter(function(r){ return r.style.display !== 'none'; }).length;
+    document.getElementById('lk-shown').textContent = n;
+    document.getElementById('lk-none').style.display = (n || !ribbons().length) ? 'none' : '';
+  }
+  function refresh(){
+    var n = picked().length;
+    document.getElementById('lk-n2').textContent = n;
+    go.disabled = !n;
+  }
+  function bumpDone(n){
+    doneCount += n;
+    document.getElementById('lk-done').textContent = doneCount;
+    document.getElementById('lk-done-box').style.display = '';
+    document.getElementById('lk-foot-hint').textContent =
+      '続けて紐づけるか、「紐づけを完了する」で一覧に戻れます。';
+  }
+  window.lkFinish = function(){
+    location.href = '{{ url_for("members") }}?done=' + doneCount;
+  };
+  window.lkToggleLinked = function(on){
+    location.href = '{{ url_for("members_link_assign") }}?company_id=' + CID
+      + '&office_id=' + OID + (DID ? '&dept_id=' + DID : '') + (on ? '&linked=1' : '');
+  };
+  window.lkPickAll = function(on){
+    ribbons().forEach(function(r){
+      if(r.style.display !== 'none') r.classList.toggle('on', on); });
+    refresh();
+  };
+
+  /* 紐づけ後の一覧を作り直す */
+  function rbHtml(m){
+    var no = m.member_no + (m.cert_branch ? '-' + m.cert_branch : '');
+    var meta = [m.relation, m.sex, m.birth].filter(Boolean).join('・');
+    var d = document.createElement('div');
+    d.className = 'ribbon fixed';
+    d.dataset.id = m.id;
+    d.innerHTML = '<span class="rb-no"></span><span class="rb-name"></span>'
+                + '<span class="rb-meta"></span>';
+    d.querySelector('.rb-no').textContent = no;
+    d.querySelector('.rb-name').textContent = m.name;
+    d.querySelector('.rb-meta').textContent = meta;
+    return d;
+  }
+  function loadAfter(){
+    fetch('/api/members/by-office?office_id=' + OID
+          + (DID ? '&dept_id=' + DID : ''), {credentials: 'same-origin'})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d || !d.ok) return;
+        after.innerHTML = '';
+        d.rows.forEach(function(m){ after.appendChild(rbHtml(m)); });
+        if(!d.rows.length){
+          var e = document.createElement('div');
+          e.className = 'ribbon-empty';
+          e.textContent = DID ? 'この部署に紐づいた加入者はまだいません。'
+                              : 'この事業所に紐づいた加入者はまだいません。';
+          after.appendChild(e);
+        }
+        document.getElementById('lk-after-n').textContent = d.rows.length;
+        if(window.reportHeight) window.reportHeight();
+      }).catch(function(){});
+  }
+
+  /* ---- 選択 ---- */
+  var last = null;
+  list.addEventListener('click', function(e){
+    var rb = e.target.closest('.ribbon');
+    if(!rb) return;
+    if(e.shiftKey && last){
+      var all = ribbons().filter(function(r){ return r.style.display !== 'none'; });
+      var a = all.indexOf(last), b = all.indexOf(rb);
+      if(a > -1 && b > -1){
+        all.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(function(r){
+          r.classList.add('on'); });
+      }
+    } else { rb.classList.toggle('on'); }
+    last = rb;
+    refresh();
+  });
+  var q = document.getElementById('lk-q');
+  if(q) q.addEventListener('input', function(){
+    var t = q.value.trim().toLowerCase();
+    ribbons().forEach(function(r){
+      r.style.display = (!t || (r.dataset.text || '').toLowerCase().indexOf(t) >= 0)
+        ? '' : 'none'; });
+    shown(); refresh();
+  });
+
+  /* ---- 紐づけの実行 ---- */
+  var busy = false;
+  function link(ids){
+    if(busy || !ids.length) return;
+    busy = true;
+    zone.classList.add('busy');
+    fetch('/api/members/link', {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({member_ids: ids, company_id: CID, office_id: OID,
+                            dept_id: DID})
+    }).then(function(r){ return r.json(); }).then(function(d){
+      busy = false;
+      zone.classList.remove('busy');
+      say(d.message, !!d.ok);
+      if(!d.ok) return;
+      ids.forEach(function(id){
+        var rb = list.querySelector('.ribbon[data-id="' + id + '"]');
+        if(rb) rb.remove();
+      });
+      zone.classList.add('flash-ok');
+      setTimeout(function(){ zone.classList.remove('flash-ok'); }, 900);
+      bumpDone(d.linked);
+      loadAfter(); shown(); refresh();
+      if(window.reportHeight) window.reportHeight();
+    }).catch(function(){
+      busy = false;
+      zone.classList.remove('busy');
+      say('紐づけできませんでした。通信状態を確認してください。', false);
+    });
+  }
+  window.lkGo = function(){
+    link(picked().map(function(r){ return Number(r.dataset.id); }));
+  };
+
+  /* ---- ダブルクリック ---- */
+  list.addEventListener('dblclick', function(e){
+    var rb = e.target.closest('.ribbon');
+    if(!rb) return;
+    var sel = picked();
+    var ids = (sel.length > 1 && sel.indexOf(rb) >= 0)
+      ? sel.map(function(r){ return Number(r.dataset.id); })
+      : [Number(rb.dataset.id)];
+    link(ids);
+  });
+
+  /* ---- ドラッグ＆ドロップ ---- */
+  var dragIds = [];
+  list.addEventListener('dragstart', function(e){
+    var rb = e.target.closest('.ribbon');
+    if(!rb) return;
+    if(!rb.classList.contains('on')){
+      ribbons().forEach(function(r){ r.classList.remove('on'); });
+      rb.classList.add('on');
+      refresh();
+    }
+    dragIds = picked().map(function(r){ return Number(r.dataset.id); });
+    e.dataTransfer.setData('text/plain', dragIds.join(','));
+    e.dataTransfer.effectAllowed = 'move';
+    document.body.classList.add('dragging');
+  });
+  list.addEventListener('dragend', function(){
+    document.body.classList.remove('dragging');
+    zone.classList.remove('over');
+  });
+  zone.addEventListener('dragover', function(e){
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move'; zone.classList.add('over');
+  });
+  zone.addEventListener('dragleave', function(){ zone.classList.remove('over'); });
+  zone.addEventListener('drop', function(e){
+    e.preventDefault(); zone.classList.remove('over');
+    var ids = dragIds.length ? dragIds
+            : (e.dataTransfer.getData('text/plain') || '').split(',')
+                .filter(Boolean).map(Number);
+    link(ids);
+    dragIds = [];
+  });
+
+  shown(); refresh();
+})();
+</script>
+{% endblock %}

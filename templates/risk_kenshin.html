@@ -1,0 +1,170 @@
+{% extends LAYOUT %}{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">健診結果の連携状況</h1>
+<p class="page-lead">当社の予約管理システムから、健診結果をバッチで取込みます。</p>
+{% endif %}
+
+<div class="link-bar">
+  <div class="link-bar-info">
+    {% if latest %}
+    <span class="st {{ 'st-invited' if latest.status == 'ok' else 'st-disabled' }}">
+      最終連携 {{ (latest.finished_at or latest.started_at)[:16] }}</span>
+    <span class="dest-now ok">{{ latest.fiscal_year }}年度</span>
+    {% else %}
+    <span class="st st-disabled">まだ連携していません</span>
+    {% endif %}
+  </div>
+  <div class="actions">
+    <a class="btn-sm" href="{{ url_for('risk_list') }}" style="text-decoration:none">予測結果一覧</a>
+    <a class="btn-sm" href="{{ url_for('risk_nsips') }}" style="text-decoration:none">NSIPS連携状況</a>
+  </div>
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>健診結果XMLの取込</h2></div>
+  </div>
+  <p class="note" style="margin-bottom:14px">
+    予約管理システムから届いた<b>特定健診のXML（HL7 CDA R2）</b>を読み取ります。
+    検査値から判定区分（基準内・要注意・要医療）を求め、属性区分ごとに集計します。
+    検査値そのものと個人を特定する項目は保存しません。</p>
+  <form method="post" action="{{ url_for('risk_kenshin_xml') }}"
+        enctype="multipart/form-data" class="search-row" style="margin:0">
+    <div class="search-group"><label for="fy2">対象年度</label>
+      <select id="fy2" name="fiscal_year" style="width:120px">
+        {% for y in years %}<option value="{{ y }}">{{ y }}年度</option>{% endfor %}
+      </select></div>
+    <div class="search-group" style="flex:1;min-width:280px">
+      <label for="files">XMLファイル（複数選べます）</label>
+      <input type="file" id="files" name="files" accept=".xml" multiple style="width:100%"></div>
+    <button class="btn-sm primary">XMLを取込む</button>
+  </form>
+  <p class="fld-help" style="margin-top:10px">
+    ファイルを選ばずに押すと、<b>同梱のサンプルXML</b>を取込みます。動作確認にお使いください。</p>
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>連携の実行（APIから取得）</h2></div>
+    <div class="actions">
+      <form method="post" action="{{ url_for('risk_kenshin_sync') }}"
+            style="display:flex;gap:10px;align-items:center;margin:0">
+        <label class="fld-label" style="margin:0">対象年度</label>
+        <select name="fiscal_year" class="w-s" style="width:120px">
+          {% for y in years %}<option value="{{ y }}">{{ y }}年度</option>{% endfor %}
+        </select>
+        <button class="btn-sm primary">いま連携する</button>
+      </form>
+    </div>
+  </div>
+  <p class="note" style="margin:0">
+    {% if endpoint %}接続先：<b>{{ endpoint }}</b>
+    {% else %}接続先が未設定のため、<b>加入者の属性から連携内容を再現</b>して動作を確認できます。
+    接続先は<b>サーバー側（run.bat）</b>で設定します。{% endif %}
+    　通常は<b>夜間の定期バッチ</b>で自動的に取込まれます。この画面の実行は手動で取込みたいときに使います。
+  </p>
+</div>
+
+{% if latest and latest.status == 'ok' %}
+<div class="rk-row">
+  <div class="rk-box"><span class="rk-label">取得件数</span>
+    <span class="rk-value">{{ '{:,}'.format(latest.fetched) }}</span><span class="rk-unit">件</span></div>
+  <div class="rk-box"><span class="rk-label">取込件数</span>
+    <span class="rk-value">{{ '{:,}'.format(latest.imported) }}</span><span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">除外件数</span>
+    <span class="rk-value {{ 'risk-高' if latest.excluded else '' }}">{{ latest.excluded }}</span>
+    <span class="rk-unit">件</span></div>
+  <div class="rk-box"><span class="rk-label">対象年度</span>
+    <span class="rk-value">{{ latest.fiscal_year }}</span><span class="rk-unit">年度</span></div>
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left">
+      <h2>取込んだ健診結果（属性区分ごとの集計）</h2>
+      <span class="count">{{ recs|length }}件</span>
+    </div>
+  </div>
+  {% if recs %}
+  <div class="table-scroll" style="max-height:440px;overflow-y:auto">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr>
+      <th class="tl" style="width:140px">検査項目</th>
+      <th style="width:110px">年代</th>
+      <th style="width:80px">性別</th>
+      <th style="width:100px">基準内</th>
+      <th style="width:100px">要注意</th>
+      <th style="width:100px">要医療</th>
+      <th style="width:170px">要医療の割合</th>
+    </tr></thead>
+    <tbody>
+    {% for r in recs %}
+    {% set total = r.normal + r.caution + r.medical %}
+    <tr class="ls-row">
+      <td class="tl">{{ r.item }}</td>
+      <td>{{ r.age_band }}</td>
+      <td>{{ r.sex }}</td>
+      <td class="num">{{ r.normal }}</td>
+      <td class="num">{{ r.caution }}</td>
+      <td class="num"><b>{{ r.medical }}</b></td>
+      <td class="num">
+        {% set pct = (r.medical / total * 100) if total else 0 %}
+        <span class="score-bar"><span class="score-fill" style="width:{{ pct }}%"></span></span>
+        {{ '%.0f'|format(pct) }}%</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div class="empty-box">取込んだ結果がありません。</div>{% endif %}
+</div>
+{% endif %}
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>連携の履歴</h2><span class="count">{{ syncs|length }}件</span></div>
+  </div>
+  {% if syncs %}
+  <div class="table-scroll" style="max-height:300px;overflow-y:auto">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr>
+      <th style="width:150px">開始</th>
+      <th style="width:150px">終了</th>
+      <th style="width:90px">対象年度</th>
+      <th style="width:80px">結果</th>
+      <th style="width:80px">取得</th>
+      <th style="width:80px">取込</th>
+      <th style="width:80px">除外</th>
+      <th class="tl">内容</th>
+    </tr></thead>
+    <tbody>
+    {% for r in syncs %}
+    <tr class="ls-row">
+      <td class="code">{{ r.started_at[:16] }}</td>
+      <td class="code">{{ (r.finished_at or '—')[:16] }}</td>
+      <td>{{ r.fiscal_year }}</td>
+      <td><span class="st {{ 'st-invited' if r.status == 'ok' else 'st-disabled' }}">
+        {{ '成功' if r.status == 'ok' else ('実行中' if r.status == 'running' else 'エラー') }}</span></td>
+      <td class="num">{{ r.fetched }}</td>
+      <td class="num">{{ r.imported }}</td>
+      <td class="num">{{ r.excluded }}</td>
+      <td class="tl"><span class="hint">{{ r.message or '' }}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div class="empty-box">まだ連携していません。</div>{% endif %}
+</div>
+
+<div class="block note-card">
+  <h2>個人情報の取り扱い</h2>
+  <ul class="note-list">
+    <li>取込むのは<b>検査項目ごとの判定区分（基準内・要注意・要医療）の人数</b>だけです。
+      検査値そのものや、氏名・生年月日・被保険者証番号は保持しません。</li>
+    <li>受信データに個人を特定しうる項目が混ざっていた場合は、
+      <b>取込まずに除外</b>し、件数を上の「除外件数」に表示します。</li>
+    <li>健診結果の判定は、予約管理システム側の基準に従います。</li>
+  </ul>
+</div>
+{% endblock %}

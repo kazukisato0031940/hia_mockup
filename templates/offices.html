@@ -1,0 +1,66 @@
+{% set FIXED_HEIGHT = true %}
+{% extends LAYOUT %}
+{% from "_import_modal.html" import import_modal, import_script %}
+{% from "_listsearch.html" import search_card, search_script, rows_script %}
+{% block body %}
+{# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
+{% if not EMBED %}
+<h1 class="page-title">事業所情報</h1>
+<p class="page-lead">事業所の登録・編集・削除を行います。事業所コードはシステムが自動採番します。</p>
+{% endif %}
+
+{{ search_card([('cname', '企業名', '260px'), ('code', '所属コード・内部コード', '180px'),
+                ('name', '事業所名', '220px')], f) }}
+
+<div class="block list-card">
+  <div class="blk-head">
+    <div class="blk-head-left">
+      <h2>登録済みの事業所</h2>
+      <div class="actions">
+        <button type="button" class="btn-sm" onclick="openImport('imp-office')">一括インポート</button>
+      </div>
+    </div>
+    <div class="actions">
+      <a class="btn-sm primary" href="{{ url_for('office_new') }}" style="text-decoration:none">事業所を登録する</a>
+    </div>
+  </div>
+  {% if rows %}
+  <div class="table-scroll paged grow" data-rows-url="{{ url_for('offices_rows') }}"
+       data-loaded="{{ rows|length }}" data-total="{{ total }}">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr>
+      <th style="width:130px">事業所（企業）コード</th>
+      <th class="tl" style="width:240px">企業名</th>
+      <th style="width:105px">所属コード</th>
+      <th style="width:90px">内部コード</th>
+      <th class="tl" style="width:210px">事業所名</th>
+      <th class="tl" style="width:150px">電話番号</th>
+      <th style="width:95px">加入者</th>
+      <th class="ops">操作</th>
+    </tr></thead>
+    <tbody>
+    {% include "_rows_offices.html" %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div class="empty-box">
+    {% if f.cname or f.code or f.name %}条件に一致する事業所がありません。
+    {% else %}事業所がまだ登録されていません。先に企業を登録してください。{% endif %}
+  </div>{% endif %}
+</div>
+
+{{ search_script([('cname','cname'), ('code','code'), ('name','name')]) }}
+{{ rows_script() }}
+{{ import_modal('imp-office', '事業所の一括インポート', url_for('offices_import'),
+   url_for('offices_template'),
+   [('保険者番号','必須','登録済みの健康保険組合の番号'),
+    ('事業所（企業）コード','必須','登録済みの企業のコード'),
+    ('所属コード','推奨','企業が管理する番号。**この番号で照合して更新**します'),
+    ('部署名','必須','コードが空欄のときは名称で照合します'),
+    ('部署名（フリガナ）','任意','—'),
+    ('郵便番号','任意','—'),
+    ('住所','任意','—'),
+    ('電話番号','任意','—')],
+   sample=url_for('sample_csv', name='office')) }}
+{{ import_script() }}
+{% endblock %}

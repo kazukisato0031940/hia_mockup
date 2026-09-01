@@ -1,0 +1,51 @@
+{% extends LAYOUT %}{% block body %}
+{# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
+{% if not EMBED %}
+<h1 class="page-title">健康保険組合情報</h1>
+<p class="page-lead">健康保険組合の登録・編集・削除を行います。保険者番号は各組合の番号を入力してください。</p>
+{% endif %}
+
+<div class="block">
+  <div class="blk-head">
+    <h2>登録済みの健康保険組合<span class="count">{{ rows|length }}件</span></h2>
+    <a class="btn-sm primary" href="{{ url_for('kenpo_new') }}"
+       style="text-decoration:none">健康保険組合を登録する</a>
+  </div>
+  {% if rows %}
+  <div class="table-scroll">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr>
+      <th style="width:130px">保険者番号</th>
+      <th class="tl">健康保険組合名</th>
+      <th style="width:100px">企業数</th>
+      <th style="width:110px">加入者数</th>
+      <th style="width:120px">アカウント数</th>
+      <th style="width:110px">登録日</th>
+      <th class="ops">操作</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+      <td class="code">{{ r.code }}</td>
+      <td class="tl">{{ r.name }}</td>
+      <td class="num">{{ '{:,}'.format(r.n_company) }}</td>
+      <td class="num">{{ '{:,}'.format(r.n_member) }}</td>
+      <td class="num">{{ '{:,}'.format(r.n_account) }}</td>
+      <td class="ts">{{ r.created_at[:10] if r.created_at else '—' }}</td>
+      <td class="ops">
+        <a class="btn-sm primary" href="{{ url_for('kenpo_edit', kid=r.id) }}"
+           style="text-decoration:none">編集</a>
+        <form method="post" action="{{ url_for('kenpo_delete', kid=r.id) }}" style="display:inline"
+              onsubmit="return confirm('{{ r.name }} を削除します。\n\n企業・加入者・アカウントが紐づいている場合は削除できません。\n\nよろしいですか？')">
+          <button class="btn-sm" style="color:var(--error);border-color:#fed7d7">削除</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="hint">企業・加入者・アカウントが紐づいている健康保険組合は削除できません。<br>
+    ここで登録した健康保険組合は、企業・加入者・アカウントの登録先として選べるようになります。</p>
+  {% else %}<div class="empty-box">健康保険組合がまだ登録されていません。</div>{% endif %}
+</div>
+{% endblock %}
