@@ -29,6 +29,7 @@
       <select id="f-role">
         <option value="">すべて</option>
         {% for r in ROLE_LABELS %}<option value="{{ ROLE_LABELS[r] }}">{{ ROLE_LABELS[r] }}</option>{% endfor %}
+        {% for k, l in SUB_ROLE_LABELS.items() %}<option value="{{ l }}">企業担当者（{{ l }}）</option>{% endfor %}
       </select></div>
     <div class="search-group"><label for="f-status">ステータス</label>
       <select id="f-status">
@@ -64,11 +65,13 @@
         data-email="{{ r.email }}"
         data-kenpo="{{ r.kenpo_name or '' }}"
         data-company="{{ (r.companies + r.scopes) | join(' ') }}"
-        data-role="{{ ROLE_LABELS[r.role] }}"
+        data-role="{{ role_full(r) }}"
         data-status="{{ STATUS_LABELS.get(r.status, r.status) }}">
       <td class="tl"><span class="ellip w130" title="{{ r.name }}">{{ r.name }}</span>{% if r.is_primary %}<span class="st st-role" style="margin-left:6px">代表者</span>{% endif %}</td>
       <td class="tl code"><span class="ellip" title="{{ r.email }}">{{ r.email }}</span></td>
-      <td><span class="st st-role" title="{{ ROLE_LABELS[r.role] }}">{{ ROLE_LABELS[r.role] }}</span></td>
+      <td class="wrap"><span class="st st-role" title="{{ role_full(r) }}">{{ ROLE_LABELS.get(r.role, r.role) }}</span>
+        {% if sub_role_of(r) %}<div style="margin-top:4px"><span class="st st-dl"
+          title="サブロール">{{ SUB_ROLE_LABELS[sub_role_of(r)] }}</span></div>{% endif %}</td>
       <td><span class="st {{ 'st-own' if r.view_scope=='own_company' else 'st-all' }}"
                 title="{{ SCOPE_LABELS[r.view_scope] }}">{{ SCOPE_LABELS[r.view_scope] }}</span></td>
       <td class="tl"><span class="ellip w150" title="{{ r.kenpo_name or '—' }}">{{ r.kenpo_name or '—' }}</span></td>
@@ -93,7 +96,10 @@
           <a class="btn-sm" href="{{ url_for('accounts_purge', aid=r.id) }}"
              style="text-decoration:none;color:var(--error);border-color:#fed7d7">完全削除</a>
         {% elif r.id == acc.id %}
-          <span class="hint">自分のアカウント</span>
+          <a class="btn-sm primary" href="{{ url_for('me_account') }}"
+             style="text-decoration:none" title="自分の利用者名・メールアドレス・パスワードを変更します">
+            自分の情報を編集</a>
+          <div class="hint" style="margin-top:4px">権限の変更は他の管理者へ依頼してください</div>
         {% else %}
           {% if r.status in ('invited', 'active') %}
           <a class="btn-sm" href="{{ url_for('accounts_invite_link', aid=r.id) }}"

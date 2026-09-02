@@ -58,6 +58,10 @@ header h1 { font-size:18px; font-weight:500; letter-spacing:2px; color:#626262; 
 .header-divider {
   width:1px; height:20px; background:#e2e8f0;
 }
+/* 利用者名からマイアカウントを開く */
+.header-me { cursor:pointer; padding:4px 8px; margin:-4px -8px; border-radius:8px;
+  transition:background .15s; }
+.header-me:hover { background:#eef2f7; }
 .header-logout {
   display:flex; align-items:center; gap:5px;
   font-size:13px; color:#6b7280; text-decoration:none; cursor:pointer;
@@ -1036,7 +1040,7 @@ textarea { min-height: 40px; box-sizing: border-box; }
         <button class="sp-end" title="サポートを終了して当社の画面に戻ります">終了</button>
       </form>
     </div>
-    <div class="header-user">
+    <div class="header-user header-me" onclick="navigateTo('sys-me')" title="マイアカウント（利用者名・メールアドレス・パスワードの変更）">
       <div class="header-avatar">KM</div>
       <span class="header-username">KM担当者</span>
     </div>
@@ -1059,14 +1063,14 @@ textarea { min-height: 40px; box-sizing: border-box; }
        ============================ -->
   <aside class="sidebar" id="sidebar">
 
-    <div class="sb-cat-item" id="cat-kenshin" data-cat="kenshin" onclick="selectCategory('kenshin')">
+    <div class="sb-cat-item" id="cat-kenshin" data-cat="kenshin" data-feature="kenpo.kenshin" onclick="selectCategory('kenshin')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
       </svg>
       <span class="sb-cat-label">健康診断</span>
     </div>
 
-    <div class="sb-cat-item" id="cat-hoken" data-cat="hoken" onclick="selectCategory('hoken')">
+    <div class="sb-cat-item" id="cat-hoken" data-cat="hoken" data-feature="kenpo.hoken" onclick="selectCategory('hoken')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
         <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
@@ -1074,19 +1078,21 @@ textarea { min-height: 40px; box-sizing: border-box; }
       <span class="sb-cat-label">保健指導</span>
     </div>
 
-    <div class="sb-cat-item" id="cat-influenza" data-cat="influenza" onclick="selectCategory('influenza')">
+    <div class="sb-cat-item" id="cat-sanmen" data-cat="sanmen" onclick="selectCategory('sanmen')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        <path d="M12 11v6M9 14h6"/>
+      </svg>
+      <span class="sb-cat-label">産業医<br>面談</span>
+    </div>
+
+    <div class="sb-cat-item" id="cat-influenza" data-cat="influenza" data-feature="kenpo.influenza" onclick="selectCategory('influenza')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M18 2l4 4"/><path d="M21 5l-9.5 9.5"/><path d="M11.5 14.5L7 19l-3-3 4.5-4.5"/><path d="M14 7l3 3"/><path d="M3 21l3-3"/>
       </svg>
       <span class="sb-cat-label">インフル<br>補助</span>
     </div>
 
-    <div class="sb-cat-item" id="cat-analysis" data-cat="analysis" onclick="selectCategory('analysis')">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-      </svg>
-      <span class="sb-cat-label">分析</span>
-    </div>
 
     <div class="sb-cat-item" id="cat-risk" data-cat="risk" onclick="selectCategory('risk')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -1095,7 +1101,7 @@ textarea { min-height: 40px; box-sizing: border-box; }
       <span class="sb-cat-label">疾患予測</span>
     </div>
 
-    <div class="sb-cat-item" id="cat-receipt" data-cat="receipt" onclick="selectCategory('receipt')">
+    <div class="sb-cat-item" id="cat-receipt" data-cat="receipt" data-feature="kenpo.receipt" onclick="selectCategory('receipt')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M14 2v6h6M9 13h6M9 17h4"/>
       </svg>
@@ -1899,60 +1905,6 @@ textarea { min-height: 40px; box-sizing: border-box; }
     </div><!-- /page-vaccination-upload -->
 
 
-    <!-- ===========================
-         PAGE: 総合評価指標 点数確認シート（分析）
-         =========================== -->
-    <div class="page" id="page-analysis-score">
-      <div style="display:flex;align-items:center;margin-bottom:8px;">
-        <h1 class="page-title" style="margin-bottom:0;">総合評価指標の点数確認シート</h1>
-        <button class="btn-back" onclick="selectCategory('analysis')" style="margin-left:auto;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> 戻る</button>
-      </div>
-      <p style="font-size:13px;color:#718096;margin:0 0 18px;">第3期 令和6年度</p>
-
-      <div class="block" style="margin-bottom:20px;">
-        <div style="background:#fff5f5;border:1px solid #feb2b2;border-radius:8px;padding:12px 16px;font-size:12px;color:#742a2a;line-height:1.7;">
-          加算・減算制度の評価方法について：一部の評価指標は、レセプト情報・特定健康診査等情報データベース（NDB）のデータ等を基に集計値と点数が算出されています。表示される合計点は参考値であり、NDB集計項目以外も含めて実際の点数とは異なる場合があります。
-        </div>
-      </div>
-
-      <!-- 総点数・レーダー -->
-      <div class="block" style="margin-bottom:20px;">
-        <h2 class="block-title">点数サマリー</h2>
-        <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
-          <div style="flex:0 0 auto;text-align:center;background:#faf5ff;border:1px solid #e9d8fd;border-radius:12px;padding:18px 28px;">
-            <div style="font-size:12px;color:#6b46c1;font-weight:700;letter-spacing:.05em;">総点数</div>
-            <div style="font-size:34px;font-weight:800;color:#553c9a;line-height:1.2;margin-top:4px;"><span id="analysis-total-score">49</span><span style="font-size:18px;color:#9f7aea;font-weight:700;"> / 210点</span></div>
-            <div style="font-size:12px;color:#718096;margin-top:4px;">達成率 <span id="analysis-total-pct">約23%</span></div>
-          </div>
-          <div style="flex:1 1 320px;min-width:300px;display:flex;justify-content:center;">
-            <div id="analysis-radar"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 大項目別 集計 -->
-      <div class="block" style="margin-bottom:20px;">
-        <h2 class="block-title">大項目別 点数</h2>
-        <div class="table-scroll">
-          <table class="result-table" style="font-size:13px;">
-            <thead><tr style="background:#edf2f7;"><th style="text-align:left;">大項目</th><th style="width:18%;">点数</th><th style="width:22%;">達成率</th></tr></thead>
-            <tbody id="analysis-cat-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- 詳細 -->
-      <div class="block" style="margin-bottom:20px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
-          <h2 class="block-title" style="margin:0;">評価指標の詳細（入力・編集）</h2>
-          <div style="display:flex;gap:8px;">
-            <button class="btn-secondary" style="padding:8px 16px;" onclick="fluResetAnalysis()">初期値に戻す</button>
-            <button class="btn-primary" style="padding:8px 18px;" onclick="fluSaveAnalysis()">保存する</button>
-          </div>
-        </div>
-        <div id="analysis-detail"></div>
-      </div>
-    </div><!-- /page-analysis-score -->
 
 
     <!-- ===========================
@@ -2237,43 +2189,6 @@ textarea { min-height: 40px; box-sizing: border-box; }
       </div>
     </div><!-- /#page-hia-mail -->
 
-    <!-- ===========================
-         PAGE: パスワード変更
-         =========================== -->
-    <div class="page" id="page-password-change">
-      <div style="display:flex;align-items:center;margin-bottom:20px;"><h1 class="page-title" style="margin-bottom:0;">パスワード変更</h1><button class="btn-back" onclick="selectCategory('settings')" style="margin-left:auto;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> 戻る</button></div>
-      <div class="block" style="">
-        <p style="font-size:13px;color:#718096;margin-bottom:20px;">現在のパスワードと新しいパスワードを入力してください</p>
-        <div style="display:flex;flex-direction:column;gap:16px;">
-          <div class="search-group">
-            <label>現在のパスワード</label>
-            <input type="password" id="pw-current" style="max-width:280px;">
-          </div>
-          <div class="search-group">
-            <label>新しいパスワード</label>
-            <input type="password" id="pw-new" style="max-width:280px;">
-          </div>
-          <div class="search-group">
-            <label>新しいパスワード（確認用）</label>
-            <input type="password" id="pw-confirm" style="max-width:280px;">
-          </div>
-          <div>
-            <button class="btn-primary" style="margin-top:8px;" onclick="handlePasswordChange()">パスワード変更</button>
-          </div>
-        </div>
-        <div style="margin-top:20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;font-size:12px;color:#718096;max-width:340px;">
-          <div style="margin-bottom:6px;font-weight:600;color:#4a5568;">パスワードの最小文字数：13文字（最大：300文字）</div>
-          <div style="font-weight:600;color:#4a5568;margin-bottom:4px;">パスワード強度</div>
-          <ul style="padding-left:18px;line-height:2;">
-            <li>少なくとも1つの数字を含む</li>
-            <li>少なくとも1つの特殊文字を含む</li>
-            <li>! " [] {} &amp; % / \ ; : , - " " + スペース</li>
-            <li>少なくとも1つの大文字を含む</li>
-            <li>少なくとも1つの小文字を含む</li>
-          </ul>
-        </div>
-      </div>
-    </div><!-- /page-password-change -->
 
     <!-- ===========================
          PAGE: お問い合わせ先
@@ -2702,7 +2617,7 @@ textarea { min-height: 40px; box-sizing: border-box; }
         <div class="sys-head">
           <h1 class="page-title">疾患予測</h1>
           <span class="sys-flag">サーバ連携</span>
-          <button class="btn-back" onclick="selectCategory('risk')">
+          <button class="btn-back" onclick="sysBack('risk')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             戻る
           </button>
@@ -2716,7 +2631,7 @@ textarea { min-height: 40px; box-sizing: border-box; }
         <div class="sys-head">
           <h1 class="page-title">健診結果の連携</h1>
           <span class="sys-flag">サーバ連携</span>
-          <button class="btn-back" onclick="selectCategory('risk')">
+          <button class="btn-back" onclick="sysBack('risk')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             戻る
           </button>
@@ -2730,7 +2645,7 @@ textarea { min-height: 40px; box-sizing: border-box; }
         <div class="sys-head">
           <h1 class="page-title">NSIPS連携状況</h1>
           <span class="sys-flag">サーバ連携</span>
-          <button class="btn-back" onclick="selectCategory('risk')">
+          <button class="btn-back" onclick="sysBack('risk')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             戻る
           </button>
@@ -2739,12 +2654,118 @@ textarea { min-height: 40px; box-sizing: border-box; }
         <iframe class="sys-frame" data-src="/risk/nsips" title="NSIPS連携状況"></iframe>
       </div>
 
+      <!-- ======== 本システム: マイアカウント ======== -->
+      <div class="page" id="page-sys-me">
+        <div class="sys-head">
+          <h1 class="page-title">マイアカウント</h1>
+          <span class="sys-flag">サーバ連携</span>
+          <button class="btn-back" onclick="sysBack('settings')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            戻る
+          </button>
+        </div>
+        <p class="sys-note">自分の利用者名・メールアドレス（ログインID）・パスワードを変更します。権限ロール・サブロール・担当する範囲は本人では変更できません（他の管理者へ依頼してください）。</p>
+        <iframe class="sys-frame" data-src="/me" title="マイアカウント"></iframe>
+      </div>
+
+      <!-- ======== 本システム: 産業医面談 管理 ======== -->
+      <div class="page" id="page-oh-list">
+        <div class="sys-head">
+          <h1 class="page-title">面談対象者一覧</h1>
+          <span class="sys-flag">サーバ連携</span>
+          <button class="btn-back" onclick="sysBack('sanmen')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            戻る
+          </button>
+        </div>
+        <p class="sys-note">健診有所見（C判定以上）・長時間労働（月80時間超）・高ストレスの該当者を面談候補として自動抽出します。承認・就業区分の判定は産業医のみが行います。</p>
+        <iframe class="sys-frame" data-src="/oh/" title="面談対象者一覧"></iframe>
+      </div>
+
+      <div class="page" id="page-oh-kenshin">
+        <div class="sys-head">
+          <h1 class="page-title">定期健診 受診管理</h1>
+          <span class="sys-flag">サーバ連携</span>
+          <button class="btn-back" onclick="sysBack('sanmen')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            戻る
+          </button>
+        </div>
+        <p class="sys-note">定期健康診断（年1回）の受診状況を年度ごとに管理します。受診済／未受診・受診率・判定区分の内訳を集計します。</p>
+        <iframe class="sys-frame" data-src="/oh/kenshin" title="定期健診 受診管理"></iframe>
+      </div>
+
+      <div class="page" id="page-oh-night">
+        <div class="sys-head">
+          <h1 class="page-title">深夜健診 受診管理</h1>
+          <span class="sys-flag">サーバ連携</span>
+          <button class="btn-back" onclick="sysBack('sanmen')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            戻る
+          </button>
+        </div>
+        <p class="sys-note">深夜業従事者（特定業務従事者・6か月ごと）の受診状況を管理します。対象者は加入者マスタの「深夜業従事」区分で判定します。</p>
+        <iframe class="sys-frame" data-src="/oh/kenshin?kind=%E6%B7%B1%E5%A4%9C" title="深夜健診 受診管理"></iframe>
+      </div>
+
+      <div class="page" id="page-oh-interview">
+        <div class="sys-head">
+          <h1 class="page-title">面談結果入力</h1>
+          <span class="sys-flag">サーバ連携</span>
+          <button class="btn-back" onclick="sysBack('sanmen')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            戻る
+          </button>
+        </div>
+        <p class="sys-note">面談日・方法・目的・就業区分・事後措置・所見・次回予定を記録します。登録は産業医のみが行い、保存すると労基署報告の面接指導実施状況に反映されます。</p>
+        <iframe class="sys-frame" data-src="/oh/interview" title="面談結果入力"></iframe>
+      </div>
+
+      <div class="page" id="page-oh-report">
+        <div class="sys-head">
+          <h1 class="page-title">労基署報告</h1>
+          <span class="sys-flag">サーバ連携</span>
+          <button class="btn-back" onclick="sysBack('sanmen')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            戻る
+          </button>
+        </div>
+        <p class="sys-note">社内管理用サマリーと提出書類（定期健康診断結果報告書・ストレスチェック結果等報告書）を作成します。記名・サインは産業医のみが行います。</p>
+        <iframe class="sys-frame" data-src="/oh/report" title="労基署報告"></iframe>
+      </div>
+
+      <div class="page" id="page-oh-mail">
+        <div class="sys-head">
+          <h1 class="page-title">メール配信</h1>
+          <span class="sys-flag">サーバ連携</span>
+          <button class="btn-back" onclick="sysBack('sanmen')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            戻る
+          </button>
+        </div>
+        <p class="sys-note">面談受診勧奨とストレスチェック受検案内を1画面で配信します。勧奨メールは面談対象のみに送信し、非対象はスキップします。</p>
+        <iframe class="sys-frame" data-src="/oh/mail" title="メール配信"></iframe>
+      </div>
+
+      <div class="page" id="page-oh-upload">
+        <div class="sys-head">
+          <h1 class="page-title">データ取込</h1>
+          <span class="sys-flag">サーバ連携</span>
+          <button class="btn-back" onclick="sysBack('sanmen')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            戻る
+          </button>
+        </div>
+        <p class="sys-note">健診結果（総合判定）・月次の労働時間・ストレスチェックを取込みます。加入者との突合は社員コードなどで行い、突合できない行は要確認として表示します。</p>
+        <iframe class="sys-frame" data-src="/oh/upload" title="データ取込"></iframe>
+      </div>
+
       <!-- ======== 本システム: 企業情報 ======== -->
       <div class="page" id="page-sys-company">
         <div class="sys-head">
           <h1 class="page-title">企業情報</h1>
           <span class="sys-flag">サーバ連携</span>
-          <button class="btn-back" onclick="selectCategory('master')">
+          <button class="btn-back" onclick="sysBack('master')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             戻る
           </button>
@@ -2758,7 +2779,7 @@ textarea { min-height: 40px; box-sizing: border-box; }
         <div class="sys-head">
           <h1 class="page-title">事業所情報</h1>
           <span class="sys-flag">サーバ連携</span>
-          <button class="btn-back" onclick="selectCategory('master')">
+          <button class="btn-back" onclick="sysBack('master')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             戻る
           </button>
@@ -2772,7 +2793,7 @@ textarea { min-height: 40px; box-sizing: border-box; }
         <div class="sys-head">
           <h1 class="page-title">部署情報</h1>
           <span class="sys-flag">サーバ連携</span>
-          <button class="btn-back" onclick="selectCategory('master')">
+          <button class="btn-back" onclick="sysBack('master')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             戻る
           </button>
@@ -2786,7 +2807,7 @@ textarea { min-height: 40px; box-sizing: border-box; }
         <div class="sys-head">
           <h1 class="page-title">加入者情報</h1>
           <span class="sys-flag">サーバ連携</span>
-          <button class="btn-back" onclick="selectCategory('master')">
+          <button class="btn-back" onclick="sysBack('master')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             戻る
           </button>
@@ -2800,7 +2821,7 @@ textarea { min-height: 40px; box-sizing: border-box; }
         <div class="sys-head">
           <h1 class="page-title">アカウント管理</h1>
           <span class="sys-flag">サーバ連携</span>
-          <button class="btn-back" onclick="selectCategory('settings')">
+          <button class="btn-back" onclick="sysBack('settings')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             戻る
           </button>
@@ -3200,13 +3221,13 @@ var CAT_CARD_CONFIG = {
     subtitle: '健診の進捗管理・結果出力・請求書管理',
     color: '#3182ce', iconBg: '#ebf8ff',
     cards: [
-      { page:'kenshin-dashboard', label:'ダッシュボード', desc:'受診進捗・月次推移をグラフで確認', tag:'進捗管理', tagClass:'tag-view',
+      { page:'kenshin-dashboard', feature:'kenpo.kenshin', label:'ダッシュボード', desc:'受診進捗・月次推移をグラフで確認', tag:'進捗管理', tagClass:'tag-view',
         icon:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>' },
-      { page:'kenshin-list',      label:'対象者一覧',     desc:'受診者の一覧表示・ステータス確認', tag:'進捗管理', tagClass:'tag-view',
+      { page:'kenshin-list', feature:'kenpo.kenshin',      label:'対象者一覧',     desc:'受診者の一覧表示・ステータス確認', tag:'進捗管理', tagClass:'tag-view',
         icon:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' },
-      { page:'kenshin-dl',        label:'健診結果出力',    desc:'健診・人間ドック結果のCSV/ZIP取得', tag:'出力', tagClass:'tag-dl',
+      { page:'kenshin-dl', feature:'kenpo.kenshin',        label:'健診結果出力',    desc:'健診・人間ドック結果のCSV/ZIP取得', tag:'出力', tagClass:'tag-dl',
         icon:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>' },
-      { page:'kenshin-invoice',   label:'請求書出力',      desc:'健診代行請求書・明細の出力', tag:'出力', tagClass:'tag-dl',
+      { page:'kenshin-invoice', feature:'kenpo.kenshin',   label:'請求書出力',      desc:'健診代行請求書・明細の出力', tag:'出力', tagClass:'tag-dl',
         icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' },
     ]
   },
@@ -3215,18 +3236,39 @@ var CAT_CARD_CONFIG = {
     subtitle: '指導対象者の管理・結果出力・データ連携',
     color: '#e53e3e', iconBg: '#fff5f5',
     cards: [
-      { page:'hoken-dashboard', label:'ダッシュボード',       desc:'指導終了率・月次推移を確認', tag:'進捗管理', tagClass:'tag-view',
+      { page:'hoken-dashboard', feature:'kenpo.hoken', label:'ダッシュボード',       desc:'指導終了率・月次推移を確認', tag:'進捗管理', tagClass:'tag-view',
         icon:'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>' },
-      { page:'hoken-list',      label:'対象者一覧',           desc:'指導対象者の進捗・詳細確認', tag:'進捗管理', tagClass:'tag-view',
+      { page:'hoken-list', feature:'kenpo.hoken',      label:'対象者一覧',           desc:'指導対象者の進捗・詳細確認', tag:'進捗管理', tagClass:'tag-view',
         icon:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>' },
-      { page:'hoken-dl',        label:'保健指導結果 XML出力',  desc:'XML形式での保健指導結果生成', tag:'出力', tagClass:'tag-dl',
+      { page:'hoken-dl', feature:'kenpo.hoken',        label:'保健指導結果 XML出力',  desc:'XML形式での保健指導結果生成', tag:'出力', tagClass:'tag-dl',
         icon:'<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>' },
-      { page:'hoken-invoice',   label:'保健指導請求書出力',   desc:'保健指導の月次請求書を出力', tag:'出力', tagClass:'tag-dl',
+      { page:'hoken-invoice', feature:'kenpo.hoken',   label:'保健指導請求書出力',   desc:'保健指導の月次請求書を出力', tag:'出力', tagClass:'tag-dl',
         icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>' },
-      { page:'hoken-upload',    label:'健診結果 UP',          desc:'保健指導用の健診データを登録', tag:'アップロード', tagClass:'tag-up',
+      { page:'hoken-upload', feature:'kenpo.hoken',    label:'健診結果 UP',          desc:'保健指導用の健診データを登録', tag:'アップロード', tagClass:'tag-up',
         icon:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>' },
-      { page:'hoken-history',   label:'UP履歴：健診結果',     desc:'アップロード済みファイルの確認', tag:'履歴確認', tagClass:'tag-sys',
+      { page:'hoken-history', feature:'kenpo.hoken',   label:'UP履歴：健診結果',     desc:'アップロード済みファイルの確認', tag:'履歴確認', tagClass:'tag-sys',
         icon:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>' },
+    ]
+  },
+  sanmen: {
+    title: '産業医面談 管理',
+    subtitle: '面談対象者の抽出・健診受診管理・面談記録・労基署報告',
+    color: '#2c7a7b', iconBg: '#e6fffa',
+    cards: [
+      { page:'oh-list', feature:'oh.list', label:'面談対象者一覧', desc:'健診有所見・長時間労働・高ストレスの該当者を自動抽出', tag:'進捗管理', tagClass:'tag-view',
+        icon:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' },
+      { page:'oh-kenshin', feature:'oh.kenshin', label:'定期健診 受診管理', desc:'年度ごとの受診状況（受診済／未受診）と判定を管理', tag:'進捗管理', tagClass:'tag-view',
+        icon:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>' },
+      { page:'oh-night', feature:'oh.kenshin', label:'深夜健診 受診管理', desc:'深夜業従事者（6か月ごと）の受診状況を管理', tag:'進捗管理', tagClass:'tag-view',
+        icon:'<path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>' },
+      { page:'oh-interview', feature:'oh.list', label:'面談結果入力', desc:'面談日・方法・就業区分・措置・所見の記録（産業医）', tag:'記録', tagClass:'tag-sys',
+        icon:'<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>' },
+      { page:'oh-report', feature:'oh.report', label:'労基署報告', desc:'様式第6号・ストレスチェック結果等報告書の作成', tag:'出力', tagClass:'tag-dl',
+        icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' },
+      { page:'oh-mail', feature:'oh.mail', label:'メール配信', desc:'面談受診勧奨・ストレスチェック受検案内の配信', tag:'案内送付', tagClass:'tag-dl',
+        icon:'<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>' },
+      { page:'oh-upload', feature:'oh.upload', label:'データ取込', desc:'健診結果・労働時間・ストレスチェックの取込', tag:'アップロード', tagClass:'tag-up',
+        icon:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>' },
     ]
   },
   master: {
@@ -3234,13 +3276,13 @@ var CAT_CARD_CONFIG = {
     subtitle: '企業・事業所・加入者の登録と編集',
     color: '#2b6cb0', iconBg: '#ebf8ff',
     cards: [
-      { page:'sys-company', label:'企業情報', desc:'企業の登録・編集・削除。企業コードは自動採番', tag:'マスタ', tagClass:'tag-sys',
+      { page:'sys-company', feature:'master.view', label:'企業情報', desc:'企業の登録・編集・削除。企業コードは自動採番', tag:'マスタ', tagClass:'tag-sys',
         icon:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h6"/>' },
-      { page:'sys-office', label:'事業所情報', desc:'事業所の登録・編集・削除。事業所コードは自動採番', tag:'マスタ', tagClass:'tag-sys',
+      { page:'sys-office', feature:'master.view', label:'事業所情報', desc:'事業所の登録・編集・削除。事業所コードは自動採番', tag:'マスタ', tagClass:'tag-sys',
         icon:'<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>' },
-      { page:'sys-dept', label:'部署情報', desc:'部署の登録・編集・削除。事業所の下に置く', tag:'マスタ', tagClass:'tag-sys',
+      { page:'sys-dept', feature:'master.view', label:'部署情報', desc:'部署の登録・編集・削除。事業所の下に置く', tag:'マスタ', tagClass:'tag-sys',
         icon:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="8" y="14" width="8" height="7" rx="1"/><path d="M6.5 10v2h11v-2M12 12v2"/>' },
-      { page:'sys-member', label:'加入者情報', desc:'加入者の登録・編集・削除・CSV取込', tag:'マスタ', tagClass:'tag-sys',
+      { page:'sys-member', feature:'master.view', label:'加入者情報', desc:'加入者の登録・編集・削除・CSV取込', tag:'マスタ', tagClass:'tag-sys',
         icon:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>' },
     ]
   },
@@ -3249,9 +3291,9 @@ var CAT_CARD_CONFIG = {
     subtitle: 'レセプト情報のアップロードと履歴の確認',
     color: '#805ad5', iconBg: '#f3ebff',
     cards: [
-      { page:'receipt-upload',  label:'レセプト情報 UP', desc:'医療レセプトデータの一括登録', tag:'アップロード', tagClass:'tag-up',
+      { page:'receipt-upload', feature:'kenpo.receipt',  label:'レセプト情報 UP', desc:'医療レセプトデータの一括登録', tag:'アップロード', tagClass:'tag-up',
         icon:'<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>' },
-      { page:'receipt-history', label:'UP履歴：レセプト', desc:'アップロード済みファイルの確認', tag:'履歴確認', tagClass:'tag-sys',
+      { page:'receipt-history', feature:'kenpo.receipt', label:'UP履歴：レセプト', desc:'アップロード済みファイルの確認', tag:'履歴確認', tagClass:'tag-sys',
         icon:'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>' },
     ]
   },
@@ -3259,11 +3301,11 @@ var CAT_CARD_CONFIG = {
     title: '疾患予測',
     desc: '健診データとNSIPS（調剤実績）から、将来の生活習慣病リスクを予測します',
     cards: [
-      { page:'sys-risk', label:'予測結果一覧', desc:'属性区分ごとのリスクスコアと保健指導の優先度', tag:'予測', tagClass:'tag-sys',
+      { page:'sys-risk', feature:'risk', label:'予測結果一覧', desc:'属性区分ごとのリスクスコアと保健指導の優先度', tag:'予測', tagClass:'tag-sys',
         icon:'<path d="M3 15l4-6 4 4 4-7 6 9"/><path d="M3 20h18"/><circle cx="7" cy="9" r="1.4"/>' },
-      { page:'sys-risk-kenshin', label:'健診結果の連携', desc:'予約管理システムからのバッチ連携の実行と履歴', tag:'予測', tagClass:'tag-sys',
+      { page:'sys-risk-kenshin', feature:'risk', label:'健診結果の連携', desc:'予約管理システムからのバッチ連携の実行と履歴', tag:'予測', tagClass:'tag-sys',
         icon:'<path d="M8 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2h-2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 12h3l1.5-3 2 6 1.5-3h2"/>' },
-      { page:'sys-risk-nsips', label:'NSIPS連携状況', desc:'調剤システムとのAPI連携の実行と履歴', tag:'予測', tagClass:'tag-sys',
+      { page:'sys-risk-nsips', feature:'risk', label:'NSIPS連携状況', desc:'調剤システムとのAPI連携の実行と履歴', tag:'予測', tagClass:'tag-sys',
         icon:'<path d="M4 7h6a4 4 0 010 8H8"/><circle cx="18" cy="7" r="2.4"/><circle cx="6" cy="15" r="2.4"/><path d="M14 7h1.6"/>' },
     ]
   },
@@ -3272,15 +3314,15 @@ var CAT_CARD_CONFIG = {
     subtitle: '補助申請の審査・給付管理・支給処理',
     color: '#805ad5', iconBg: '#faf5ff',
     cards: [
-      { page:'flu-dashboard', label:'ダッシュボード',    desc:'申請状況・受診者区分の集計を確認', tag:'進捗管理', tagClass:'tag-view',
+      { page:'flu-dashboard', feature:'kenpo.influenza', label:'ダッシュボード',    desc:'申請状況・受診者区分の集計を確認', tag:'進捗管理', tagClass:'tag-view',
         icon:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>' },
-      { page:'flu-reservation', label:'予約一覧',     desc:'接種予約者の予約・接種状況を確認', tag:'進捗管理', tagClass:'tag-view',
+      { page:'flu-reservation', feature:'kenpo.influenza', label:'予約一覧',     desc:'接種予約者の予約・接種状況を確認', tag:'進捗管理', tagClass:'tag-view',
         icon:'<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 16l2 2 4-4"/>' },
-      { page:'flu-list',      label:'申請一覧',          desc:'補助申請の検索・審査・一括承認', tag:'審査管理', tagClass:'tag-view',
+      { page:'flu-list', feature:'kenpo.influenza',      label:'申請一覧',          desc:'補助申請の検索・審査・一括承認', tag:'審査管理', tagClass:'tag-view',
         icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' },
-      { page:'vaccination-upload', label:'接種実績 UP',  desc:'接種年月日を入れた加入者情報の一括登録（HIADB認証）', tag:'アップロード', tagClass:'tag-up',
+      { page:'vaccination-upload', feature:'kenpo.influenza', label:'接種実績 UP',  desc:'接種年月日を入れた加入者情報の一括登録（HIADB認証）', tag:'アップロード', tagClass:'tag-up',
         icon:'<path d="M19.428 15.428a2 2 0 0 0-1.022-.547l-2.387-.477a6 6 0 0 0-3.86.517l-.318.158a6 6 0 0 1-3.86.517L6.05 15.21a2 2 0 0 0-1.806.547L3 17l2.55 2.55a2 2 0 0 0 1.806.547l2.387-.477a6 6 0 0 1 3.86.517l.318.158a6 6 0 0 0 3.86.517l2.387-.477a2 2 0 0 0 1.022-.547L21 17l-1.572-1.572z"/><circle cx="12" cy="9" r="2"/>' },
-      { page:'flu-billing',   label:'請求管理',          desc:'月次請求サマリー・請求書出力', tag:'出力', tagClass:'tag-dl',
+      { page:'flu-billing', feature:'kenpo.influenza',   label:'請求管理',          desc:'月次請求サマリー・請求書出力', tag:'出力', tagClass:'tag-dl',
         icon:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>' },
     ]
   },
@@ -3289,25 +3331,14 @@ var CAT_CARD_CONFIG = {
     subtitle: '加入者情報の修正・各種設定',
     color: '#dd6b20', iconBg: '#fffaf0',
     cards: [
-      { page:'sys-account', label:'アカウント管理', desc:'アカウントの登録・編集・削除。登録前に閲覧範囲を確認', tag:'管理', tagClass:'tag-sys',
+      { page:'sys-account', feature:'accounts', label:'アカウント管理', desc:'アカウントの登録・編集・削除。登録前に閲覧範囲を確認', tag:'管理', tagClass:'tag-sys',
         icon:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M17 11l2 2 4-4"/>' },
-      { page:'member-edit',    label:'加入者情報変更',   desc:'加入者の基本情報・住所・連絡先の編集', tag:'データ修正', tagClass:'tag-sys',
+      { page:'member-edit', feature:'kenpo.member_edit',    label:'加入者情報変更',   desc:'加入者の基本情報・住所・連絡先の編集', tag:'データ修正', tagClass:'tag-sys',
         icon:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="17" y1="11" x2="22" y2="11"/>' },
-      { page:'password-change', label:'パスワード変更',   desc:'現在のパスワードを新しいものに変更', tag:'設定', tagClass:'tag-sys',
-        icon:'<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>' },
       { page:'contact',         label:'お問い合わせ先',   desc:'サポート窓口の連絡先情報', tag:'サポート', tagClass:'tag-sys',
         icon:'<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.18 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9a16 16 0 0 0 6.91 6.91l.38-.28a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>' },
-      { page:'hia-mail',        label:'メール・通知送信',  desc:'受診案内テンプレートの作成・管理・送信', tag:'案内送付', tagClass:'tag-dl',
+      { page:'hia-mail', feature:'kenpo.mail',        label:'メール・通知送信',  desc:'受診案内テンプレートの作成・管理・送信', tag:'案内送付', tagClass:'tag-dl',
         icon:'<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>' },
-    ]
-  },
-  analysis: {
-    title: '分析',
-    subtitle: '評価指標・実績データの分析と閲覧',
-    color: '#6b46c1', iconBg: '#faf5ff',
-    cards: [
-      { page:'analysis-score', label:'総合評価指標 点数確認シート', desc:'第3期 令和6年度 加算・減算評価の点数・実績を閲覧', tag:'閲覧', tagClass:'tag-sys',
-        icon:'<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>' },
     ]
   }
 };
@@ -3321,6 +3352,17 @@ Object.keys(CAT_CARD_CONFIG).forEach(function(cat) {
 
 /* ── Select a category icon → show card page ── */
 function selectCategory(cat) {
+  /* 機能制御でそのカテゴリのカードが全部使えない場合は開かない */
+  var cards = (CAT_CARD_CONFIG[cat] && CAT_CARD_CONFIG[cat].cards) || [];
+  if(cards.length && window.FEATURES){
+    var usable = cards.filter(function(c){
+      return !c.feature || window.FEATURES[c.feature] !== false;
+    });
+    if(!usable.length){
+      alert('この機能は利用できません。\n必要な場合は当社スタッフにご連絡ください。');
+      return;
+    }
+  }
   currentCat = cat;
 
   // Highlight sidebar icon
@@ -3367,6 +3409,8 @@ function showCatCardPage(cat) {
   grid.className = 'func-grid';
 
   cfg.cards.forEach(function(c) {
+    /* 機能制御（ロール・サブロールごとの利用可否）で使えないカードは出さない */
+    if (c.feature && window.FEATURES && window.FEATURES[c.feature] === false) return;
     var card = document.createElement('div');
     card.className = 'func-card';
     card.style.setProperty('--card-accent', cfg.color);
@@ -3411,8 +3455,21 @@ function showCatCardPage(cat) {
 }
 
 /* ── Navigate to a page ── */
-function navigateTo(pageId) {
+/* page → 機能キー（機能制御で使う）。CAT_CARD_CONFIG から作る */
+var PAGE_TO_FEATURE = {};
+Object.keys(CAT_CARD_CONFIG).forEach(function(cat){
+  (CAT_CARD_CONFIG[cat].cards || []).forEach(function(c){
+    if(c.feature) PAGE_TO_FEATURE[c.page] = c.feature;
+  });
+});
 
+function navigateTo(pageId) {
+  /* 機能制御で使えない画面は開かせない（カードを隠すだけでなく直接呼び出しも止める） */
+  var need = PAGE_TO_FEATURE[pageId];
+  if(need && window.FEATURES && window.FEATURES[need] === false){
+    alert('この機能は利用できません。\n必要な場合は当社スタッフにご連絡ください。');
+    return;
+  }
 
   // Show/hide pages (including cat-card-pages)
   document.querySelectorAll('.page, .cat-card-page').forEach(function(p){ p.classList.remove('active'); });
@@ -3667,182 +3724,6 @@ function fluResvExportCSV(){
   URL.revokeObjectURL(url);
 }
 
-/* ===== 分析：総合評価指標 点数確認シート ===== */
-var ANALYSIS_CATS = [
-  { no:1, name:'特定健診・特定保健指導の実施（法定の義務）', score:6,  max:80,
-    rows:[
-      ['① 特定健診・特定保健指導の実施率【10〜50点（必須）】','特定健診 82.9% / 特定保健指導 20.7%（NDB）','0点'],
-      ['② 被扶養者の特定健診・保健指導の実施率【1〜10点】','特定健診 52.7% / 特定保健指導 12.5%（NDB）','3点'],
-      ['③ 肥満解消率【1〜20点】','8.7%（NDB）','3点']
-    ] },
-  { no:2, name:'要医療の者への受診勧奨、糖尿病等の重症化予防', score:5,  max:30,
-    rows:[
-      ['① 個別に受診勧奨・受診の確認【5点（重点）】','該当あり','5点'],
-      ['② 速やかに受診を要する者の医療機関受診率【5〜10点（重点）】','52.9%（NDB）','0点'],
-      ['③ 糖尿病性腎症等の重症化予防の取組Ⅰ【3点】','該当の有無','0点'],
-      ['④ 糖尿病性腎症等の重症化予防の取組Ⅱ【3点】','該当の有無','0点'],
-      ['⑤ 3疾患の状態コントロール割合【1〜9点】','高血圧 67.8% / 糖尿病 95.9% / 脂質異常 72.2%（NDB）','0点']
-    ] },
-  { no:3, name:'予防健康づくりの体制整備', score:5,  max:24,
-    rows:[
-      ['① PHRの体制整備【5点（重点・必須）】','該当の有無','0点'],
-      ['② コラボヘルスの体制整備【5点（重点・必須）】','該当あり','5点'],
-      ['③ 退職後の健康管理の働きかけ【4点】','該当の有無','0点'],
-      ['④ マイナ保険証の利用促進【5〜10点】','18.6%（実施機関集計値／基準値50%）','0点']
-    ] },
-  { no:4, name:'後発医薬品の使用促進、加入者の適正服薬を促す取組', score:6,  max:16,
-    rows:[
-      ['① 後発医薬品の理解促進・差額通知の実施・効果確認【1点】','該当あり','1点'],
-      ['② 後発医薬品の使用割合【3〜6点（重点・必須）】','90.1%（NDB／基準値80%）','5点'],
-      ['③ 加入者の適正服薬の取組の実施【9点】','国への報告 未該当','0点']
-    ] },
-  { no:5, name:'がん検診・歯科健診等の実施状況', score:17, max:30,
-    rows:[
-      ['① がん検診の実施状況【3点（重点）】','大腸がん検診 未実施（5種未充足）','0点'],
-      ['② がん検診結果に基づく受診勧奨【5〜10点】','該当の有無','0点'],
-      ['③ 市町村が実施するがん検診の受診勧奨【2点（重点）】','該当あり','2点'],
-      ['④ 歯科健診・受診勧奨【8点（重点）】','該当あり','8点'],
-      ['⑤ 歯科保健指導【5点（重点）】','該当あり','5点'],
-      ['⑥ 予防接種の実施【2点】','該当あり','2点']
-    ] },
-  { no:6, name:'加入者に向けた予防・健康づくりの働きかけ', score:10, max:30,
-    rows:[
-      ['① 生活習慣改善・喫煙対策事業の実施【1〜5点】','運動・食生活・睡眠・飲酒・喫煙の全事業を実施','5点'],
-      ['② 運動習慣の改善【1〜3点（重点）】','31.5%（NDB）','1点'],
-      ['③ 食生活の改善【1〜3点（重点）】','38.9%（NDB）','0点'],
-      ['④ 睡眠習慣の改善【1〜3点（重点）】','60.9%（NDB）','0点'],
-      ['⑤ 飲酒習慣の改善【1〜3点（重点）】','87.6%（NDB）','1点'],
-      ['⑥ 喫煙対策【1〜5点（重点）】','68.2%（NDB）','1点'],
-      ['⑦ こころの健康づくり【2点】','該当あり','2点'],
-      ['⑧ インセンティブを活用した事業の実施【6点（重点）】','該当の有無','0点']
-    ] }
-];
-var ANALYSIS_DEFAULTS = JSON.parse(JSON.stringify(ANALYSIS_CATS));
-
-function fluParseScore(s){ var m=String(s).match(/-?\d+/); return m?parseInt(m[0],10):0; }
-var ANALYSIS_KEY = 'HIA_ANALYSIS_SCORE';
-
-/* 保存済みの編集値を適用（ANALYSIS_CATS のrowsは[label, 実績, 点数, 備考]に正規化） */
-function fluLoadAnalysisState(){
-  ANALYSIS_CATS.forEach(function(c){
-    c.rows.forEach(function(r){ if(r.length<4) r[3]=''; });
-  });
-  try{
-    var saved = JSON.parse(localStorage.getItem(ANALYSIS_KEY)||'null');
-    if(saved && saved.cats){
-      ANALYSIS_CATS.forEach(function(c,ci){
-        var sc = saved.cats[ci]; if(!sc) return;
-        c.rows.forEach(function(r,ri){
-          var sr = sc[ri]; if(!sr) return;
-          if(sr.length>0){ r[1]=sr[0]; r[2]=sr[1]; r[3]=sr[2]; }
-        });
-      });
-    }
-  }catch(e){}
-}
-
-function fluRenderAnalysisScore(){
-  fluLoadAnalysisState();
-  var dt = document.getElementById('analysis-detail');
-  if(dt){
-    dt.innerHTML = ANALYSIS_CATS.map(function(c,ci){
-      var rows = c.rows.map(function(r,ri){
-        var sc = fluParseScore(r[2]);
-        return '<tr>' +
-          '<td style="text-align:left;">'+r[0]+'</td>' +
-          '<td style="text-align:left;"><input class="flu-edit an-jisseki" data-ci="'+ci+'" data-ri="'+ri+'" value="'+fluEscAttr(r[1])+'"></td>' +
-          '<td style="white-space:nowrap;"><input type="number" class="flu-edit an-score" data-ci="'+ci+'" data-ri="'+ri+'" value="'+sc+'" style="width:64px;text-align:right;" oninput="fluRecalcAnalysis()"> 点</td>' +
-          '<td style="text-align:left;"><input class="flu-edit an-biko" data-ci="'+ci+'" data-ri="'+ri+'" value="'+fluEscAttr(r[3]||'')+'" placeholder="備考（任意）"></td>' +
-        '</tr>';
-      }).join('');
-      return '<div style="margin-bottom:18px;">' +
-        '<div style="font-size:13px;font-weight:700;color:#553c9a;margin-bottom:8px;">大項目'+c.no+'　'+c.name+'　<span style="color:#718096;font-weight:600;">（<span class="an-cat-score" data-ci="'+ci+'">'+0+'</span>/'+c.max+'点）</span></div>' +
-        '<div class="table-scroll"><table class="result-table" style="font-size:12.5px;"><thead><tr style="background:#edf2f7;"><th style="text-align:left;width:38%;">評価指標</th><th style="text-align:left;width:30%;">実績</th><th style="width:12%;">点数</th><th style="text-align:left;width:20%;">備考</th></tr></thead><tbody>'+rows+'</tbody></table></div>' +
-        '</div>';
-    }).join('');
-  }
-  fluRecalcAnalysis();
-}
-
-/* 入力値から大項目別・総点数・レーダー・サマリーを再計算 */
-function fluRecalcAnalysis(){
-  var catScores = ANALYSIS_CATS.map(function(){ return 0; });
-  document.querySelectorAll('#analysis-detail .an-score').forEach(function(inp){
-    var ci = parseInt(inp.getAttribute('data-ci'),10);
-    catScores[ci] += (parseInt(inp.value,10)||0);
-  });
-  // 大項目見出しの点数
-  document.querySelectorAll('#analysis-detail .an-cat-score').forEach(function(el){
-    var ci = parseInt(el.getAttribute('data-ci'),10);
-    el.textContent = catScores[ci];
-  });
-  // サマリーテーブル
-  var tb = document.getElementById('analysis-cat-tbody');
-  if(tb){
-    tb.innerHTML = ANALYSIS_CATS.map(function(c,ci){
-      var sc = catScores[ci];
-      var pct = Math.round(sc / c.max * 100);
-      return '<tr>' +
-        '<td style="text-align:left;">大項目'+c.no+'　'+c.name+'</td>' +
-        '<td style="font-weight:700;">'+sc+' / '+c.max+'点</td>' +
-        '<td><div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;height:8px;background:#edf2f7;border-radius:999px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:#6b46c1;"></div></div><span style="font-size:12px;color:#4a5568;min-width:34px;">'+pct+'%</span></div></td>' +
-        '</tr>';
-    }).join('');
-  }
-  // 総点数
-  var total = catScores.reduce(function(a,b){ return a+b; }, 0);
-  var maxTotal = ANALYSIS_CATS.reduce(function(a,c){ return a+c.max; }, 0);
-  var ts = document.getElementById('analysis-total-score'); if(ts) ts.textContent = total;
-  var tp = document.getElementById('analysis-total-pct'); if(tp) tp.textContent = '約'+Math.round(total/maxTotal*100)+'%';
-  // レーダー
-  fluRenderAnalysisRadar(catScores);
-}
-
-function fluSaveAnalysis(){
-  var state = { cats: ANALYSIS_CATS.map(function(c,ci){
-    return c.rows.map(function(r,ri){
-      var j = document.querySelector('.an-jisseki[data-ci="'+ci+'"][data-ri="'+ri+'"]');
-      var s = document.querySelector('.an-score[data-ci="'+ci+'"][data-ri="'+ri+'"]');
-      var b = document.querySelector('.an-biko[data-ci="'+ci+'"][data-ri="'+ri+'"]');
-      return [ j?j.value:'', (s?(parseInt(s.value,10)||0):0)+'点', b?b.value:'' ];
-    });
-  }) };
-  try{ localStorage.setItem(ANALYSIS_KEY, JSON.stringify(state)); }catch(e){}
-  // メモリ上のデータも更新
-  state.cats.forEach(function(sc,ci){ sc.forEach(function(sr,ri){ ANALYSIS_CATS[ci].rows[ri][1]=sr[0]; ANALYSIS_CATS[ci].rows[ri][2]=sr[1]; ANALYSIS_CATS[ci].rows[ri][3]=sr[2]; }); });
-  if(typeof fluShowUpdateToast==='function') fluShowUpdateToast('点数確認シートを保存しました'); else alert('保存しました');
-}
-
-function fluResetAnalysis(){
-  try{ localStorage.removeItem(ANALYSIS_KEY); }catch(e){}
-  ANALYSIS_CATS = JSON.parse(JSON.stringify(ANALYSIS_DEFAULTS));
-  fluRenderAnalysisScore();
-  if(typeof fluShowUpdateToast==='function') fluShowUpdateToast('初期値に戻しました');
-}
-
-function fluRenderAnalysisRadar(catScores){
-  var host = document.getElementById('analysis-radar');
-  if(!host) return;
-  if(!catScores){ catScores = ANALYSIS_CATS.map(function(c){ var s=0; c.rows.forEach(function(r){ s+=fluParseScore(r[2]); }); return s; }); }
-  var cx=170, cy=160, R=110, n=ANALYSIS_CATS.length;
-  function pt(i, rad){
-    var ang = -Math.PI/2 + i*2*Math.PI/n;
-    return [cx + rad*Math.cos(ang), cy + rad*Math.sin(ang)];
-  }
-  var svg = '<svg viewBox="0 0 340 330" width="340" height="330" xmlns="http://www.w3.org/2000/svg">';
-  [0.25,0.5,0.75,1].forEach(function(g){
-    var pts=[]; for(var i=0;i<n;i++){ var p=pt(i,R*g); pts.push(p[0].toFixed(1)+','+p[1].toFixed(1)); }
-    svg += '<polygon points="'+pts.join(' ')+'" fill="none" stroke="#e2e8f0" stroke-width="1"/>';
-  });
-  for(var i=0;i<n;i++){ var p=pt(i,R); svg += '<line x1="'+cx+'" y1="'+cy+'" x2="'+p[0].toFixed(1)+'" y2="'+p[1].toFixed(1)+'" stroke="#e2e8f0" stroke-width="1"/>'; }
-  var dpts=[]; for(var j=0;j<n;j++){ var ratio=Math.max(0,Math.min(1,catScores[j]/ANALYSIS_CATS[j].max)); var p=pt(j,R*ratio); dpts.push(p[0].toFixed(1)+','+p[1].toFixed(1)); }
-  svg += '<polygon points="'+dpts.join(' ')+'" fill="rgba(107,70,193,0.22)" stroke="#6b46c1" stroke-width="2"/>';
-  for(var k=0;k<n;k++){ var ratio2=Math.max(0,Math.min(1,catScores[k]/ANALYSIS_CATS[k].max)); var pp=pt(k,R*ratio2); svg += '<circle cx="'+pp[0].toFixed(1)+'" cy="'+pp[1].toFixed(1)+'" r="3" fill="#6b46c1"/>'; }
-  for(var l=0;l<n;l++){ var lp=pt(l,R+18); svg += '<text x="'+lp[0].toFixed(1)+'" y="'+lp[1].toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="12" font-weight="700" fill="#4a5568">大項目'+ANALYSIS_CATS[l].no+'</text>'; }
-  svg += '</svg>';
-  host.innerHTML = svg;
-}
-
 /* 接種対象者情報フォーマット（CSV）のダウンロード */
 function tuDownloadFormat(){
   var headers = ['健康保険の記号','健康保険の番号','被接種者氏名','氏名カナ','続柄','生年月日','事業所','接種対象区分'];
@@ -3861,15 +3742,6 @@ function tuDownloadFormat(){
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
   }catch(e){ alert('フォーマットのダウンロードに失敗しました'); }
-}
-
-function handlePasswordChange() {
-  var cur = document.getElementById('pw-current').value;
-  var nw  = document.getElementById('pw-new').value;
-  var cf  = document.getElementById('pw-confirm').value;
-  if (!cur || !nw || !cf) { alert('すべての項目を入力してください'); return; }
-  if (nw !== cf) { alert('新しいパスワードが一致しません'); return; }
-  alert('パスワードを変更しました');
 }
 
 /* ======================================
@@ -3901,6 +3773,7 @@ var SYS = {
     var pg = document.getElementById('page-' + pageId);
     if(!pg) return;
     var f = pg.querySelector('iframe.sys-frame');
+    if(f) SYS.watch(f);
     if(f && !f.getAttribute('src')){ f.setAttribute('src', f.dataset.src); }
     /* 高さを固定する画面は、表示のたびに画面の高さへ合わせ直す */
     setTimeout(function(){
@@ -3915,6 +3788,32 @@ var SYS = {
     var f = pg && pg.querySelector('iframe.sys-frame');
     if(f){ f.setAttribute('src', f.dataset.src); }
   },
+  /* 本システムの画面（iframe）が何回移動したかを覚えておく。
+     一覧 → 編集 → 確認 のように進んだ回数。0 なら最初の画面。 */
+  watch: function(frameEl){
+    if(!frameEl || frameEl._sysWatched) return;
+    frameEl._sysWatched = true;
+    frameEl._depth = 0;
+    frameEl.addEventListener('load', function(){
+      if(frameEl._navBack){ frameEl._navBack = false; return; }  /* 戻る操作の分は数えない */
+      if(frameEl._firstLoaded){ frameEl._depth = (frameEl._depth || 0) + 1; }
+      else { frameEl._firstLoaded = true; frameEl._depth = 0; }
+    });
+  },
+  /* iframe の中で1つ前の画面へ戻る。戻れなければ false */
+  back: function(frameEl){
+    if(!frameEl || !(frameEl._depth > 0)) return false;
+    try{
+      frameEl._navBack = true;
+      frameEl._depth--;
+      frameEl.contentWindow.history.back();
+      return true;
+    }catch(e){
+      frameEl._navBack = false;
+      frameEl._depth = 0;
+      return false;
+    }
+  },
   resize: function(frameEl, h){ if(frameEl && h){ frameEl.style.height = (h + 24) + 'px'; } },
   /* 画面いっぱいに固定する（一覧のように中身だけスクロールさせたい画面向け） */
   fitHeight: function(frameEl){
@@ -3927,12 +3826,28 @@ var SYS = {
   }
 };
 window.SYS = SYS;
+
+/* 上段の「戻る」。本システムの画面（iframe）の中で進んでいれば、
+   まずその中で1つ前の画面へ戻る（「中止する」を押さなくても戻れる）。
+   iframe が最初の画面なら、カテゴリの一覧へ戻る。 */
+function sysBack(catKey){
+  var pg = document.querySelector('.page.active');
+  var f = pg ? pg.querySelector('iframe.sys-frame') : null;
+  if(f && SYS.back(f)) return;
+  selectCategory(catKey);
+}
+window.sysBack = sysBack;
 window.addEventListener('resize', function(){
   if(SYS._fitTarget && SYS._fitTarget.isConnected) SYS.fitHeight(SYS._fitTarget);
 });
 
 function initPage(pageId) {
-  if (pageId.indexOf('sys-') === 0) { SYS.open(pageId); return; }
+  /* サーバ連携画面（本システムの画面）は iframe で開く。
+     sys-… ＝アカウント・マスタ・疾患予測、oh-… ＝産業医面談管理 */
+  if (pageId.indexOf('sys-') === 0 || pageId.indexOf('oh-') === 0) {
+    SYS.open(pageId);
+    return;
+  }
   if (initialized[pageId]) {
     // Re-render charts that need visible canvas
     if (pageId === 'flu-dashboard') {
@@ -3971,7 +3886,6 @@ function initPage(pageId) {
     else { renderPage && renderPage(); }
   }
   if (pageId === 'hia-mail') { renderTplList && renderTplList(); }
-  if (pageId === 'analysis-score') { fluRenderAnalysisScore(); }
   if (pageId === 'flu-reservation') { fluRenderReservation(); }
   setupUpload('hu');
   setupUpload('cu');
@@ -7468,8 +7382,45 @@ function fluCloseModal(){ document.getElementById('fluDetailModal').classList.re
       if(!me) return;
       var n = document.querySelector('.header-username');
       var av = document.querySelector('.header-avatar');
-      if(n){ n.textContent = me.name; n.title = me.email + '（' + me.role + '）'; }
-      if(av){ av.textContent = me.initials; av.title = me.role + '／' + me.scope; }
+      if(n){
+        n.textContent = me.name;
+        n.title = me.email + '（' + (me.role_key_label || me.role) + '）';
+      }
+      if(av){
+        av.textContent = me.initials;
+        av.title = (me.role_key_label || me.role) + '／' + me.scope;
+      }
+      /* 機能制御：使えない機能のカード・カテゴリを隠す */
+      window.FEATURES = me.features || {};
+      document.querySelectorAll('[data-feature]').forEach(function(el){
+        if(window.FEATURES[el.getAttribute('data-feature')] === false)
+          el.style.display = 'none';
+      });
+      Object.keys(CAT_CARD_CONFIG).forEach(function(cat){
+        var cards = CAT_CARD_CONFIG[cat].cards || [];
+        var usable = cards.filter(function(c){
+          return !c.feature || window.FEATURES[c.feature] !== false;
+        });
+        var el = document.getElementById('cat-' + cat);
+        if(el && cards.length && !usable.length) el.style.display = 'none';
+      });
+      /* いま開いているカテゴリが使えない場合は、使える先頭のカテゴリへ移す */
+      var usableCat = function(cat){
+        var cards = (CAT_CARD_CONFIG[cat] && CAT_CARD_CONFIG[cat].cards) || [];
+        if(!cards.length) return true;
+        return cards.some(function(c){
+          return !c.feature || window.FEATURES[c.feature] !== false;
+        });
+      };
+      if(typeof currentCat === 'string' && currentCat && !usableCat(currentCat)){
+        var next = Object.keys(CAT_CARD_CONFIG).filter(usableCat)[0];
+        if(next){ selectCategory(next); return; }
+      }
+      /* すでに開いているカード一覧を作り直す */
+      if(typeof currentCat === 'string' && currentCat
+         && document.getElementById('cat-card-page-' + currentCat)) {
+        showCatCardPage(currentCat);
+      }
     })
     .catch(function(){});
 })();

@@ -1,0 +1,157 @@
+{% extends LAYOUT %}
+{% block body %}
+<div class="oh-toolbar oh-noprint">
+  <button class="btn-sm primary" type="button" onclick="ohPdf()">PDFをダウンロード</button>
+  <button class="btn-sm" type="button" onclick="window.print()">印刷（PDFとして保存）</button>
+  <span class="hint">「印刷」から出力先に「PDFとして保存」を選ぶと、そのままPDFになります。</span>
+</div>
+
+{% if kind == 'kenshin' %}
+{# ============ 定期健康診断結果報告書（労働安全衛生規則 様式第6号 準拠） ============ #}
+<div class="oh-doc" id="ohDoc1">
+  <h1>定期健康診断結果報告書</h1>
+  <p class="oh-doc-sub">労働安全衛生規則 様式第6号 準拠　／　{{ fy }}年度
+    {% if s.kenpo %}　{{ s.kenpo.name }}{% endif %}</p>
+
+  <h2>1. 健康診断の実施状況</h2>
+  <table>
+    <tr><th>健診年度</th><td class="num">{{ fy }}年度（{{ fy }}年4月〜{{ fy|int + 1 }}年3月）</td></tr>
+    <tr><th>在籍労働者数</th><td class="num">{{ s.total }} 人</td></tr>
+    <tr><th>受診労働者数</th><td class="num">{{ s.done }} 人</td></tr>
+    <tr><th>未受診者数</th><td class="num">{{ s.notdone }} 人</td></tr>
+    <tr><th>受診率</th><td class="num">{{ '%.1f'|format(s.rate) }} ％</td></tr>
+    <tr><th>有所見者数（C判定以上）</th><td class="num">{{ s.finding }} 人</td></tr>
+    <tr><th>深夜業従事者（特定業務従事者）の対象者数</th>
+      <td class="num">{{ s.night_total }} 人</td></tr>
+    <tr><th>　うち深夜健診の受診者数</th><td class="num">{{ s.night_done }} 人</td></tr>
+  </table>
+
+  <h2>2. 総合判定区分の内訳</h2>
+  <table>
+    {% for j in JUDGES %}
+    <tr><th>{{ j }}　{{ JUDGE_LABEL[j] }}</th><td class="num">{{ s.judges[j] }} 人</td></tr>
+    {% endfor %}
+    <tr><th>判定なし（未受診を含む）</th>
+      <td class="num">{{ s.total - s.judges.values()|sum }} 人</td></tr>
+  </table>
+  <p class="oh-foot">
+    ※ 判定区分は日本人間ドック・予防医療学会の判定区分（2026年4月1日改定）に準拠。
+    A：異常なし／B：軽度異常／C：要再検査・生活改善／D：要精密検査・治療／E：治療中。
+    C判定以上を有所見として集計している。</p>
+
+  <h2>3. 医師による面接指導の実施状況</h2>
+  <table>
+    <tr><th>面接指導の対象者数</th><td class="num">{{ s.iv_target }} 人</td></tr>
+    <tr><th>面接指導を実施した人数</th><td class="num">{{ s.iv_done }} 人</td></tr>
+    <tr><th>未実施の人数</th><td class="num">{{ s.iv_rest }} 人</td></tr>
+    {% for w, n in s.work.items() %}
+    <tr><th>就業区分の判定：{{ w }}</th><td class="num">{{ n }} 人</td></tr>
+    {% endfor %}
+  </table>
+  <p class="oh-foot">
+    ※ 面接指導の対象者は、健診有所見（C判定以上）・時間外労働が月80時間超・
+    高ストレスのいずれかに該当した者。就業区分は産業医の判定による。</p>
+
+  <div class="oh-sign">
+    <div class="oh-sign-l">産業医　記名・サイン</div>
+    {% if sign %}
+    <div class="oh-sign-name">{{ sign.name }}</div>
+    <div style="margin-top:4px">{{ sign.title or '' }}</div>
+    <div style="margin-top:4px;font-size:11px;color:#4a5568">
+      記名日時：{{ sign.signed_at[:16] }}</div>
+    {% else %}
+    <div class="oh-sign-name" style="color:#a0aec0">（未記名）</div>
+    <div style="margin-top:4px;font-size:11px;color:#4a5568">
+      労基署報告の画面から、産業医が記名してください。</div>
+    {% endif %}
+  </div>
+  <p class="oh-foot">
+    作成日：{{ fy }}年度分　／　出力者：{{ acc.name }}（{{ ROLE_NAME }}）<br>
+    提出前に、事業場名・労働保険番号・業種などの様式記載欄を所轄労働基準監督署の様式に転記し、
+    内容をご確認ください。集計は本システムの登録データから自動算出したものです。</p>
+</div>
+
+{% else %}
+{# ============ 心理的な負担の程度を把握するための検査結果等報告書 ============ #}
+<div class="oh-doc" id="ohDoc1">
+  <h1>心理的な負担の程度を把握するための検査結果等報告書</h1>
+  <p class="oh-doc-sub">ストレスチェック結果等報告書　／　{{ fy }}年度
+    {% if s.kenpo %}　{{ s.kenpo.name }}{% endif %}</p>
+
+  <h2>1. 検査の実施状況</h2>
+  <table>
+    <tr><th>実施年度</th><td class="num">{{ fy }}年度</td></tr>
+    {% if s.camp %}
+    <tr><th>実施期間</th>
+      <td class="num">{{ s.camp.period_from or '—' }} 〜 {{ s.camp.period_to or '—' }}</td></tr>
+    <tr><th>回答締切</th><td class="num">{{ s.camp.deadline or '—' }}</td></tr>
+    <tr><th>案内の送信数</th><td class="num">{{ s.camp.sent }} 件</td></tr>
+    {% endif %}
+    <tr><th>検査の対象労働者数</th><td class="num">{{ s.st_total }} 人</td></tr>
+    <tr><th>検査を受けた労働者数</th><td class="num">{{ s.st_done }} 人</td></tr>
+    <tr><th>受検率</th>
+      <td class="num">{{ '%.1f'|format(s.st_done / s.st_total * 100 if s.st_total else 0) }} ％</td></tr>
+  </table>
+
+  <h2>2. 高ストレス者と面接指導の状況</h2>
+  <table>
+    <tr><th>高ストレス者と判定された労働者数</th><td class="num">{{ s.st_high }} 人</td></tr>
+    <tr><th>面接指導の申出を行った労働者数</th><td class="num">{{ s.st_apply }} 人</td></tr>
+    <tr><th>医師による面接指導を受けた労働者数</th><td class="num">{{ s.st_iv }} 人</td></tr>
+  </table>
+  <p class="oh-foot">
+    ※ 検査の結果は法令にもとづき保護され、人事評価の目的には利用していない。
+    面接指導は本人の申出にもとづき実施している。</p>
+
+  <div class="oh-sign">
+    <div class="oh-sign-l">検査を実施した医師（産業医）　記名・サイン</div>
+    {% if sign %}
+    <div class="oh-sign-name">{{ sign.name }}</div>
+    <div style="margin-top:4px">{{ sign.title or '' }}</div>
+    <div style="margin-top:4px;font-size:11px;color:#4a5568">
+      記名日時：{{ sign.signed_at[:16] }}</div>
+    {% else %}
+    <div class="oh-sign-name" style="color:#a0aec0">（未記名）</div>
+    <div style="margin-top:4px;font-size:11px;color:#4a5568">
+      労基署報告の画面から、産業医が記名してください。</div>
+    {% endif %}
+  </div>
+  <p class="oh-foot">
+    出力者：{{ acc.name }}（{{ ROLE_NAME }}）<br>
+    提出前に、事業場名・労働保険番号・実施者情報などの様式記載欄を
+    所轄労働基準監督署の様式に転記し、内容をご確認ください。</p>
+</div>
+{% endif %}
+
+<script src="{{ url_for('static', filename='vendor/html2canvas.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/jspdf.umd.min.js') }}"></script>
+<script>
+/* 画面の書類をそのままPDFにする（A4縦・1書類1ページ） */
+function ohPdf(){
+  var docs = document.querySelectorAll('.oh-doc');
+  var jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (!jsPDFCtor || !window.html2canvas){
+    alert('PDFの生成に必要な部品を読み込めませんでした。「印刷」からPDFとして保存してください。');
+    return;
+  }
+  var pdf = new jsPDFCtor({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  var i = 0;
+  function next(){
+    if (i >= docs.length){
+      pdf.save('{{ "定期健康診断結果報告書" if kind == "kenshin" else "ストレスチェック結果等報告書" }}_{{ fy }}.pdf');
+      return;
+    }
+    html2canvas(docs[i], { scale: 2, backgroundColor: '#ffffff' }).then(function(cv){
+      var w = 190, h = cv.height * w / cv.width;
+      if (i > 0) pdf.addPage();
+      pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 10, 10, w, Math.min(h, 277));
+      i++;
+      next();
+    }).catch(function(){
+      alert('PDFの生成に失敗しました。「印刷」からPDFとして保存してください。');
+    });
+  }
+  next();
+}
+</script>
+{% endblock %}

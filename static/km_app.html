@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HIA総合管理</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;font-family:"Noto Sans JP",sans-serif;}
 
@@ -29,13 +29,9 @@
 body{background:#f7f8f9;color:#333;margin-left:96px;}
 
 /* ヘッダー */
-header{height:52px;background:#fff;border-bottom:1px solid #e8edf2;display:flex;justify-content:space-between;align-items:center;padding:0 20px 0 24px;position:sticky;top:0;z-index:100;margin-left:-72px;width:calc(100% + 72px);}
-.header-logo{font-size:15px;font-weight:600;color:#333;letter-spacing:.04em;}
-.header-right{display:flex;align-items:center;gap:16px;}
-.header-avatar{width:32px;height:32px;border-radius:50%;background:#2f4f4f;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.header-username{font-size:13px;color:#444;font-weight:500;}
-.header-logout{display:flex;align-items:center;gap:5px;font-size:13px;color:#444;text-decoration:none;padding:6px 10px;border-radius:6px;transition:.15s;}
-.header-logout:hover{background:#e8efee;color:#333;}
+/* ヘッダーは HIA健保管理（青）と同じ体裁。body が 96px 右にずれているので、
+   その分だけ左へ戻して画面の左端から始める（タイトルの左位置が青と同じ20pxになる） */
+header{height:52px;background:#fff;border-bottom:1px solid #e8ecf0;display:flex;justify-content:space-between;align-items:center;padding:0 20px;position:sticky;top:0;z-index:200;margin-left:-96px;width:calc(100% + 96px);gap:16px;}
 
 /* メイン */
 main{padding:24px;}
@@ -44,13 +40,21 @@ main{padding:24px;}
 
 *{box-sizing:border-box;margin:0;padding:0;font-family:"Noto Sans JP",sans-serif;}
 
-.header-logo{font-size:15px;font-weight:600;color:#333;letter-spacing:.04em;}
+/* タイトル（ロゴ）は HIA健保管理（青）の header h1 と同じ
+   文字サイズ18px・太さ500・字間2px・色#626262・書体 Zen Kaku Gothic New */
+.header-logo{font-size:18px;font-weight:500;color:#626262;letter-spacing:2px;
+  font-family:'Zen Kaku Gothic New','Inter','Hiragino Sans','Hiragino Kaku Gothic ProN',
+  'Yu Gothic UI','Noto Sans JP',system-ui,sans-serif;line-height:1.33;margin:0;}
 .header-right{display:flex;align-items:center;gap:16px;}
-.header-avatar{width:32px;height:32px;border-radius:50%;background:#2f4f4f;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.header-username{font-size:13px;color:#444;font-weight:500;}
+.header-avatar{width:34px;height:34px;border-radius:50%;background:#2f4f4f;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:.5px;}
+.header-username{font-size:13px;color:#374151;font-weight:500;}
 .header-logout{display:flex;align-items:center;gap:5px;font-size:13px;color:#444;text-decoration:none;padding:6px 10px;border-radius:6px;transition:.15s;}
 .header-logout:hover{background:#e8efee;color:#333;}
 .header-logout svg{flex-shrink:0;}
+.header-divider{width:1px;height:20px;background:#e2e8f0;}
+/* 利用者名からマイアカウントを開く */
+.header-me{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 8px;margin:-4px -8px;border-radius:8px;transition:.15s;}
+.header-me:hover{background:#eef3f2;}
 
 .sidebar ul{list-style:none;width:100%;display:flex;flex-direction:column;align-items:center;gap:4px;}
 .sidebar>ul>li{width:72px;height:64px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;position:relative;transition:.18s;border:1.5px solid transparent;color:rgba(255,255,255,.5);}
@@ -96,6 +100,8 @@ th,td{border:1px solid #e2e8f0;padding:10px 12px;font-size:13px;text-align:cente
 th{background:#f1f5f4;color:#2f4f4f;font-weight:600;}
 td.op-cell{padding:0 6px;vertical-align:middle;}
 .tbl-left{text-align:left;padding-left:12px;}
+/* 検査マスタ 編集・新規作成の「項目コード」列だけ左そろえにする（操作列は右端に置く） */
+#ms-codes-head,#ms-codesWrap td.tbl-left{text-align:left;padding-left:12px;}
 /* 折り返し可能なセル（名称など長文用） */
 .tbl-wrap{white-space:normal;word-break:break-word;line-height:1.4;}
 /* テーブル縦スクロール + ヘッダー固定 */
@@ -209,6 +215,10 @@ td.op-cell{padding:0 6px;vertical-align:middle;}
 .ms-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px;}
 .ms-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 14px;}
 .ms-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 14px;}
+/* 検査項目の基本情報は5項目を1行に並べる */
+.ms-grid-5{display:grid;grid-template-columns:200px minmax(180px,1.5fr) 1fr 1fr 1.1fr;
+  gap:10px 14px;align-items:start;}
+@media (max-width:1180px){ .ms-grid-5{grid-template-columns:repeat(2,1fr);} }
 .ms-req{color:#cc0000;margin-left:4px;font-size:11px;font-weight:500;}
 
 .search-row{display:flex;flex-wrap:nowrap;gap:12px;align-items:flex-start;overflow-x:auto;padding-bottom:4px;}
@@ -406,7 +416,11 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
 #ms-critWrap td { padding: 6px 10px; height: 52px }
 #ms-critWrap input[type="number"], #ms-critWrap input[type="text"] { text-align: right }
 /* 判定マスタ編集：表を内容の幅にとどめる（値の欄が広がりすぎないように）*/
-.ms-crit-table { width: 900px; max-width: 100%; table-layout: fixed }
+.ms-crit-table { width: 100%; table-layout: fixed }
+/* 検査項目＋項目コードの統合表：左5列（結合セル）は上下中央で薄い背景 */
+.ms-item-table td.ms-item-cell{vertical-align:middle;background:#fbfcfd;}
+.ms-item-table th .ms-req{margin-left:6px;}
+.ms-item-table td.ms-item-cell .form-control{width:100%;}
 </style>
 <style>
 /* ============================================================
@@ -478,10 +492,11 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
 <header>
   <div class="header-logo">HIA総合管理</div>
   <div class="header-right">
-    <div style="display:flex;align-items:center;gap:8px;">
+    <div class="header-me" onclick="navigate('sys-me')" title="マイアカウント（利用者名・メールアドレス・パスワードの変更）">
       <div class="header-avatar">KM</div>
       <span class="header-username">KM担当者</span>
     </div>
+    <div class="header-divider"></div>
     <a href="/logout" class="header-logout">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="transform:rotate(180deg);"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       ログアウト
@@ -2784,7 +2799,7 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
           <div class="top-card-title">検査マスタ</div>
           <div class="top-card-desc">検査項目の項目コード・判定基準・金額の登録／管理</div>
         </div>
-        <div class="top-card" onclick="navigate('sys-judge-group')">
+        <div class="top-card" onclick="navigate('sys-judge-group')" data-feature="master.write">
           <div class="top-card-icon">
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="8.5" y="14" width="7" height="6" rx="1.5"/><path d="M6.5 11v1.5h11V11"/><path d="M12 12.5V14"/></svg>
           </div>
@@ -2797,6 +2812,34 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
           </div>
           <div class="top-card-title">OID結果マスタ</div>
           <div class="top-card-desc">判定結果のOIDコード（HL7/HL7 CDA準拠）を管理</div>
+        </div>
+        <div class="top-card" onclick="navigate('sys-company')" data-feature="master.view">
+          <div class="top-card-icon">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h6"/></svg>
+          </div>
+          <div class="top-card-title">企業情報<span class="sys-flag" style="margin-left:8px">サーバ連携</span></div>
+          <div class="top-card-desc">全健保の企業を登録・閲覧・編集・削除。健康保険組合を選んで登録します</div>
+        </div>
+        <div class="top-card" onclick="navigate('sys-office')" data-feature="master.view">
+          <div class="top-card-icon">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+          </div>
+          <div class="top-card-title">事業所情報<span class="sys-flag" style="margin-left:8px">サーバ連携</span></div>
+          <div class="top-card-desc">事業所の登録・閲覧・編集・削除とCSVの一括取込</div>
+        </div>
+        <div class="top-card" onclick="navigate('sys-dept')" data-feature="master.view">
+          <div class="top-card-icon">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="8" y="14" width="8" height="7" rx="1"/><path d="M6.5 10v2h11v-2M12 12v2"/></svg>
+          </div>
+          <div class="top-card-title">部署情報<span class="sys-flag" style="margin-left:8px">サーバ連携</span></div>
+          <div class="top-card-desc">部署の登録・閲覧・編集・削除。部署は事業所の下に置きます</div>
+        </div>
+        <div class="top-card" onclick="navigate('sys-member')" data-feature="master.view">
+          <div class="top-card-icon">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/></svg>
+          </div>
+          <div class="top-card-title">加入者情報<span class="sys-flag" style="margin-left:8px">サーバ連携</span></div>
+          <div class="top-card-desc">加入者の登録・閲覧・編集・削除、CSV取込と企業・事業所・部署への紐づけ</div>
         </div>
       </div>
     </div>
@@ -2943,6 +2986,12 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
               </select>
             </div>
             <div class="field wide">
+              <label>区分番号</label>
+              <select id="ms-filterSec" onchange="MS.render()">
+                <option value="">すべて</option>
+              </select>
+            </div>
+            <div class="field wide">
               <label>検査項目</label>
               <select id="ms-filterItem" onchange="MS.render()">
                 <option value="">すべて</option>
@@ -3018,10 +3067,11 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
             <table class="fee-table" id="ms-table" style="min-width:1200px;width:100%;">
               <thead><tr>
                 <th style="width:36px;">No</th>
+                <th style="width:165px;">区分番号</th>
                 <th style="width:100px;">必須</th>
                 <th style="width:150px;">代表コード</th>
-                <th style="width:200px;">検査項目名</th>
-                <th style="width:80px;">XMLデータ型</th>
+                <th style="width:190px;">検査項目名</th>
+                <th style="width:100px;">XMLデータ型</th>
                 <th style="width:100px;">単位</th>
                 <th style="width:64px;">コード数</th>
                 <th style="width:110px;">項目コード</th>
@@ -3041,57 +3091,39 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
       <div class="back-row"><h1 id="ms-editTitle">検査マスタ 新規作成</h1><button class="back-btn" onclick="navigate('master-criteria')">← 戻る</button></div>
 
       <div class="panel-col">
-        <!-- セクション1: 検査項目基本情報 -->
+        <!-- 検査項目＋項目コードを1つの表にまとめる。
+             左側（区分番号〜必須種別）は項目に1つの値なので、行数ぶん結合して1回だけ入力する。 -->
         <div class="right-panel no-flex">
-          <h2 class="m0" style="margin-bottom:12px;">検査項目</h2>
-          <div class="ms-grid-4">
-            <div class="form-group">
-              <label class="form-label">項目名<span class="ms-req">必須</span></label>
-              <input type="text" class="form-control" id="ms-fName" placeholder="例：BMI">
-            </div>
-            <div class="form-group">
-              <label class="form-label">XMLデータ型</label>
-              <select class="form-control" id="ms-fXmlType">
-                <option value="PQ">PQ（数値）</option>
-                <option value="CD">CD（コード）</option>
-                <option value="CO">CO（順序付きコード）</option>
-                <option value="ST">ST（文字列）</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">単位</label>
-              <input type="text" class="form-control" id="ms-fUnit" placeholder="例：kg/m²">
-            </div>
-            <div class="form-group">
-              <label class="form-label">労安法 必須種別</label>
-              <select class="form-control" id="ms-fRequired">
-                <option value="">任意項目</option>
-                <option value="required">必須</option>
-                <option value="alt">必須(代替可)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <!-- セクション2: 項目コード -->
-        <div class="right-panel no-flex">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:16px;flex-wrap:wrap;">
             <div style="display:flex;flex-direction:column;gap:2px;">
-              <h2 class="m0">項目コード</h2>
-              <span class="totals-text">17桁（半角英数）／複数登録可</span>
+              <h2 class="m0">検査項目・項目コード</h2>
+              <span class="totals-text">左側は検査項目の情報（1回だけ入力）／右側は項目コード（17桁・複数登録可）</span>
             </div>
-            <button type="button" class="tbl-btn tbl-btn-confirm" style="height:40px;padding:0 22px;min-width:80px;" onclick="MS.addCodeRow()">コード追加</button>
+            <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+              <label for="ms-fVer" style="font-size:12px;color:#64748b;font-weight:500;white-space:nowrap;">対象年度</label>
+              <select class="form-control" id="ms-fVer" style="height:40px;min-width:200px;width:auto;font-weight:600;color:#0f172a;"></select>
+              <button type="button" class="tbl-btn tbl-btn-confirm" style="height:40px;padding:0 22px;min-width:80px;" onclick="MS.addCodeRow()">コード追加</button>
+            </div>
           </div>
-          <table class="fee-table" style="width:100%;">
+          <div class="tbl-scroll">
+          <table class="fee-table ms-item-table" style="min-width:1180px;width:100%;">
             <thead><tr>
-              <th style="width:40px;">No</th>
-              <th style="width:80px;">代表</th>
-              <th style="width:320px;">項目コード（17桁）</th>
-              <th style="width:70px;">操作</th>
-              <th></th>
+              <th style="width:170px;">区分番号<span class="ms-req">必須</span></th>
+              <th style="width:170px;">項目名<span class="ms-req">必須</span></th>
+              <th style="width:140px;">XMLデータ型</th>
+              <th style="width:110px;">単位</th>
+              <th style="width:150px;">労安法 必須種別</th>
+              <th style="width:50px;">No</th>
+              <th style="width:86px;">代表</th>
+              <th id="ms-codes-head">項目コード（17桁）</th>
+              <th style="width:100px;">操作</th>
             </tr></thead>
             <tbody id="ms-codesWrap"></tbody>
           </table>
+          </div>
+          <span class="totals-text" style="display:block;margin-top:10px;">
+            区分番号は特定健診XML健診項目コード表の区分です。
+            左側の5列は検査項目そのものの情報なので、コードが何行あっても1回だけ入力します。</span>
         </div>
       </div>
 
@@ -3163,38 +3195,31 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
     <div class="view" id="view-master-judgment-edit">
       <div class="back-row"><h1 id="ms-j-editTitle">判定マスタ 編集</h1><button class="back-btn" onclick="navigate('master-criteria')">← 戻る</button></div>
       <div class="panel-col">
-        <!-- 対象年度切替カード -->
+        <!-- 判定基準（対象年度のプルダウンはこのカードの右端に置く） -->
         <div class="right-panel no-flex">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px;">
             <div style="display:flex;flex-direction:column;gap:2px;">
-              <h2 class="m0">対象年度</h2>
-              <span class="totals-text">年度を切り替えて判定基準を編集できます</span>
+              <h2 class="m0">判定基準</h2>
+              <span class="totals-text">判定区分・性別・下限値・上限値を組で登録／年度を切り替えて編集できます</span>
             </div>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <label for="ms-crit-year" style="font-size:12px;color:#64748b;font-weight:500;white-space:nowrap;">年度</label>
+            <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+              <label for="ms-crit-year" style="font-size:12px;color:#64748b;font-weight:500;white-space:nowrap;">対象年度</label>
               <select id="ms-crit-year" onchange="MS.onCriteriaYearChange()" style="height:38px;padding:0 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;background:#fff;font-weight:600;color:#0f172a;min-width:220px;">
                 <option value="2025年度版">2025年度版（現行）</option>
                 <option value="2024年度版">2024年度版</option>
                 <option value="2022年度版">2022年度版</option>
               </select>
+              <button type="button" class="tbl-btn tbl-btn-confirm" style="height:38px;padding:0 22px;min-width:80px;" onclick="MS.addCriteriaRow()">判定追加</button>
             </div>
-          </div>
-        </div>
-
-        <!-- 判定基準 -->
-        <div class="right-panel no-flex">
-          <div style="margin-bottom:10px;">
-            <h2 class="m0">判定基準</h2>
-            <span class="totals-text">判定区分・性別・下限値・上限値を組で登録</span>
           </div>
           <table class="fee-table ms-crit-table">
             <thead><tr>
-              <th style="width:56px;">No</th>
-              <th style="width:240px;">判定区分</th>
-              <th style="width:120px;">性別</th>
-              <th style="width:190px;">下限値(以上)</th>
-              <th style="width:190px;">上限値(未満)</th>
-              <th style="width:96px;">操作</th>
+              <th style="width:60px;">No</th>
+              <th style="width:26%;">判定区分</th>
+              <th style="width:12%;">性別</th>
+              <th style="width:23%;">下限値(以上)</th>
+              <th style="width:23%;">上限値(未満)</th>
+              <th style="width:110px;">操作</th>
             </tr></thead>
             <tbody id="ms-critWrap"></tbody>
           </table>
@@ -3370,7 +3395,7 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
       <h1>アカウント設定</h1>
       <div class="top-cards theme-settings" style="margin-top:4px;">
         
-        <div class="top-card" onclick="navigate('sys-account')">
+        <div class="top-card" onclick="navigate('sys-account')" data-feature="accounts">
           <div class="top-card-icon">
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M17 11l2 2 4-4"/></svg>
           </div>
@@ -3384,12 +3409,12 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
           <div class="top-card-title">操作ログ管理<span class="sys-flag" style="margin-left:8px">サーバ連携</span></div>
           <div class="top-card-desc">HIA健保管理での操作も含めた全ログを横断して確認・出力</div>
         </div>
-        <div class="top-card" onclick="navigate('pw-change')">
+        <div class="top-card" onclick="navigate('sys-features')" data-feature="accounts">
           <div class="top-card-icon">
-            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="7" cy="18" r="2"/></svg>
           </div>
-          <div class="top-card-title">PW変更</div>
-          <div class="top-card-desc">ログインパスワードの変更</div>
+          <div class="top-card-title">機能制御<span class="sys-flag" style="margin-left:8px">サーバ連携</span></div>
+          <div class="top-card-desc">権限ロール・サブロールごとに使える機能を切り替える</div>
         </div>
         <div class="top-card" onclick="navigate('mail-setting')">
           <div class="top-card-icon">
@@ -3407,10 +3432,54 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
       <div class="sys-head">
         <h1>判定グループ</h1>
         <span class="sys-flag">サーバ連携</span>
-        <button class="back-btn" onclick="navigate('master')">← 戻る</button>
+        <button class="back-btn" onclick="sysBack('master')">← 戻る</button>
       </div>
       <p class="sys-note">複合した検査の値から、まとめて判定するルールを管理します。例：血糖＝空腹時血糖＋HbA1c のうち重い判定を採用。検査マスタの検査項目に対応します。</p>
       <iframe class="sys-frame" data-src="/risk/groups" title="判定グループ"></iframe>
+    </div>
+
+    <!-- ======== 本システム: 企業情報 ======== -->
+    <div class="view" id="view-sys-company">
+      <div class="sys-head">
+        <h1>企業情報</h1>
+        <span class="sys-flag">サーバ連携</span>
+        <button class="back-btn" onclick="sysBack('master')">← 戻る</button>
+      </div>
+      <p class="sys-note">全健保の企業を登録・閲覧・編集・削除します。登録時に健康保険組合を選び、事業所（企業）コードは健保が管理する番号を入れます（当社内部コードは自動で割り振ります）。</p>
+      <iframe class="sys-frame" data-src="/companies" title="企業情報"></iframe>
+    </div>
+
+    <!-- ======== 本システム: 事業所情報 ======== -->
+    <div class="view" id="view-sys-office">
+      <div class="sys-head">
+        <h1>事業所情報</h1>
+        <span class="sys-flag">サーバ連携</span>
+        <button class="back-btn" onclick="sysBack('master')">← 戻る</button>
+      </div>
+      <p class="sys-note">事業所の登録・閲覧・編集・削除とCSVの一括取込を行います。事業所コードはシステムが自動採番します。</p>
+      <iframe class="sys-frame" data-src="/offices" title="事業所情報"></iframe>
+    </div>
+
+    <!-- ======== 本システム: 部署情報 ======== -->
+    <div class="view" id="view-sys-dept">
+      <div class="sys-head">
+        <h1>部署情報</h1>
+        <span class="sys-flag">サーバ連携</span>
+        <button class="back-btn" onclick="sysBack('master')">← 戻る</button>
+      </div>
+      <p class="sys-note">部署の登録・閲覧・編集・削除を行います。部署は事業所の下に置き、同じ事業所内で名称・コードは重複できません。</p>
+      <iframe class="sys-frame" data-src="/departments" title="部署情報"></iframe>
+    </div>
+
+    <!-- ======== 本システム: 加入者情報 ======== -->
+    <div class="view" id="view-sys-member">
+      <div class="sys-head">
+        <h1>加入者情報</h1>
+        <span class="sys-flag">サーバ連携</span>
+        <button class="back-btn" onclick="sysBack('master')">← 戻る</button>
+      </div>
+      <p class="sys-note">加入者の登録・閲覧・編集・削除、CSVの一括取込、企業・事業所・部署への紐づけを行います。</p>
+      <iframe class="sys-frame" data-src="/members" title="加入者情報"></iframe>
     </div>
 
     <!-- ======== 本システム: アカウント管理 ======== -->
@@ -3418,10 +3487,32 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
       <div class="sys-head">
         <h1>アカウント管理</h1>
         <span class="sys-flag">サーバ連携</span>
-        <button class="back-btn" onclick="navigate('settings')">← 戻る</button>
+        <button class="back-btn" onclick="sysBack('settings')">← 戻る</button>
       </div>
       <p class="sys-note">各健保・企業の代表者アカウントを発行し、権限の登録・編集・削除と一覧確認を行います。</p>
       <iframe class="sys-frame" data-src="/accounts" title="アカウント管理"></iframe>
+    </div>
+
+    <!-- ======== 本システム: 機能制御 ======== -->
+    <div class="view" id="view-sys-features">
+      <div class="sys-head">
+        <h1>機能制御</h1>
+        <span class="sys-flag">サーバ連携</span>
+        <button class="back-btn" onclick="sysBack('settings')">← 戻る</button>
+      </div>
+      <p class="sys-note">権限ロール・サブロール（産業医・人事）ごとに、使える機能を切り替えます。医学的判断（面談対象の承認・就業区分の判定・面談結果の記録・報告書への記名）は産業医のみで固定です。</p>
+      <iframe class="sys-frame" data-src="/settings/features" title="機能制御"></iframe>
+    </div>
+
+    <!-- ======== 本システム: マイアカウント ======== -->
+    <div class="view" id="view-sys-me">
+      <div class="sys-head">
+        <h1>マイアカウント</h1>
+        <span class="sys-flag">サーバ連携</span>
+        <button class="back-btn" onclick="sysBack('settings')">← 戻る</button>
+      </div>
+      <p class="sys-note">自分の利用者名・メールアドレス（ログインID）・パスワードを変更します。権限ロール・担当する範囲は本人では変更できません。</p>
+      <iframe class="sys-frame" data-src="/me" title="マイアカウント"></iframe>
     </div>
 
     <!-- ======== 本システム: 操作ログ管理 ======== -->
@@ -3429,7 +3520,7 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
       <div class="sys-head">
         <h1>操作ログ管理</h1>
         <span class="sys-flag">サーバ連携</span>
-        <button class="back-btn" onclick="navigate('settings')">← 戻る</button>
+        <button class="back-btn" onclick="sysBack('settings')">← 戻る</button>
       </div>
       <p class="sys-note">HIA総合管理とHIA健保管理の操作ログを1つのデータベースに集約しています。</p>
       <iframe class="sys-frame" data-src="/logs" title="操作ログ管理"></iframe>
@@ -3859,7 +3950,13 @@ const VIEWS = {
   'chat-2fa':'view-chat-2fa',
   'chat-yoroku':'view-chat-yoroku',
   'sys-account':'view-sys-account',
-  'sys-log':'view-sys-log'
+  'sys-log':'view-sys-log',
+  'sys-me':'view-sys-me',
+  'sys-features':'view-sys-features',
+  'sys-company':'view-sys-company',
+  'sys-office':'view-sys-office',
+  'sys-dept':'view-sys-dept',
+  'sys-member':'view-sys-member'
 };
 const CLAIM_VIEWS = new Set(['claim-list','claim-kenpo','hospital-claim','patient-detail','payment-confirm','hospital-payment','meisai-create']);
 
@@ -3929,6 +4026,7 @@ const SYS = {
     const v = document.getElementById(VIEWS[key]);
     if(!v) return;
     const f = v.querySelector('iframe.sys-frame');
+    if(f) SYS.watch(f);
     if(f && !f.getAttribute('src')){ f.setAttribute('src', f.dataset.src); }
     /* 高さを固定する画面は、表示のたびに画面の高さへ合わせ直す */
     setTimeout(() => {
@@ -3937,6 +4035,32 @@ const SYS = {
            && f.contentDocument.body.classList.contains('fixed-h')) SYS.fitHeight(f);
       }catch(e){}
     }, 60);
+  },
+  /* 本システムの画面（iframe）が何回移動したかを覚えておく。
+     一覧 → 編集 → 確認 のように進んだ回数。0 なら最初の画面。 */
+  watch(frameEl){
+    if(!frameEl || frameEl._sysWatched) return;
+    frameEl._sysWatched = true;
+    frameEl._depth = 0;
+    frameEl.addEventListener('load', function(){
+      if(frameEl._navBack){ frameEl._navBack = false; return; }  /* 戻る操作の分は数えない */
+      if(frameEl._firstLoaded){ frameEl._depth = (frameEl._depth || 0) + 1; }
+      else { frameEl._firstLoaded = true; frameEl._depth = 0; }
+    });
+  },
+  /* iframe の中で1つ前の画面へ戻る。戻れなければ false */
+  back(frameEl){
+    if(!frameEl || !(frameEl._depth > 0)) return false;
+    try{
+      frameEl._navBack = true;
+      frameEl._depth--;
+      frameEl.contentWindow.history.back();
+      return true;
+    }catch(e){
+      frameEl._navBack = false;
+      frameEl._depth = 0;
+      return false;
+    }
   },
   resize(frameEl, h){ if(frameEl && h){ frameEl.style.height = (h + 24) + 'px'; } },
   /* 画面いっぱいに固定する（一覧のように中身だけスクロールさせたい画面向け） */
@@ -4132,13 +4256,13 @@ function navigate(key){
   document.querySelectorAll('.sidebar>ul>li').forEach(li=>li.classList.remove('active'));
   if(key==='kenpo-list'||key==='kenpo-edit'||key==='kenpo-list-table'||key==='fee-setting'||key==='fee-detail'||key==='fee-institutions'||key==='fee-new'||key==='flu-list'){ document.querySelector('[data-nav="kenpo-list"]').classList.add('active'); }
   if(key==='kenpo-list-table') KL.render();
-  if(key==='settings'||key==='mail-setting'||key==='pw-change'||key==='sys-account'||key==='sys-log'){ document.querySelector('[data-nav="settings"]').classList.add('active'); }
+  if(key==='settings'||key==='mail-setting'||key==='pw-change'||key==='sys-account'||key==='sys-log'||key==='sys-me'||key==='sys-features'){ document.querySelector('[data-nav="settings"]').classList.add('active'); }
   if(key==='kenpo-list-table'){ KenpoDB.fillList(); }
   if(key.indexOf('sys-')===0){ SYS.open(key); }
   if(key==='kenpo-search'||key==='kenpo-search-2fa'||key==='kenpo-search-result'){ document.querySelector('[data-nav="kenpo-search"]').classList.add('active'); }
   if(CLAIM_VIEWS.has(key)){ document.querySelector('[data-nav="claim-list"]').classList.add('active'); }
   if(key==='chat'||key==='chat-2fa'||key==='chat-yoroku'||key==='chatbot-mgmt'||key==='chatbot-knowledge'){ document.querySelector('[data-nav="chat"]').classList.add('active'); }
-  if(key==='master'||key==='master-criteria'||key==='master-edit'||key==='master-judgment-edit'||key==='master-fee-edit'||key==='master-oid'||key==='sys-judge-group'){ document.querySelector('[data-nav="master"]').classList.add('active'); }
+  if(key==='master'||key==='master-criteria'||key==='master-edit'||key==='master-judgment-edit'||key==='master-fee-edit'||key==='master-oid'||key==='sys-judge-group'||key==='sys-company'||key==='sys-office'||key==='sys-dept'||key==='sys-member'){ document.querySelector('[data-nav="master"]').classList.add('active'); }
   if(key==='master-criteria') MS.render();
   if(key==='master-oid') OID.render();
   if(key==='flu-list'){ FL.switchTab('list'); FL.render(); }
@@ -4172,6 +4296,18 @@ const viewParents={
   'kenpo-edit':'kenpo-list',
   'kenpo-list':'fee-setting'
 };
+
+/* 上段の「← 戻る」。本システムの画面（iframe）の中で進んでいれば、
+   まずその中で1つ前の画面へ戻る（「中止する」を押さなくても戻れる）。
+   iframe が最初の画面なら、シェル側の前の画面へ戻る。 */
+function sysBack(fallbackKey){
+  const v = document.querySelector('.view.active');
+  const f = v ? v.querySelector('iframe.sys-frame') : null;
+  if(f && SYS.back(f)) return;
+  if(fallbackKey) navigate(fallbackKey);
+  else navigateBack();
+}
+window.sysBack = sysBack;
 
 // 1つ上位の一覧画面に戻る
 function navigateBack(){
@@ -7526,6 +7662,66 @@ const OID=(()=>{
   return { render, openNewModal, closeModal, edit, save, remove, _data: data };
 })();
 
+/* ============================================================
+   検査マスタの区分番号（特定健診XML健診項目コード表の区分・固定定義）
+   検査マスタの各項目は、この区分番号のどれかに属する。
+   ============================================================ */
+const SEC=(()=>{
+  // 特定健診XML 健診項目コード表の区分（固定の定義）。
+  // 検査マスタの「区分番号」プルダウン・検索条件・一覧表示に使う。
+  const data = [
+    { no:'01', name:'受診情報',                 note:'受診日・健診プログラム種別など' },
+    { no:'02', name:'基本情報・診察',           note:'業務歴・既往歴・自覚症状・他覚症状・視診・打聴診・触診' },
+    { no:'03', name:'身体計測',                 note:'身長・体重・BMI・腹囲・肥満度・内臓脂肪面積' },
+    { no:'04', name:'血圧',                     note:'収縮期・拡張期血圧・心拍数' },
+    { no:'05', name:'血中脂質検査',             note:'総コレステロール・中性脂肪・HDL・LDL・Non-HDL' },
+    { no:'06', name:'肝機能検査',               note:'AST・ALT・γ-GT・ALP・LD・ビリルビン・総蛋白・アルブミン' },
+    { no:'07', name:'血糖検査',                 note:'空腹時血糖・随時血糖・HbA1c・採血時間' },
+    { no:'08', name:'尿・腎機能検査',           note:'尿糖・尿蛋白・クレアチニン・eGFR・尿酸' },
+    { no:'09', name:'血液学的検査',             note:'赤血球数・血色素量・ヘマトクリット・白血球数・血小板数' },
+    { no:'10', name:'心電図検査',               note:'心電図所見・所見の有無' },
+    { no:'11', name:'眼底検査',                 note:'眼底検査の分類・所見' },
+    { no:'12', name:'その他の検査',             note:'胸部X線・喀痰・聴力・視力・腹部超音波など' },
+    { no:'13', name:'医師の判断',               note:'総合判定・指導区分・医師の所見' },
+    { no:'14', name:'問診（質問票）',           note:'服薬・喫煙・飲酒・運動・睡眠・食習慣' },
+    { no:'15', name:'メタボリックシンドローム判定', note:'判定・保健指導レベル' },
+    { no:'16', name:'保健指導',                 note:'保健指導に関する項目' }
+  ];
+
+  const esc = (v) => String(v==null?'':v)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  function list(){ return data.slice().sort((a,b)=> String(a.no).localeCompare(String(b.no))); }
+  function nameOf(no){
+    const r = data.find(x => String(x.no) === String(no));
+    return r ? r.name : '';
+  }
+  function label(no){
+    if(!no) return '';
+    return String(no) + '　' + nameOf(no);
+  }
+  /* 検査マスタの区分番号プルダウンを作り直す */
+  function fillSelect(el, withAll, selected){
+    if(!el) return;
+    el.innerHTML = (withAll ? '<option value="">すべて</option>' : '');
+    list().forEach(r => {
+      const o = document.createElement('option');
+      o.value = r.no;
+      o.textContent = r.no + '　' + r.name;
+      el.appendChild(o);
+    });
+    if(selected != null) el.value = selected;
+  }
+  function fillAllSelects(){
+    fillSelect(document.getElementById('ms-filterSec'), true,
+               (document.getElementById('ms-filterSec')||{}).value || '');
+    fillSelect(document.getElementById('ms-fSec'), false,
+               (document.getElementById('ms-fSec')||{}).value || '');
+  }
+
+  return { list, nameOf, label, fillSelect, fillAllSelects };
+})();
+
 const MS=(()=>{
   let currentVer = "2025年度版";
   let editTargetIndex = null;
@@ -7820,11 +8016,58 @@ const MS=(()=>{
     { item:"収縮期血圧(その他)", xmlType:"PQ", unit:"mmHg", codes:[{code:"9A755000000000001", isPrimary:true}], criteria:[{judge:"A", gender:"共通", min:"", max:"130"}], ageFrom:"", ageTo:"", validFrom:"", validTo:"2025-03-31", ver:"2024年度版" }
   ];
 
+  /* ===== 区分番号（特定健診XML健診項目コード表の区分） ===== */
+  // 既存データに区分番号が入っていない場合は、項目名から割り当てる
+  const SEC_RULES = [
+    ['03', /身長|体重|BMI|腹囲|肥満度|内臓脂肪/],
+    ['04', /血圧|心拍数|脈/],
+    ['05', /コレステロール|中性脂肪|トリグリセリド|脂質|Non-HDL/i],
+    ['06', /AST|GOT|ALT|GPT|γ-GT|GTP|ALP|LD$|LD\(|ビリルビン|総蛋白|アルブミン|肝/i],
+    ['07', /血糖|HbA1c|グリコ|採血時間/i],
+    ['08', /尿|クレアチニン|eGFR|尿酸|腎/i],
+    ['09', /赤血球|血色素|ヘモグロビン|ヘマトクリット|白血球|血小板|MCV|MCH|MCHC|血液/i],
+    ['10', /心電図/],
+    ['11', /眼底/],
+    ['15', /メタボ/i],
+    ['16', /保健指導|支援形態|実施時点/],
+    ['13', /医師の判断|医師の診断|総合判定|判定区分|指導区分|所見の有無|要精密|要医療/],
+    ['14', /問診|服薬|喫煙|飲酒|運動|睡眠|食習慣|食事|生活習慣|体重変化|質問票/],
+    ['02', /業務歴|既往歴|自覚症状|他覚症状|家族歴|視診|打聴診|触診|嚥下/],
+    ['12', /胸部|X線|エックス線|喀痰|聴力|視力|超音波|胃部|内視鏡|検査/],
+  ];
+  function guessSec(r){
+    const name = String(r.item || '');
+    for(const [no, re] of SEC_RULES){ if(re.test(name)) return no; }
+    return '12';
+  }
+  function secOf(r){
+    if(!r.sec) r.sec = guessSec(r);
+    return r.sec;
+  }
+  function secCell(r){
+    const no = secOf(r);
+    const nm = (typeof SEC !== 'undefined') ? SEC.nameOf(no) : '';
+    const full = no + (nm ? '　' + nm : '');
+    // 1行で表示する（長い区分名は末尾を省略し、全文はマウスオーバーで出す）
+    return '<span title="' + esc(full) + '" style="display:block;white-space:nowrap;'
+      + 'overflow:hidden;text-overflow:ellipsis;font-size:12.5px;">'
+      + '<span style="font-family:monospace;font-weight:700;">' + esc(no) + '</span>'
+      + (nm ? ' ' + esc(nm) : '') + '</span>';
+  }
+  function countBySec(no){
+    return data.filter(r => String(secOf(r)) === String(no)).length;
+  }
+  function renameSec(before, after){
+    data.forEach(r => { if(String(secOf(r)) === String(before)) r.sec = after; });
+  }
+
   function getFiltered(){
     const item = (document.getElementById("ms-filterItem")||{}).value || "";
+    const sec  = (document.getElementById("ms-filterSec")||{}).value || "";
     const codeQ = ((document.getElementById("ms-filterCode")||{}).value || "").trim().toUpperCase();
     return data.filter(r => {
       if(r.ver !== currentVer) return false;
+      if(sec && String(secOf(r)) !== sec) return false;
       if(item && r.item !== item) return false;
       if(codeQ){
         const hit = (r.codes||[]).some(c => c.code.toUpperCase().includes(codeQ));
@@ -7839,10 +8082,12 @@ const MS=(()=>{
     if(!tbody) return;
     // 年度プルダウンを最新の年度マスタで更新
     refreshYearDropdowns();
+    // 区分番号のプルダウンを区分の定義から作る
+    if(typeof SEC !== 'undefined') SEC.fillAllSelects();
     const rows = getFiltered();
     tbody.innerHTML = "";
     if(rows.length === 0){
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#888;padding:20px;">該当する基準が見つかりません</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#888;padding:20px;">該当する基準が見つかりません</td></tr>';
       const cnt = document.getElementById("ms-count");
       if(cnt) cnt.textContent = "件数: 0";
       return;
@@ -7878,6 +8123,7 @@ const MS=(()=>{
       if(expired) tr.className = "expired";
       tr.innerHTML =
         '<td>' + (i+1) + '</td>' +
+        '<td class="tbl-left" style="white-space:nowrap;">' + secCell(r) + '</td>' +
         '<td>' + reqCell + '</td>' +
         '<td class="tbl-left">' + codeCellHtml + '</td>' +
         '<td class="tbl-left" style="word-break:break-word;white-space:normal;">' + esc(r.item) + '</td>' +
@@ -7895,18 +8141,22 @@ const MS=(()=>{
 
   function onVerChange(){
     currentVer = document.getElementById("ms-filterVer").value;
+    const fs = document.getElementById("ms-filterSec"); if(fs) fs.value = "";
     document.getElementById("ms-filterItem").value = "";
     const fc = document.getElementById("ms-filterCode"); if(fc) fc.value = "";
     render();
   }
 
   function clearForm(){
+    // 表を組み立ててから値を入れる（項目情報の入力欄は表の中にある）
+    document.getElementById("ms-codesWrap").innerHTML = "";
+    addCodeRow();
+    if(typeof SEC !== 'undefined') SEC.fillSelect(document.getElementById("ms-fSec"), false, '03');
+    fillEditVer(currentVer);
     document.getElementById("ms-fName").value = "";
     document.getElementById("ms-fXmlType").value = "PQ";
     document.getElementById("ms-fUnit").value = "";
     document.getElementById("ms-fRequired").value = "";
-    document.getElementById("ms-codesWrap").innerHTML = "";
-    addCodeRow();
   }
 
   /* ===== 条件・金額テーブル(編集画面) ===== */
@@ -8015,6 +8265,46 @@ const MS=(()=>{
     updateCondSummary();
   }
 
+  /* 検査項目そのものの情報（区分番号〜必須種別）。表の左5列。
+     コードが何行あっても値は1つなので、行数ぶん結合して1回だけ入力する。 */
+  function itemCellsHtml(){
+    return ''
+      + '<td class="ms-item-cell"><select class="form-control" id="ms-fSec"></select></td>'
+      + '<td class="ms-item-cell"><input type="text" class="form-control" id="ms-fName"'
+        + ' placeholder="例：BMI"></td>'
+      + '<td class="ms-item-cell"><select class="form-control" id="ms-fXmlType">'
+        + '<option value="PQ">PQ（数値）</option>'
+        + '<option value="CD">CD（コード）</option>'
+        + '<option value="CO">CO（順序付きコード）</option>'
+        + '<option value="ST">ST（文字列）</option></select></td>'
+      + '<td class="ms-item-cell"><input type="text" class="form-control" id="ms-fUnit"'
+        + ' placeholder="例：kg/m²"></td>'
+      + '<td class="ms-item-cell"><select class="form-control" id="ms-fRequired">'
+        + '<option value="">任意項目</option>'
+        + '<option value="required">必須</option>'
+        + '<option value="alt">必須(代替可)</option></select></td>';
+  }
+
+  /* 項目情報セルを必ず先頭行に置き、行数ぶん結合しておく。
+     セルはDOMごと移すので、入力済みの値は消えない。 */
+  function syncItemCells(){
+    const wrap = document.getElementById("ms-codesWrap");
+    if(!wrap) return;
+    const rows = wrap.querySelectorAll("tr");
+    if(!rows.length) return;
+    let cells = wrap.querySelectorAll("td.ms-item-cell");
+    if(!cells.length){
+      const tmp = document.createElement("tbody");
+      tmp.innerHTML = "<tr>" + itemCellsHtml() + "</tr>";
+      const tds = Array.from(tmp.querySelector("tr").children).reverse();
+      tds.forEach(td => rows[0].insertBefore(td, rows[0].firstChild));
+    } else if(cells[0].parentElement !== rows[0]){
+      Array.from(cells).reverse().forEach(td => rows[0].insertBefore(td, rows[0].firstChild));
+    }
+    const n = rows.length;
+    wrap.querySelectorAll("td.ms-item-cell").forEach(td => { td.rowSpan = n; });
+  }
+
   function addCodeRow(code, isPrimary){
     const wrap = document.getElementById("ms-codesWrap");
     const idx = wrap.children.length + 1;
@@ -8025,10 +8315,10 @@ const MS=(()=>{
       '<td><label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">' +
         '<input type="checkbox" class="ms-f-primary" ' + (isPrimary ? 'checked' : '') + ' style="cursor:pointer;">代表' +
       '</label></td>' +
-      '<td class="tbl-left"><input type="text" class="form-control ms-f-code" placeholder="17桁（半角英数）" maxlength="17" style="font-family:monospace;letter-spacing:0.05em;width:100%;" value="' + esc(code || "") + '"></td>' +
-      '<td><button type="button" class="tbl-btn tbl-btn-edit" style="width:auto;padding:0 10px;font-size:12px;" onclick="MS.removeRow(this)">削除</button></td>' +
-      '<td></td>';
+      '<td class="tbl-left"><input type="text" class="form-control ms-f-code" placeholder="17桁（半角英数）" maxlength="17" style="font-family:monospace;letter-spacing:0.05em;width:100%;max-width:360px;" value="' + esc(code || "") + '"></td>' +
+      '<td><button type="button" class="tbl-btn tbl-btn-edit" style="width:auto;padding:0 10px;font-size:12px;" onclick="MS.removeRow(this)">削除</button></td>';
     wrap.appendChild(tr);
+    syncItemCells();
     renumberRows(wrap, "ms-code-no");
   }
 
@@ -8071,8 +8361,21 @@ const MS=(()=>{
   function removeRow(btn){
     const tr = btn.closest("tr");
     const wrap = tr.parentElement;
+    if(wrap.id === "ms-codesWrap"){
+      const rows = Array.from(wrap.querySelectorAll("tr"));
+      if(rows.length <= 1){
+        alert("項目コードは1件以上必要です。");
+        return;
+      }
+      // 消す行が項目情報のセルを持っている場合は、先に別の行へ移す（値を守る）
+      const cells = Array.from(tr.querySelectorAll("td.ms-item-cell"));
+      if(cells.length){
+        const next = rows.find(r => r !== tr);
+        cells.reverse().forEach(td => next.insertBefore(td, next.firstChild));
+      }
+    }
     tr.remove();
-    if(wrap.id === "ms-codesWrap") renumberRows(wrap, "ms-code-no");
+    if(wrap.id === "ms-codesWrap"){ syncItemCells(); renumberRows(wrap, "ms-code-no"); }
     else if(wrap.id === "ms-critWrap") renumberRows(wrap, "ms-crit-no");
   }
 
@@ -8097,14 +8400,16 @@ const MS=(()=>{
     if(!r) return;
     navigate('master-edit');
     setTimeout(()=>{
+      // コードリストを組み立ててから値を入れる（項目情報の入力欄は表の中にある）
+      document.getElementById("ms-codesWrap").innerHTML = "";
+      (r.codes || []).forEach(c => addCodeRow(c.code, c.isPrimary));
+      if((r.codes || []).length === 0) addCodeRow();
+      if(typeof SEC !== 'undefined') SEC.fillSelect(document.getElementById("ms-fSec"), false, secOf(r));
+      fillEditVer(r.ver || currentVer);
       document.getElementById("ms-fName").value      = r.item || "";
       document.getElementById("ms-fXmlType").value   = r.xmlType || "PQ";
       document.getElementById("ms-fUnit").value      = r.unit || "";
       document.getElementById("ms-fRequired").value  = r.required || "";
-      // コードリスト構築
-      document.getElementById("ms-codesWrap").innerHTML = "";
-      (r.codes || []).forEach(c => addCodeRow(c.code, c.isPrimary));
-      if((r.codes || []).length === 0) addCodeRow();
       document.getElementById("ms-editTitle").textContent = "検査マスタ 編集：" + (r.item || "");
     }, 0);
   }
@@ -8323,14 +8628,32 @@ const MS=(()=>{
     refreshYearDropdowns();
   }
 
-  // 全ての年度プルダウンを再構築
-  function refreshYearDropdowns(){
+  // 年度プルダウンの選択肢を組み立てる（年度マスタの降順・現行版には「（現行）」を付ける）
+  function buildYearOptions(selectedVal){
     const sorted = yearMaster.slice().sort((a,b)=>b.year-a.year);
-    const buildOptions = (selectedVal) => sorted.map(y=>{
+    let html = sorted.map(y=>{
       const val = y.label;
       const displayLabel = y.current ? (y.label + "（現行）") : y.label;
       return '<option value="' + esc(val) + '"' + (val===selectedVal?' selected':'') + '>' + esc(displayLabel) + '</option>';
     }).join('');
+    // 年度マスタに無い版（過去の登録分など）も選択肢として残す
+    if(selectedVal && !sorted.some(y=>y.label===selectedVal)){
+      html = '<option value="' + esc(selectedVal) + '" selected>' + esc(selectedVal) + '</option>' + html;
+    }
+    return html;
+  }
+
+  // 検査マスタ 編集／新規作成の「対象年度」プルダウン
+  function fillEditVer(selectedVal){
+    const sel = document.getElementById("ms-fVer");
+    if(!sel) return;
+    sel.innerHTML = buildYearOptions(selectedVal || currentVer);
+    if(selectedVal) sel.value = selectedVal;
+  }
+
+  // 全ての年度プルダウンを再構築
+  function refreshYearDropdowns(){
+    const buildOptions = buildYearOptions;
     // 検査マスタ検索の 基準バージョン
     const filterVer = document.getElementById("ms-filterVer");
     if(filterVer){
@@ -8342,6 +8665,12 @@ const MS=(()=>{
     if(critYear){
       const cur = critYear.value;
       critYear.innerHTML = buildOptions(cur || currentCritYear);
+    }
+    // 検査マスタ 編集／新規作成の 対象年度
+    const editVer = document.getElementById("ms-fVer");
+    if(editVer){
+      const cur = editVer.value;
+      editVer.innerHTML = buildOptions(cur || currentVer);
     }
   }
 
@@ -8376,15 +8705,23 @@ const MS=(()=>{
   }
 
   function saveEdit(){
+    const sec       = document.getElementById("ms-fSec").value;
     const name      = document.getElementById("ms-fName").value.trim();
     const xmlType   = document.getElementById("ms-fXmlType").value;
     const unit      = document.getElementById("ms-fUnit").value.trim();
     const required  = document.getElementById("ms-fRequired").value;
-    // バージョンは現行版固定（編集中の既存レコードがあれば継承）
-    const ver = (editTargetIndex !== null && data[editTargetIndex] && data[editTargetIndex].ver) || currentVer || "2025年度版";
+    // 対象年度は画面のプルダウンで指定する（未表示なら既存レコード→現行版を継承）
+    const verSel = document.getElementById("ms-fVer");
+    const ver = (verSel && verSel.value)
+      || (editTargetIndex !== null && data[editTargetIndex] && data[editTargetIndex].ver)
+      || currentVer || "2025年度版";
 
     if(!name){
       alert("項目名を入力してください。");
+      return;
+    }
+    if(!sec){
+      alert("区分番号を選択してください。");
       return;
     }
     const codes = collectCodes();
@@ -8396,6 +8733,7 @@ const MS=(()=>{
 
     const existing = (editTargetIndex !== null) ? data[editTargetIndex] : null;
     const newRecord = {
+      sec,
       item: name, xmlType, unit,
       codes,
       criteria: existing ? (existing.criteria || []) : [],
@@ -8431,7 +8769,7 @@ const MS=(()=>{
     }, 0);
   }
 
-  return { render, onVerChange, showAddPage, cancelEdit, editCriteria, saveEdit, addCodeRow, addCriteriaRow, removeRow, addConditionRow, removeCondRow, onCriteriaYearChange, renderJudgment, onJudgmentVerChange, editJudgment, saveJudgment, editFee, saveFee, renderYearMaster, addNewYear, removeYear, setCurrentYear, openNewYearModal, closeNewYearModal };
+  return { render, countBySec, renameSec, onVerChange, showAddPage, cancelEdit, editCriteria, saveEdit, addCodeRow, addCriteriaRow, removeRow, addConditionRow, removeCondRow, onCriteriaYearChange, renderJudgment, onJudgmentVerChange, editJudgment, saveJudgment, editFee, saveFee, renderYearMaster, addNewYear, removeYear, setCurrentYear, openNewYearModal, closeNewYearModal };
 })();
 
 /* ============================================================
@@ -8469,6 +8807,19 @@ document.addEventListener('DOMContentLoaded',()=>{
       var av = document.querySelector('.header-avatar');
       if(n){ n.textContent = me.name; n.title = me.email + '（' + me.role + '）'; }
       if(av){ av.textContent = me.initials; av.title = me.role + '／' + me.scope; }
+    })
+    .catch(function(){});
+
+  /* 機能制御（ロール・サブロールごとの利用可否）でカードを出し入れする */
+  fetch('/api/me', {credentials:'same-origin'})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(me){
+      if(!me || !me.features) return;
+      window.FEATURES = me.features;
+      document.querySelectorAll('[data-feature]').forEach(function(el){
+        var k = el.getAttribute('data-feature');
+        if(me.features[k] === false) el.style.display = 'none';
+      });
     })
     .catch(function(){});
 })();

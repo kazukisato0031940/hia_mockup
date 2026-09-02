@@ -18,6 +18,8 @@ HIA健保管理でできること（健保担当者／企業担当者）
   3. 事業所情報の登録・編集・削除
   4. 加入者情報の登録・編集・削除
   5. パスワードの再設定（ログイン画面から本人が申請）
+  6. 産業医面談の管理（sanmen.py／対象者の抽出・健診受診管理・面談記録・
+     労基署報告・メール配信・データ取込）
 """
 import csv
 import hashlib
@@ -38,9 +40,15 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "hia.db")
+# 同梱の初期データ。hia.db が無いときだけここから作る。
+# プログラムを新しい版に差し替えても hia.db は上書きされないため、
+# 画面から登録したアカウント・マスタは消えない。
+INITIAL_DB = os.path.join(BASE_DIR, "hia_initial.db")
+BACKUP_DIR = os.path.join(BASE_DIR, "backup")
+BACKUP_KEEP = int(os.environ.get("HIA_BACKUP_KEEP", "10"))
 OUTBOX = os.path.join(BASE_DIR, "outbox")
 
-BUILD = "2.0.0 (2026-07-30)"
+BUILD = "2.1.0 (2026-09-01)"
 
 MAX_EXPORT_ROWS = int(os.environ.get("HIA_MAX_EXPORT_ROWS", "1000"))
 INVITE_HOURS = 72
@@ -50,6 +58,93 @@ ROLE_LABELS = {
     "system_admin": "当社スタッフ",
     "kenpo_user": "健保担当者",
     "company_user": "企業担当者",
+}
+# 企業担当者のサブロール（産業医面談管理で使う）
+#   doctor（産業医）… 医学的判断（面談対象の承認・就業区分の判定・面談所見・記名）
+#   hr    （人事）  … 運用事務（取込・メール配信・対応区分・報告書の出力）
+SUB_ROLE_LABELS = {"doctor": "産業医", "hr": "人事"}
+SUB_ROLES = ["doctor", "hr"]
+# サブロールを付けられるロール
+SUB_ROLE_ROLES = ("company_user",)
+
+# ================================================================ 機能制御
+# ロール（＋サブロール）ごとに、使える機能を当社スタッフが切り替えられる。
+# 「固定」の機能は設定で変更できない（医学的判断は産業医のみが行うため）。
+ROLE_KEYS = ["system_admin", "kenpo_user", "company_user",
+             "company_user/doctor", "company_user/hr"]
+ROLE_KEY_LABELS = {
+    "system_admin": "当社スタッフ",
+    "kenpo_user": "健保担当者",
+    "company_user": "企業担当者（サブロールなし）",
+    "company_user/doctor": "企業担当者（産業医）",
+    "company_user/hr": "企業担当者（人事）",
+}
+# (キー, 区分, 機能名, 説明, 固定)
+FEATURES = [
+    ("master.view", "マスタ管理", "マスタの閲覧",
+     "企業・事業所・部署・加入者の一覧と詳細を見る", False),
+    ("master.write", "マスタ管理", "マスタの登録・変更・削除",
+     "企業・事業所・部署・加入者の追加・編集・削除と紐づけ", False),
+    ("master.import", "マスタ管理", "CSVの一括取込",
+     "加入者・企業・事業所のCSV取込", False),
+    ("oh.list", "産業医面談", "面談対象者一覧",
+     "面談候補の抽出結果の閲覧・メモ・健診結果票", False),
+    ("oh.kenshin", "産業医面談", "健診受診管理（定期・深夜）",
+     "年度ごとの受診状況・受診率の確認", False),
+    ("oh.approve", "産業医面談", "面談対象の承認・就業区分の判定",
+     "医学的判断のため産業医のみ（変更できません）", True),
+    ("oh.interview", "産業医面談", "面談結果の記録",
+     "医学的判断のため産業医のみ（変更できません）", True),
+    ("oh.sign", "産業医面談", "報告書への記名・サイン",
+     "医学的判断のため産業医のみ（変更できません）", True),
+    ("oh.hr_class", "産業医面談", "対応区分の設定",
+     "未判定／産業医判定済／要精査・加療指示ほかの設定", False),
+    ("oh.report", "産業医面談", "労基署報告の閲覧・出力",
+     "サマリー・様式第6号・ストレスチェック報告書のPDF／CSV", False),
+    ("oh.mail", "産業医面談", "メール配信",
+     "面談受診勧奨・ストレスチェック受検案内の配信", False),
+    ("oh.upload", "産業医面談", "データ取込",
+     "健診結果・労働時間・ストレスチェックの取込", False),
+    # ---- HIA健保管理（青）の各業務。カテゴリ単位で出し入れする ----
+    ("kenpo.kenshin", "HIA健保管理", "健康診断 代行管理",
+     "受診進捗のダッシュボード・対象者一覧・健診結果出力・請求書出力", False),
+    ("kenpo.hoken", "HIA健保管理", "特定保健指導",
+     "ダッシュボード・対象者一覧・XML出力・請求書出力・健診結果の取込と履歴", False),
+    ("kenpo.influenza", "HIA健保管理", "インフルエンザ補助",
+     "ダッシュボード・予約一覧・申請一覧・接種実績の取込・請求管理", False),
+    ("kenpo.receipt", "HIA健保管理", "レセプト情報",
+     "レセプト情報の取込と取込履歴", False),
+    ("kenpo.member_edit", "HIA健保管理", "加入者情報の変更（健保側）",
+     "加入者の基本情報・住所・連絡先の編集", False),
+    ("kenpo.mail", "HIA健保管理", "メール・通知送信",
+     "受診案内テンプレートの作成・管理・送信", False),
+    ("risk", "そのほか", "疾患予測",
+     "予測結果一覧・健診結果の連携・NSIPS連携", False),
+    ("accounts", "そのほか", "アカウント管理",
+     "アカウントの一覧・発行・編集・削除", False),
+    ("download", "そのほか", "CSVのダウンロード",
+     "アカウントごとのダウンロード権限とあわせて判定します", False),
+]
+FEATURE_KEYS = [f[0] for f in FEATURES]
+FIXED_FEATURES = {f[0] for f in FEATURES if f[4]}
+# 固定の機能を使えるロール（医学的判断は産業医のみ）
+FIXED_FEATURE_ROLE = "company_user/doctor"
+
+_KENPO = {"kenpo.kenshin", "kenpo.hoken", "kenpo.influenza", "kenpo.receipt",
+          "kenpo.member_edit", "kenpo.mail"}
+_OPS = {"master.view", "master.write", "master.import", "oh.list", "oh.kenshin",
+        "oh.hr_class", "oh.report", "oh.mail", "oh.upload", "risk", "accounts",
+        "download"} | _KENPO
+# 産業医は医学的判断が中心。業務事務（取込・配信・健保側の各業務）は既定で持たない
+_DOCTOR = {"master.view", "oh.list", "oh.kenshin", "oh.report", "oh.approve",
+           "oh.interview", "oh.sign", "risk", "accounts", "download"}
+# 既定の機能マトリクス（設定画面の「初期値に戻す」でこの状態になる）
+FEATURE_DEFAULTS = {
+    "system_admin": set(_OPS),
+    "kenpo_user": set(_OPS),
+    "company_user": set(_OPS),
+    "company_user/hr": set(_OPS),
+    "company_user/doctor": set(_DOCTOR),
 }
 SCOPE_LABELS = {"all": "全健保", "kenpo_all": "自組合全体",
                 "own_company": "担当する範囲"}
@@ -62,6 +157,8 @@ ISSUABLE_ROLES = {
     "company_user": ["company_user"],
 }
 SHELL_OF_ROLE = {"system_admin": "km", "kenpo_user": "kenpo", "company_user": "kenpo"}
+# 担当範囲を企業・事業所・部署で指定するロール（閲覧範囲は own_company になる）
+SCOPED_ROLES = ("company_user",)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("HIA_SECRET_KEY") or secrets.token_hex(32)
@@ -86,10 +183,62 @@ def close_db(exc):
         db.close()
 
 
+def restore_initial_db():
+    """hia.db が無いときだけ、同梱の初期データから hia.db を作る。
+
+    プログラムの差し替え（zipの展開）では hia.db が含まれないため、
+    画面から登録したアカウント・マスタが上書きされて消えることはない。
+    """
+    if os.path.exists(DB_PATH) or not os.path.exists(INITIAL_DB):
+        return None
+    import shutil
+    shutil.copy2(INITIAL_DB, DB_PATH)
+    return "初期データ（hia_initial.db）から hia.db を作成しました。"
+
+
+def backup_db(force=False):
+    """hia.db を backup フォルダへ控える（既定は1日1回・最新10世代を保持）"""
+    if not os.path.exists(DB_PATH):
+        return None
+    import glob
+    import shutil
+    try:
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        today = datetime.now().strftime("%Y%m%d")
+        if not force and glob.glob(os.path.join(BACKUP_DIR, f"hia_{today}_*.db")):
+            return None                      # 今日の控えが既にある
+        dest = os.path.join(BACKUP_DIR,
+                            "hia_" + datetime.now().strftime("%Y%m%d_%H%M%S") + ".db")
+        # 書き込み中でも壊れない形で複製する
+        src = sqlite3.connect(DB_PATH)
+        dst = sqlite3.connect(dest)
+        with dst:
+            src.backup(dst)
+        dst.close()
+        src.close()
+        olds = sorted(glob.glob(os.path.join(BACKUP_DIR, "hia_*.db")))
+        for path in olds[:-BACKUP_KEEP]:     # 古い世代を消す
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        return f"データベースを控えました（{os.path.basename(dest)}／最新{BACKUP_KEEP}世代を保持）"
+    except Exception as e:                   # 控えに失敗しても起動は続ける
+        return f"データベースの控えに失敗しました（{e}）"
+
+
 def init_db():
     """新規作成、または既存DBのスキーマ移行を行う"""
     from migrate import ensure_schema
-    return ensure_schema(DB_PATH)
+    lines = []
+    msg = restore_initial_db()
+    if msg:
+        lines.append(msg)
+    lines += list(ensure_schema(DB_PATH))
+    msg = backup_db()
+    if msg:
+        lines.append(msg)
+    return lines
 
 
 def now():
@@ -166,6 +315,107 @@ def current_account():
     return g.acc
 
 
+def sub_role(acc):
+    """企業担当者のサブロール（doctor＝産業医／hr＝人事）。付いていなければ空文字。"""
+    if not acc:
+        return ""
+    try:
+        v = acc["sub_role"]
+    except (KeyError, IndexError):
+        return ""
+    return (v or "") if v in SUB_ROLE_LABELS else ""
+
+
+def clean_sub_role(role, value):
+    """フォームから受け取ったサブロールを検証する。付けられないロールでは空にする。"""
+    value = (value or "").strip()
+    if role in SUB_ROLE_ROLES and value in SUB_ROLE_LABELS:
+        return value
+    return ""
+
+
+def role_full(row):
+    """一覧・確認画面に出すロール名。サブロールがあれば併記する。"""
+    base = ROLE_LABELS.get(row["role"], row["role"])
+    s = sub_role(row)
+    return f"{base}（{SUB_ROLE_LABELS[s]}）" if s else base
+
+
+def is_doctor(acc=None):
+    """医学的判断（面談対象の承認・就業区分・面談記録・報告書への記名）ができるか"""
+    return sub_role(acc if acc is not None else current_account()) == "doctor"
+
+
+def role_key(acc=None):
+    """機能制御のキー。企業担当者はサブロールまで含める（company_user/doctor など）"""
+    acc = acc if acc is not None else current_account()
+    if not acc:
+        return ""
+    s = sub_role(acc)
+    return acc["role"] + ("/" + s if s else "")
+
+
+def feature_overrides():
+    """機能制御の設定（画面で保存した内容）。1リクエストに1回だけ読む。"""
+    if "features" not in g:
+        try:
+            g.features = {(r["role_key"], r["feature"]): bool(r["allowed"])
+                          for r in get_db().execute(
+                              "SELECT role_key, feature, allowed FROM role_feature")}
+        except sqlite3.Error:
+            g.features = {}
+    return g.features
+
+
+# 当社スタッフ（システム管理者）は機能制御の対象外。設定に関係なく全機能を使える。
+# ただし固定の機能（医学的判断＝面談対象の承認・就業区分の判定・面談結果の記録・
+# 報告書への記名）は、労働安全衛生法の考え方にもとづき産業医のみ。
+ALL_FEATURE_ROLE = "system_admin"
+
+
+def feature_allowed(key, acc=None):
+    """そのアカウントが機能を使えるか。設定があればそれを、無ければ既定値を使う。
+    固定の機能（医学的判断）は設定に関係なく産業医だけが使える。
+    当社スタッフは設定に関係なく（固定の機能以外の）全機能を使える。"""
+    acc = acc if acc is not None else current_account()
+    if not acc:
+        return False
+    rk = role_key(acc)
+    if key in FIXED_FEATURES:
+        return rk == FIXED_FEATURE_ROLE
+    if rk == ALL_FEATURE_ROLE:
+        return True
+    ov = feature_overrides().get((rk, key))
+    if ov is not None:
+        return ov
+    return key in FEATURE_DEFAULTS.get(rk, set())
+
+
+def account_features(acc=None):
+    """画面（シェル）へ渡す機能の一覧"""
+    return {k: feature_allowed(k, acc) for k in FEATURE_KEYS}
+
+
+def deny_feature(key):
+    """機能制御で使えない操作を拒否する（画面に出さないだけでなくサーバ側でも止める）"""
+    log("auth", "機能制御により操作を拒否", "blocked", target=request.path,
+        detail=f"role={role_key()}／機能={key}")
+    return render_template("denied.html", path=request.path, feature_key=key), 403
+
+
+def feature_required(key):
+    def deco(fn):
+        @wraps(fn)
+        def wrapper(*a, **kw):
+            if not current_account():
+                return redirect(url_for("login", next=request.path))
+            if not feature_allowed(key):
+                return deny_feature(key)
+            return fn(*a, **kw)
+        return wrapper
+    return deco
+
+
 def login_required(fn):
     @wraps(fn)
     def wrapper(*a, **kw):
@@ -189,6 +439,63 @@ def roles_required(*roles):
             return fn(*a, **kw)
         return wrapper
     return deco
+
+
+# 画面（エンドポイント）と機能制御のキーの対応。
+# ここに載っているエンドポイントは、機能が「利用不可」のロールでは403で拒否する。
+ENDPOINT_FEATURES = {
+    # マスタの閲覧
+    "companies": "master.view", "companies_rows": "master.view",
+    "offices": "master.view", "offices_rows": "master.view",
+    "departments": "master.view", "departments_rows": "master.view",
+    "members": "master.view", "members_rows": "master.view",
+    "api_members_by_office": "master.view",
+    # マスタの登録・変更・削除
+    "company_new": "master.write", "company_edit": "master.write",
+    "company_delete": "master.write",
+    "office_new": "master.write", "office_edit": "master.write",
+    "office_delete": "master.write",
+    "department_new": "master.write", "department_edit": "master.write",
+    "department_delete": "master.write",
+    "member_new": "master.write", "member_edit": "master.write",
+    "member_delete": "master.write",
+    "members_link_auto": "master.write", "members_link_page": "master.write",
+    "members_link_assign": "master.write", "api_members_link": "master.write",
+    "api_members_link_filtered": "master.write",
+    "risk_group_edit": "master.write", "risk_group_delete": "master.write",
+    # CSVの一括取込
+    "members_import": "master.import", "members_import_commit": "master.import",
+    "companies_import": "master.import",
+    "companies_import_commit": "master.import",
+    "offices_import": "master.import", "offices_import_commit": "master.import",
+    # 疾患予測
+    "risk_list": "risk", "risk_member": "risk", "risk_run_exec": "risk",
+    "risk_export": "risk", "risk_groups": "risk", "risk_kenshin": "risk",
+    "risk_kenshin_sync": "risk", "risk_kenshin_xml": "risk",
+    "risk_nsips": "risk", "risk_nsips_sync": "risk",
+    # アカウント管理
+    "accounts": "accounts", "accounts_export": "accounts",
+    "accounts_new": "accounts", "accounts_create": "accounts",
+    "accounts_edit": "accounts", "accounts_edit_apply": "accounts",
+    "accounts_invite_link": "accounts", "accounts_set_password": "accounts",
+    "accounts_send_invite": "accounts", "accounts_toggle": "accounts",
+    "accounts_delete": "accounts", "accounts_purge": "accounts",
+}
+
+
+@app.before_request
+def block_by_feature():
+    """機能制御（ロール・サブロールごとの利用可否）で操作を止める。
+    画面のボタンを隠すだけでなく、URLを直接呼ばれた場合もここで拒否して記録する。"""
+    key = ENDPOINT_FEATURES.get(request.endpoint)
+    if not key:
+        return None
+    acc = current_account()
+    if not acc:
+        return None
+    if feature_allowed(key, acc):
+        return None
+    return deny_feature(key)
 
 
 @app.before_request
@@ -216,6 +523,16 @@ def inject_globals():
         "SHELL": session.get("shell", "kenpo"),
         "acc": current_account(),
         "ROLE_LABELS": ROLE_LABELS,
+        "SUB_ROLE_LABELS": SUB_ROLE_LABELS,
+        "SUB_ROLES": SUB_ROLES,
+        "SUB_ROLE_ROLES": SUB_ROLE_ROLES,
+        "role_full": role_full,
+        "sub_role_of": sub_role,
+        # マスタの登録・変更・削除ができるか（機能制御で切り替えられる）
+        "CAN_MASTER": feature_allowed("master.write"),
+        "CAN_IMPORT": feature_allowed("master.import"),
+        "IS_DOCTOR": is_doctor(),
+        "can_feature": feature_allowed,
         "SCOPE_LABELS": SCOPE_LABELS,
         "STATUS_LABELS": STATUS_LABELS,
         "BUILD": BUILD,
@@ -303,26 +620,20 @@ def scope_summary(scopes):
     if scopes.get("company"):
         q = ",".join("?" * len(scopes["company"]))
         names = [r["name"] for r in db.execute(
-            f"SELECT name FROM company WHERE id IN ({q})"
-            " ORDER BY COALESCE(NULLIF(ext_code,''), code)", scopes["company"])]
+            f"SELECT name FROM company WHERE id IN ({q}) ORDER BY code", scopes["company"])]
         parts.append("企業 " + "・".join(names))
     if scopes.get("office"):
         q = ",".join("?" * len(scopes["office"]))
         names = [f"{r['cname']}／{r['name']}" for r in db.execute(
             "SELECT o.name, c.name AS cname FROM office o JOIN company c ON c.id=o.company_id"
-            f" WHERE o.id IN ({q})"
-            " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code),"
-            " COALESCE(NULLIF(o.ext_code,''), o.code)", scopes["office"])]
+            f" WHERE o.id IN ({q}) ORDER BY c.code, o.code", scopes["office"])]
         parts.append("事業所 " + "・".join(names))
     if scopes.get("dept"):
         q = ",".join("?" * len(scopes["dept"]))
         names = [f"{r['cname']}／{r['oname']}／{r['name']}" for r in db.execute(
             "SELECT d.name, o.name AS oname, c.name AS cname FROM department d"
             " JOIN office o ON o.id=d.office_id JOIN company c ON c.id=o.company_id"
-            f" WHERE d.id IN ({q})"
-            " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code),"
-            " COALESCE(NULLIF(o.ext_code,''), o.code),"
-            " COALESCE(NULLIF(d.ext_code,''), d.code)", scopes["dept"])]
+            f" WHERE d.id IN ({q}) ORDER BY c.code, o.code, d.code", scopes["dept"])]
         parts.append("部署 " + "・".join(names))
     return "／".join(parts) or "指定なし"
 
@@ -331,8 +642,7 @@ def account_companies(aid):
     """アカウントが対象とする企業（コード順）"""
     return get_db().execute(
         "SELECT c.* FROM account_company ac JOIN company c ON c.id=ac.company_id"
-        " WHERE ac.account_id=?"
-        " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code)", (aid,)).fetchall()
+        " WHERE ac.account_id=? ORDER BY c.code", (aid,)).fetchall()
 
 
 def set_account_companies(aid, ids):
@@ -351,8 +661,7 @@ def company_names(ids):
         return "—"
     q = ",".join("?" * len(ids))
     rows = get_db().execute(
-        f"SELECT name FROM company WHERE id IN ({q})"
-        " ORDER BY COALESCE(NULLIF(ext_code,''), code)", ids).fetchall()
+        f"SELECT name FROM company WHERE id IN ({q}) ORDER BY code", ids).fetchall()
     return "、".join(r["name"] for r in rows)
 
 
@@ -361,13 +670,11 @@ def scoped_companies(acc):
     if acc["role"] == "system_admin":
         return db.execute(
             "SELECT c.*, k.name AS kenpo_name, k.code AS kenpo_code FROM company c"
-            " JOIN kenpo k ON k.id=c.kenpo_id"
-            " ORDER BY k.code, COALESCE(NULLIF(c.ext_code,''), c.code)").fetchall()
+            " JOIN kenpo k ON k.id=c.kenpo_id ORDER BY k.code, c.code").fetchall()
     if acc["role"] == "kenpo_user":
         return db.execute(
             "SELECT c.*, k.name AS kenpo_name, k.code AS kenpo_code FROM company c"
-            " JOIN kenpo k ON k.id=c.kenpo_id WHERE c.kenpo_id=?"
-            " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code)",
+            " JOIN kenpo k ON k.id=c.kenpo_id WHERE c.kenpo_id=? ORDER BY c.code",
             (acc["kenpo_id"],)).fetchall()
     # 担当範囲に含まれる企業＋担当事業所・部署の親企業
     sc = account_scope_ids(acc["id"])
@@ -387,8 +694,7 @@ def scoped_companies(acc):
     q = ",".join("?" * len(ids))
     return db.execute(
         "SELECT c.*, k.name AS kenpo_name, k.code AS kenpo_code FROM company c"
-        f" JOIN kenpo k ON k.id=c.kenpo_id WHERE c.id IN ({q})"
-        " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code)",
+        f" JOIN kenpo k ON k.id=c.kenpo_id WHERE c.id IN ({q}) ORDER BY c.code",
         ids).fetchall()
 
 
@@ -410,9 +716,7 @@ def scoped_departments(acc):
             return []
         q = ",".join("?" * len(ids))
         return db.execute(DEPT_SELECT + f" WHERE d.office_id IN ({q})"
-                          " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code),"
-                          " COALESCE(NULLIF(o.ext_code,''), o.code),"
-                          " COALESCE(NULLIF(d.ext_code,''), d.code)", ids).fetchall()
+                          " ORDER BY c.code, o.code, d.code", ids).fetchall()
     sc = account_scope_ids(acc["id"])
     conds, params = [], []
     if sc["company"]:
@@ -427,9 +731,7 @@ def scoped_departments(acc):
     if not conds:
         return []
     return db.execute(DEPT_SELECT + " WHERE " + " OR ".join(conds)
-                      + " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code),"
-                        " COALESCE(NULLIF(o.ext_code,''), o.code),"
-                        " COALESCE(NULLIF(d.ext_code,''), d.code)", params).fetchall()
+                      + " ORDER BY c.code, o.code, d.code", params).fetchall()
 
 
 def owns_department(acc, did):
@@ -449,9 +751,7 @@ def scoped_offices(acc):
             "SELECT o.*, c.name AS company_name, c.code AS company_code,"
             " c.ext_code AS company_ext, c.kenpo_id"
             " FROM office o JOIN company c ON c.id=o.company_id"
-            f" WHERE o.company_id IN ({q})"
-            " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code),"
-            " COALESCE(NULLIF(o.ext_code,''), o.code)", ids).fetchall()
+            f" WHERE o.company_id IN ({q}) ORDER BY c.code, o.code", ids).fetchall()
     sc = account_scope_ids(acc["id"])
     conds, params = [], []
     if sc["company"]:
@@ -470,9 +770,7 @@ def scoped_offices(acc):
         "SELECT o.*, c.name AS company_name, c.code AS company_code,"
         " c.ext_code AS company_ext, c.kenpo_id"
         " FROM office o JOIN company c ON c.id=o.company_id"
-        " WHERE " + " OR ".join(conds)
-        + " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code),"
-          " COALESCE(NULLIF(o.ext_code,''), o.code)", params).fetchall()
+        " WHERE " + " OR ".join(conds) + " ORDER BY c.code, o.code", params).fetchall()
 
 
 def member_where(acc):
@@ -640,7 +938,7 @@ def index():
     acc = current_account()
     if not acc:
         return redirect(url_for("login"))
-    return redirect(url_for("spa_km") if SHELL_OF_ROLE[acc["role"]] == "km" else url_for("spa"))
+    return redirect(url_for("spa_km") if SHELL_OF_ROLE.get(acc["role"], "kenpo") == "km" else url_for("spa"))
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -669,7 +967,7 @@ def login():
         else:
             session.clear()
             session["account_id"] = row["id"]
-            session["shell"] = SHELL_OF_ROLE[row["role"]]
+            session["shell"] = SHELL_OF_ROLE.get(row["role"], "kenpo")
             session["embed"] = True
             g.pop("acc", None)
             db.execute("UPDATE account SET last_login_at=? WHERE id=?", (now(), row["id"]))
@@ -677,7 +975,7 @@ def login():
             log("auth", "ログイン成功", "success", target=email)
             nxt = request.args.get("next")
             if not nxt:
-                nxt = url_for("spa_km") if SHELL_OF_ROLE[row["role"]] == "km" else url_for("spa")
+                nxt = url_for("spa_km") if SHELL_OF_ROLE.get(row["role"], "kenpo") == "km" else url_for("spa")
             return redirect(nxt)
     return render_template("login.html")
 
@@ -694,6 +992,12 @@ def api_me():
         "role": ROLE_LABELS.get(acc["role"], acc["role"]),
         "scope": SCOPE_LABELS.get(acc["view_scope"], acc["view_scope"]),
         "initials": name[:2],
+        "sub_role": sub_role(acc),
+        "sub_role_label": SUB_ROLE_LABELS.get(sub_role(acc), ""),
+        "role_key": role_key(acc),
+        "role_key_label": ROLE_KEY_LABELS.get(role_key(acc), ""),
+        # シェル（静的HTML）でカードの出し入れに使う
+        "features": account_features(acc),
     }
 
 
@@ -813,7 +1117,7 @@ def spa_km():
 def spa():
     """HIA健保管理（健保担当者・企業担当者・青）"""
     acc = current_account()
-    if not support_kenpo() and SHELL_OF_ROLE[acc["role"]] == "km":
+    if not support_kenpo() and SHELL_OF_ROLE.get(acc["role"], "kenpo") == "km":
         return redirect(url_for("spa_km"))
     session["embed"] = True
     session["shell"] = "kenpo"
@@ -3744,6 +4048,11 @@ def offices_import_commit():
 # ================================================================ 出力
 def export_csv(filename, header, rows, kind):
     acc = current_account()
+    if not feature_allowed("download", acc):
+        log("download", "出力をブロック", "blocked", target=kind,
+            detail=f"機能制御で不可（role={role_key(acc)}）")
+        flash("このロールではCSVのダウンロードができません（機能制御の設定）。", "error")
+        return None
     if not acc["can_download"] and acc["role"] != "system_admin":
         log("download", "出力をブロック", "blocked", target=kind, detail="ダウンロード権限なし")
         flash("このアカウントにはダウンロード権限がありません。", "error")
@@ -3777,6 +4086,212 @@ def members_export():
                       "加入者情報") or redirect(url_for("members"))
 
 
+# ================================================================ 機能制御の設定
+@app.route("/settings/features")
+@roles_required("system_admin")
+def feature_settings():
+    """ロール・サブロールごとの機能制御（当社スタッフのみ）"""
+    ov = feature_overrides()
+    matrix = {}
+    for rk in ROLE_KEYS:
+        matrix[rk] = {}
+        for key, _grp, _label, _desc, fixed in FEATURES:
+            if fixed:
+                matrix[rk][key] = (rk == FIXED_FEATURE_ROLE)
+            elif rk == ALL_FEATURE_ROLE:
+                matrix[rk][key] = True      # 当社スタッフは常に利用可（切替不可）
+            else:
+                v = ov.get((rk, key))
+                matrix[rk][key] = (key in FEATURE_DEFAULTS.get(rk, set())
+                                   if v is None else v)
+    n_over = len(ov)
+    groups = []
+    for key, grp, label, desc, fixed in FEATURES:
+        if not groups or groups[-1][0] != grp:
+            groups.append((grp, []))
+        groups[-1][1].append({"key": key, "label": label, "desc": desc, "fixed": fixed})
+    # 見出しに使う列の情報（ロール名とサブロール名を分けて渡す）
+    role_cols = []
+    for rk in ROLE_KEYS:
+        full = ROLE_KEY_LABELS[rk]
+        base, paren, sub = full.partition("（")
+        role_cols.append({"key": rk, "full": full, "base": base,
+                          "sub": sub[:-1] if paren else "",
+                          "settable": rk != ALL_FEATURE_ROLE})
+    n_cells = (sum(1 for _k, _g, _l, _d, fx in FEATURES if not fx)
+               * sum(1 for c in role_cols if c["settable"]))
+    return render_template("feature_settings.html", groups=groups, matrix=matrix,
+                           role_keys=ROLE_KEYS, role_labels=ROLE_KEY_LABELS,
+                           role_cols=role_cols, n_over=n_over, n_cells=n_cells,
+                           fixed_role=ROLE_KEY_LABELS.get(FIXED_FEATURE_ROLE, ""),
+                           all_role=ROLE_KEY_LABELS.get(ALL_FEATURE_ROLE, ""),
+                           all_role_key=ALL_FEATURE_ROLE)
+
+
+@app.route("/settings/features/save", methods=["POST"])
+@roles_required("system_admin")
+def feature_settings_save():
+    """機能制御の保存・初期化"""
+    db = get_db()
+    if request.form.get("reset"):
+        db.execute("DELETE FROM role_feature")
+        db.commit()
+        log("account", "機能制御を初期値に戻した", "success", target="全ロール")
+        flash("機能制御を初期値に戻しました。", "ok")
+        return redirect(url_for("feature_settings"))
+
+    on = set(request.form.getlist("allow"))     # "role_key|feature" の形で届く
+    changes = []
+    before = feature_overrides()
+    db.execute("DELETE FROM role_feature")
+    for rk in ROLE_KEYS:
+        if rk == ALL_FEATURE_ROLE:
+            continue            # 当社スタッフは機能制御の対象外（常に全機能）
+        for key, _grp, label, _desc, fixed in FEATURES:
+            if fixed:
+                continue        # 固定の機能は保存しない（産業医のみ・変更不可）
+            allowed = f"{rk}|{key}" in on
+            db.execute("INSERT INTO role_feature (role_key, feature, allowed)"
+                       " VALUES (?,?,?)", (rk, key, 1 if allowed else 0))
+            was = before.get((rk, key))
+            if was is None:
+                was = key in FEATURE_DEFAULTS.get(rk, set())
+            if bool(was) != allowed:
+                changes.append(f"{ROLE_KEY_LABELS[rk]}／{label}＝"
+                               f"{'利用可' if allowed else '利用不可'}")
+    db.commit()
+    g.pop("features", None)
+    log("account", "機能制御を変更", "success", target=f"{len(changes)}件",
+        detail="／".join(changes)[:900] or "変更なし")
+    flash(f"機能制御を保存しました（変更 {len(changes)}件）。"
+          "各アカウントの次のアクセスから適用されます。", "ok")
+    return redirect(url_for("feature_settings"))
+
+
+# ================================================================ マイアカウント
+# 自分のアカウント情報（利用者名・メールアドレス・パスワード）は本人が変更できる。
+# 権限ロール・サブロール・閲覧範囲・担当範囲は本人では変更できない
+# （自分で権限を広げられないようにするため。変更は他の管理者が行う）。
+def me_context(row=None):
+    acc = current_account()
+    db = get_db()
+    row = row or db.execute("SELECT * FROM account WHERE id=?", (acc["id"],)).fetchone()
+    kenpo = db.execute("SELECT * FROM kenpo WHERE id=?", (row["kenpo_id"],)).fetchone() \
+        if row["kenpo_id"] else None
+    scopes = account_scope_ids(row["id"])
+    return {
+        "row": row,
+        "kenpo": kenpo,
+        "companies": company_names(account_company_ids(row["id"])) or "—",
+        "scope_label": scope_summary(scopes) or "—",
+        "support": bool(support_kenpo()),
+    }
+
+
+@app.route("/me", methods=["GET", "POST"])
+@login_required
+def me_account():
+    """自分のアカウント情報を確認・変更する"""
+    db, acc = get_db(), current_account()
+    if support_kenpo():
+        # サポートログイン中は本人の設定を触らせない（誤操作を防ぐ）
+        flash("サポートログイン中はマイアカウントを変更できません。"
+              "サポートを終了してから操作してください。", "error")
+        return render_template("me.html", **me_context()), 403
+    row = db.execute("SELECT * FROM account WHERE id=?", (acc["id"],)).fetchone()
+    if request.method == "GET":
+        return render_template("me.html", **me_context(row))
+
+    name = (request.form.get("name") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+    errs = []
+    if not name:
+        errs.append("利用者名を入力してください。")
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}", email):
+        errs.append("メールアドレスの形式が正しくありません。")
+    dup = db.execute("SELECT id, status FROM account WHERE lower(email)=lower(?)"
+                     " AND id<>?", (email, row["id"])).fetchone()
+    if dup:
+        errs.append("このメールアドレスは、ほかのアカウントで使われています。")
+    if errs:
+        for e in errs:
+            flash(e, "error")
+        return render_template("me.html", form=request.form, **me_context(row))
+
+    changes = []
+    if row["name"] != name:
+        changes.append(("利用者名", row["name"], name))
+    if (row["email"] or "").lower() != email:
+        changes.append(("メールアドレス（ログインID）", row["email"], email))
+    if not changes:
+        flash("変更点がありませんでした。", "ok")
+        return redirect(url_for("me_account"))
+
+    db.execute("UPDATE account SET name=?, email=?, updated_at=? WHERE id=?",
+               (name, email, now(), row["id"]))
+    db.commit()
+    g.pop("real_acc", None)
+    g.pop("acc", None)
+    log("account", "自分のアカウント情報を変更", "success", target=email,
+        detail="／".join(f"{k} {a} → {b}" for k, a, b in changes))
+
+    # メールアドレスを変えた場合は、変更前と変更後の両方へ通知する
+    if any(k.startswith("メールアドレス") for k, _, _ in changes):
+        body = (f"{name} 様\n\nログインに使うメールアドレスが変更されました。\n\n"
+                + "\n".join(f"　{k}：{a} → {b}" for k, a, b in changes)
+                + "\n\n次回のログインからは新しいメールアドレスをお使いください。\n"
+                  "パスワードは変更されていません。\n"
+                  "心当たりがない場合は、システム管理者にお問い合わせください。")
+        for to in {row["email"], email}:
+            send_mail(to, "【HIA】ログインIDの変更のお知らせ", body)
+        log("account", "ログインIDの変更を通知", "success", target=email,
+            detail="変更前・変更後の両方へ送信")
+    flash("アカウント情報を変更しました。", "ok")
+    return redirect(url_for("me_account"))
+
+
+@app.route("/me/password", methods=["POST"])
+@login_required
+def me_password():
+    """自分のパスワードを変更する（現在のパスワードを確認してから保存する）"""
+    db, acc = get_db(), current_account()
+    if support_kenpo():
+        flash("サポートログイン中はパスワードを変更できません。", "error")
+        return redirect(url_for("me_account"))
+    row = db.execute("SELECT * FROM account WHERE id=?", (acc["id"],)).fetchone()
+    cur = request.form.get("current") or ""
+    pw1 = request.form.get("pw1") or ""
+    pw2 = request.form.get("pw2") or ""
+
+    if not row["password_hash"] or not check_password_hash(row["password_hash"], cur):
+        log("auth", "パスワード変更に失敗", "failure", target=row["email"],
+            detail="現在のパスワードが一致しない")
+        flash("現在のパスワードが正しくありません。", "error")
+        return redirect(url_for("me_account"))
+    errs = password_errors(pw1, pw2)
+    if pw1 == cur:
+        errs.append("現在と同じパスワードは設定できません。")
+    if errs:
+        for e in errs:
+            flash(e, "error")
+        return redirect(url_for("me_account"))
+
+    db.execute("UPDATE account SET password_hash=?, reset_token=NULL, reset_expire=NULL,"
+               " reset_at=?, updated_at=? WHERE id=?",
+               (generate_password_hash(pw1), now(), now(), row["id"]))
+    db.commit()
+    log("auth", "自分でパスワードを変更", "success", target=row["email"],
+        detail="現在のパスワードを確認して変更（パスワードそのものは記録しない）")
+    sent = send_mail(row["email"], "【HIA】パスワード変更のお知らせ",
+                     f"{row['name']} 様\n\nパスワードが変更されました。\n"
+                     f"　変更日時：{now()}\n\n"
+                     "心当たりがない場合は、すぐにシステム管理者へご連絡ください。")
+    flash("パスワードを変更しました。"
+          + ("本人確認のため、登録メールアドレスへ通知を送信しました。" if sent
+             else "（通知メールは送信していません。送信設定が未完了です）"), "ok")
+    return redirect(url_for("me_account"))
+
+
 # ================================================================ アカウント
 @app.route("/accounts")
 @login_required
@@ -3801,10 +4316,8 @@ def accounts():
               " a.is_primary DESC, a.id DESC", p).fetchall()
     # 担当範囲（企業・事業所・部署）を行ごとに付ける
     comp_map, scope_map = {}, {}
-    for r in db.execute(
-            "SELECT ac.account_id, c.name, c.code FROM account_company ac"
-            " JOIN company c ON c.id=ac.company_id"
-            " ORDER BY COALESCE(NULLIF(c.ext_code,''), c.code)"):
+    for r in db.execute("SELECT ac.account_id, c.name, c.code FROM account_company ac"
+                        " JOIN company c ON c.id=ac.company_id ORDER BY c.code"):
         comp_map.setdefault(r["account_id"], []).append(r["name"])
     for r in db.execute(
             "SELECT s.account_id, o.name AS name, c.name AS pname, 'office' AS kind"
@@ -3837,7 +4350,7 @@ def accounts():
 def accounts_export():
     db, acc = get_db(), current_account()
     sql = ("SELECT a.email, a.name, a.role, a.view_scope, a.can_download, a.status, a.is_primary,"
-           " k.name, c.name, a.created_at, a.last_login_at FROM account a"
+           " k.name, c.name, a.created_at, a.last_login_at, a.sub_role FROM account a"
            " LEFT JOIN company c ON c.id=a.company_id LEFT JOIN kenpo k ON k.id=a.kenpo_id"
            " WHERE a.status <> 'deleted'")
     p = []
@@ -3849,13 +4362,15 @@ def accounts_export():
         sql += (" AND a.id IN (SELECT account_id FROM account_company WHERE company_id IN ("
                 + ",".join("?" * len(mine)) + "))")
         p += list(mine)
-    rows = [(r[0], r[1], ROLE_LABELS.get(r[2], r[2]), SCOPE_LABELS.get(r[3], r[3]),
+    rows = [(r[0], r[1], ROLE_LABELS.get(r[2], r[2]),
+             SUB_ROLE_LABELS.get(r[11] or "", ""), SCOPE_LABELS.get(r[3], r[3]),
              "可" if r[4] else "不可", STATUS_LABELS.get(r[5], r[5]),
              "代表者" if r[6] else "", r[7] or "", r[8] or "", r[9], r[10] or "")
             for r in db.execute(sql + " ORDER BY a.id", p)]
     return export_csv("accounts.csv",
-                      ["メールアドレス", "利用者名", "権限ロール", "閲覧範囲", "ダウンロード",
-                       "状態", "区分", "健康保険組合", "企業名", "作成日時", "最終ログイン"],
+                      ["メールアドレス", "利用者名", "権限ロール", "サブロール", "閲覧範囲",
+                       "ダウンロード", "状態", "区分", "健康保険組合", "企業名", "作成日時",
+                       "最終ログイン"],
                       rows, "アカウント一覧") or redirect(url_for("accounts"))
 
 
@@ -3883,57 +4398,21 @@ def scope_kenpo_id(acc, scopes):
     return acc["kenpo_id"]
 
 
-def scope_kenpo_ids(scopes):
-    """担当範囲（企業・事業所・部署）が属する健康保険組合IDの集合を返す。
-    企業担当者は1つの健康保険組合の範囲内でのみ担当範囲を持てる。"""
-    db = get_db()
-    ids = set()
-    for kind, sql in (("company", "SELECT kenpo_id FROM company WHERE id=?"),
-                      ("office", "SELECT c.kenpo_id FROM office o"
-                                 " JOIN company c ON c.id=o.company_id WHERE o.id=?"),
-                      ("dept", "SELECT c.kenpo_id FROM department d"
-                               " JOIN office o ON o.id=d.office_id"
-                               " JOIN company c ON c.id=o.company_id WHERE d.id=?")):
-        for rid in scopes.get(kind) or []:
-            r = db.execute(sql, (rid,)).fetchone()
-            if r:
-                ids.add(r["kenpo_id"])
-    return ids
-
-
-def allowed_company_ids(acc):
-    """発行者が操作できる企業IDの集合（担当範囲チェック用）"""
-    return {c["id"] for c in scoped_companies(acc)}
-
-
 def _resolve_scope(acc, role, company_ids, office_ids=None, dept_ids=None):
     """ロールから閲覧範囲を決定する。手動指定はさせない。
-    「対象の企業」は、その配下の事業所を1件も選ばなかった場合にかぎり企業全体への
-    閲覧権限になる。事業所を1件でも選んだ企業は、丸ごとの企業権限は付与せず、
-    選んだ事業所・その配下で選んだ部署だけに絞る（企業チェックは、配下の事業所・部署を
-    選ぶための入口という位置づけになる）。
-    事業所は選んだ企業の配下、部署は選んだ事業所の配下のものだけを選べる
-    （企業をまたいだ事業所、事業所をまたいだ部署の追加担当はできない）。
+    企業担当者は、企業・事業所・部署を跨いで複数まとめて担当できる。
     指定できるのは発行者の操作範囲内のものだけ。"""
     if role == "system_admin":
         return "all", {"company": [], "office": [], "dept": []}
     if role == "kenpo_user":
         return "kenpo_all", {"company": [], "office": [], "dept": []}
-    ok_c = allowed_company_ids(acc)
-    off_company = {o["id"]: o["company_id"] for o in scoped_offices(acc)}
-    dept_office = {d["id"]: d["office_id"] for d in scoped_departments(acc)}
-    checked_companies = {i for i in (company_ids or []) if i in ok_c}
-    office_scope = {i for i in (office_ids or [])
-                    if i in off_company and off_company[i] in checked_companies}
-    dept_scope = {i for i in (dept_ids or [])
-                 if i in dept_office and dept_office[i] in office_scope}
-    # 事業所を1件も選ばなかった企業だけ、企業全体（丸ごと）の権限にする
-    narrowed_companies = {off_company[i] for i in office_scope}
-    company_scope = checked_companies - narrowed_companies
+    ok_c = {c["id"] for c in scoped_companies(acc)}
+    ok_o = {o["id"] for o in scoped_offices(acc)}
+    ok_d = {d["id"] for d in scoped_departments(acc)}
     scopes = {
-        "company": list(company_scope),
-        "office": list(office_scope),
-        "dept": list(dept_scope),
+        "company": [i for i in (company_ids or []) if i in ok_c],
+        "office": [i for i in (office_ids or []) if i in ok_o],
+        "dept": [i for i in (dept_ids or []) if i in ok_d],
     }
     return "own_company", scopes
 
@@ -3947,12 +4426,12 @@ def accounts_new():
     kenpos = db.execute("SELECT * FROM kenpo ORDER BY code").fetchall()
     if request.method == "GET":
         return render_template("accounts_new.html", comps=comps, roles=roles, kenpos=kenpos,
-                               selected=[], depts=scoped_departments(acc), offs=scoped_offices(acc),
-                               sel_offices=set(), sel_depts=set())
+                               selected=[], depts=scoped_departments(acc), offs=scoped_offices(acc))
 
     email = (request.form.get("email") or "").strip().lower()
     name = (request.form.get("name") or "").strip()
     role = request.form.get("role") or roles[-1]
+    srole = clean_sub_role(role, request.form.get("sub_role"))
     company_ids = [int(x) for x in request.form.getlist("company_ids") if x.isdigit()]
     kenpo_id = request.form.get("kenpo_id", type=int)
     can_dl = 1 if request.form.get("can_download") else 0
@@ -3975,16 +4454,10 @@ def accounts_new():
 
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    # 画面再表示時にチェック状態を復元するため、絞り込み（narrowing）前の
-    # 「チェックされていた企業」も別途保持しておく
-    ok_c = allowed_company_ids(acc)
-    checked_companies_for_display = [i for i in company_ids if i in ok_c]
     view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
     company_ids = scopes["company"]
     if view_scope == "own_company" and not any(scopes.values()):
         errs.append("担当する企業・事業所・部署のいずれかを1件以上選択してください。")
-    elif view_scope == "own_company" and len(scope_kenpo_ids(scopes)) > 1:
-        errs.append("担当する企業・事業所・部署は、1つの健康保険組合の範囲内で選んでください。")
     if role == "kenpo_user":
         if acc["role"] != "system_admin":
             kenpo_id = acc["kenpo_id"]
@@ -3994,12 +4467,10 @@ def accounts_new():
         for e in errs:
             flash(e, "error")
         return render_template("accounts_new.html", comps=comps, roles=roles, kenpos=kenpos,
-                               form=request.form, selected=checked_companies_for_display,
-                               depts=scoped_departments(acc), offs=scoped_offices(acc),
-                               sel_offices=set(scopes["office"]), sel_depts=set(scopes["dept"]))
+                               form=request.form, selected=company_ids, depts=scoped_departments(acc), offs=scoped_offices(acc))
 
     sel = [c for c in comps if c["id"] in set(company_ids)]
-    if role == "company_user":
+    if role in SCOPED_ROLES:
         kenpo_id = scope_kenpo_id(acc, scopes)
     elif role == "system_admin":
         kenpo_id = None
@@ -4007,9 +4478,9 @@ def accounts_new():
         if kenpo_id else None
     vis = visible_members(kenpo_id, company_ids, view_scope, scopes=scopes)
     return render_template("accounts_confirm.html", email=email, name=name, role=role,
+                           srole=srole,
                            view_scope=view_scope, can_dl=can_dl, is_primary=is_primary,
                            companies=sel, company_ids=company_ids,
-                           checked_companies=checked_companies_for_display,
                            kenpo=kenpo, kenpo_id=kenpo_id, vis=vis, scopes=scopes, scope_label=scope_summary(scopes))
 
 
@@ -4020,6 +4491,7 @@ def accounts_create():
     email = (request.form.get("email") or "").strip().lower()
     name = (request.form.get("name") or "").strip()
     role = request.form.get("role")
+    srole = clean_sub_role(role, request.form.get("sub_role"))
     company_ids = [int(x) for x in request.form.getlist("company_ids") if x.isdigit()]
     kenpo_id = request.form.get("kenpo_id", type=int)
     can_dl = 1 if request.form.get("can_download") == "1" else 0
@@ -4033,29 +4505,23 @@ def accounts_create():
             detail=f"権限外のロール（{ROLE_LABELS.get(role, role)}）を指定")
         flash("そのロールを発行する権限がありません。", "error")
         return redirect(url_for("accounts_new"))
-    ok_c = allowed_company_ids(acc)
-    invalid_companies = [cid for cid in company_ids if cid not in ok_c]
+    requested = len(company_ids)
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
     view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
     company_ids = scopes["company"]
     if view_scope == "own_company":
-        if invalid_companies:
+        if requested != len(company_ids):
             log("account", "アカウント発行をブロック", "blocked", target=email,
-                detail=f"スコープ外の企業が指定された（{len(invalid_companies)}社）")
+                detail=f"スコープ外の企業が指定された（要求{requested}社／許可{len(company_ids)}社）")
             flash("選択された企業のうち、操作する権限のないものが含まれています。", "error")
             return redirect(url_for("accounts_new"))
         if not any(scopes.values()):
             flash("担当する企業・事業所・部署のいずれかを1件以上選択してください。", "error")
             return redirect(url_for("accounts_new"))
-        if len(scope_kenpo_ids(scopes)) > 1:
-            log("account", "アカウント発行をブロック", "blocked", target=email,
-                detail="複数の健康保険組合にまたがる担当範囲が指定された")
-            flash("担当する企業・事業所・部署は、1つの健康保険組合の範囲内で選んでください。", "error")
-            return redirect(url_for("accounts_new"))
     if role == "kenpo_user" and acc["role"] != "system_admin":
         kenpo_id = acc["kenpo_id"]
-    if role == "company_user":
+    if role in SCOPED_ROLES:
         kenpo_id = scope_kenpo_id(acc, scopes)
     if role == "system_admin":
         kenpo_id, company_ids = None, []
@@ -4064,15 +4530,17 @@ def accounts_create():
     token = secrets.token_urlsafe(32)
     expire = (datetime.now() + timedelta(hours=INVITE_HOURS)).strftime("%Y-%m-%d %H:%M:%S")
     cur = db.execute(
-        "INSERT INTO account (email, name, role, view_scope, can_download, is_primary,"
-        " kenpo_id, company_id, status, invite_token, invite_expire, created_by)"
-        " VALUES (?,?,?,?,?,?,?,?,'invited',?,?,?)",
-        (email, name, role, view_scope, can_dl, is_primary, kenpo_id, None,
+        "INSERT INTO account (email, name, role, sub_role, view_scope, can_download,"
+        " is_primary, kenpo_id, company_id, status, invite_token, invite_expire, created_by)"
+        " VALUES (?,?,?,?,?,?,?,?,?,'invited',?,?,?)",
+        (email, name, role, srole, view_scope, can_dl, is_primary, kenpo_id, None,
          token, expire, acc["email"]))
     set_account_scopes(cur.lastrowid, scopes)
     db.commit()
     log("account", "アカウントを発行", "success", target=email,
-        detail=(f"ロール={ROLE_LABELS[role]}／閲覧範囲={SCOPE_LABELS[view_scope]}"
+        detail=(f"ロール={ROLE_LABELS[role]}"
+                + (f"（{SUB_ROLE_LABELS[srole]}）" if srole else "")
+                + f"／閲覧範囲={SCOPE_LABELS[view_scope]}"
                 + (f"（{company_names(company_ids)}）" if company_ids else "")
                 + f"／担当範囲={scope_summary(scopes)}"
                 + f"／{'代表者／' if is_primary else ''}"
@@ -4091,9 +4559,11 @@ def accounts_edit(aid):
         flash("対象のアカウントを操作する権限がありません。", "error")
         return redirect(url_for("accounts"))
     if row["id"] == acc["id"]:
-        flash("自分自身のアカウントは編集できません。権限の変更は別の管理者に依頼してください。",
-              "error")
-        return redirect(url_for("accounts"))
+        # 自分の利用者名・メールアドレス・パスワードは「マイアカウント」で変更できる。
+        # 権限ロール・担当範囲は自分では変更できない（他の管理者が行う）。
+        flash("自分の利用者名・メールアドレス・パスワードは「マイアカウント」で変更できます。"
+              "権限ロール・担当する範囲の変更は別の管理者に依頼してください。", "error")
+        return redirect(url_for("me_account"))
     if row["status"] == "deleted":
         flash("削除済みのアカウントは編集できません。", "error")
         return redirect(url_for("accounts"))
@@ -4115,6 +4585,7 @@ def accounts_edit(aid):
 
     name = (request.form.get("name") or "").strip()
     role = request.form.get("role") or row["role"]
+    srole = clean_sub_role(role, request.form.get("sub_role"))
     company_ids = [int(x) for x in request.form.getlist("company_ids") if x.isdigit()]
     can_dl = 1 if request.form.get("can_download") else 0
     is_primary = 1 if request.form.get("is_primary") else 0
@@ -4125,16 +4596,10 @@ def accounts_edit(aid):
         errs.append(f"「{ROLE_LABELS.get(role, role)}」へ変更する権限がありません。")
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    # 画面再表示時にチェック状態を復元するため、絞り込み（narrowing）前の
-    # 「チェックされていた企業」も別途保持しておく
-    ok_c = allowed_company_ids(acc)
-    checked_companies_for_display = [i for i in company_ids if i in ok_c]
     view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
     company_ids = scopes["company"]
     if view_scope == "own_company" and not any(scopes.values()):
         errs.append("担当する企業・事業所・部署のいずれかを1件以上選択してください。")
-    elif view_scope == "own_company" and len(scope_kenpo_ids(scopes)) > 1:
-        errs.append("担当する企業・事業所・部署は、1つの健康保険組合の範囲内で選んでください。")
     if role == "kenpo_user" and acc["role"] == "system_admin":
         kid = request.form.get("kenpo_id", type=int)
         if not kid:
@@ -4143,11 +4608,11 @@ def accounts_edit(aid):
         for e in errs:
             flash(e, "error")
         return render_template("accounts_edit.html", row=row, comps=comps, roles=roles,
-                               kenpos=kenpos, form=request.form,
-                               selected=checked_companies_for_display,
+                               kenpos=kenpos, form=request.form, selected=company_ids,
                                inv_url=inv_url, inv_expired=inv_expired,
                                offs=scoped_offices(acc), depts=scoped_departments(acc),
-                               sel_offices=set(scopes["office"]), sel_depts=set(scopes["dept"]))
+                               sel_offices=set(account_scope_ids(aid)["office"]),
+                               sel_depts=set(account_scope_ids(aid)["dept"]))
 
     sel = [c for c in comps if c["id"] in set(company_ids)]
     kenpo_id = scope_kenpo_id(acc, scopes) or row["kenpo_id"]
@@ -4166,6 +4631,8 @@ def accounts_edit(aid):
     diff = [
         ("利用者名", row["name"], name),
         ("権限ロール", ROLE_LABELS.get(row["role"], row["role"]), ROLE_LABELS[role]),
+        ("サブロール", SUB_ROLE_LABELS.get(sub_role(row), "なし"),
+         SUB_ROLE_LABELS.get(srole, "なし")),
         ("健康保険組合", kname(row["kenpo_id"]), kname(kenpo_id)),
         ("対象の企業", company_names(cur_ids), company_names(company_ids)),
         ("閲覧範囲", SCOPE_LABELS.get(row["view_scope"], row["view_scope"]),
@@ -4176,9 +4643,9 @@ def accounts_edit(aid):
          f"{va['total']:,}件（{va['companies']}社）"),
     ]
     return render_template("accounts_edit_confirm.html", row=row, name=name, role=role,
+                           srole=srole,
                            view_scope=view_scope, can_dl=can_dl, is_primary=is_primary,
-                           companies=sel, company_ids=company_ids,
-                           checked_companies=checked_companies_for_display, kenpo_id=kenpo_id,
+                           companies=sel, company_ids=company_ids, kenpo_id=kenpo_id,
                            kenpo=kenpo, vis=va, diff=diff,
                            changed=any(a != b for _, a, b in diff),
                            scopes=scopes, scope_label=scope_summary(scopes),
@@ -4198,6 +4665,7 @@ def accounts_edit_apply(aid):
         return redirect(url_for("accounts_edit", aid=aid))
     name = (request.form.get("name") or "").strip()
     role = request.form.get("role")
+    srole = clean_sub_role(role, request.form.get("sub_role"))
     company_ids = [int(x) for x in request.form.getlist("company_ids") if x.isdigit()]
     can_dl = 1 if request.form.get("can_download") == "1" else 0
     is_primary = 1 if request.form.get("is_primary") == "1" else 0
@@ -4206,25 +4674,19 @@ def accounts_edit_apply(aid):
             detail=f"権限外のロール（{ROLE_LABELS.get(role, role)}）への変更を試行")
         flash("そのロールへ変更する権限がありません。", "error")
         return redirect(url_for("accounts_edit", aid=aid))
-    ok_c = allowed_company_ids(acc)
-    invalid_companies = [cid for cid in company_ids if cid not in ok_c]
+    requested = len(company_ids)
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
     view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
     company_ids = scopes["company"]
     if view_scope == "own_company":
-        if invalid_companies:
+        if requested != len(company_ids):
             log("account", "権限変更をブロック", "blocked", target=row["email"],
-                detail=f"スコープ外の企業が指定された（{len(invalid_companies)}社）")
+                detail=f"スコープ外の企業が指定された（要求{requested}社／許可{len(company_ids)}社）")
             flash("選択された企業のうち、操作する権限のないものが含まれています。", "error")
             return redirect(url_for("accounts_edit", aid=aid))
         if not any(scopes.values()):
             flash("担当する企業・事業所・部署のいずれかを1件以上選択してください。", "error")
-            return redirect(url_for("accounts_edit", aid=aid))
-        if len(scope_kenpo_ids(scopes)) > 1:
-            log("account", "権限変更をブロック", "blocked", target=row["email"],
-                detail="複数の健康保険組合にまたがる担当範囲が指定された")
-            flash("担当する企業・事業所・部署は、1つの健康保険組合の範囲内で選んでください。", "error")
             return redirect(url_for("accounts_edit", aid=aid))
     old_ids = account_company_ids(aid)
     kenpo_id = row["kenpo_id"]
@@ -4250,6 +4712,9 @@ def accounts_edit_apply(aid):
     if row["role"] != role:
         changes.append(("権限ロール", ROLE_LABELS.get(row["role"], row["role"]),
                         ROLE_LABELS[role]))
+    if sub_role(row) != srole:
+        changes.append(("サブロール", SUB_ROLE_LABELS.get(sub_role(row), "なし"),
+                        SUB_ROLE_LABELS.get(srole, "なし")))
     if (row["kenpo_id"] or 0) != (kenpo_id or 0):
         changes.append(("健康保険組合", kname(row["kenpo_id"]), kname(kenpo_id)))
     if row["view_scope"] != view_scope:
@@ -4265,9 +4730,9 @@ def accounts_edit_apply(aid):
         changes.append(("区分", "代表者" if row["is_primary"] else "一般",
                         "代表者" if is_primary else "一般"))
 
-    db.execute("UPDATE account SET name=?, role=?, view_scope=?, kenpo_id=?,"
+    db.execute("UPDATE account SET name=?, role=?, sub_role=?, view_scope=?, kenpo_id=?,"
                " can_download=?, is_primary=?, updated_at=? WHERE id=?",
-               (name, role, view_scope, kenpo_id, can_dl, is_primary, now(), aid))
+               (name, role, srole, view_scope, kenpo_id, can_dl, is_primary, now(), aid))
     set_account_scopes(aid, scopes)
     db.commit()
     log("account", "アカウントの権限を変更", "success", target=row["email"],
@@ -4485,7 +4950,6 @@ def accounts_purge(aid):
             detail="確認入力がメールアドレスと一致しない")
         flash("入力されたメールアドレスが一致しません。完全削除は実行していません。", "error")
         return render_template("accounts_purge.html", row=row)
-    db.execute("DELETE FROM account_scope WHERE account_id=?", (aid,))
     db.execute("DELETE FROM account_company WHERE account_id=?", (aid,))
     db.execute("DELETE FROM account WHERE id=?", (aid,))
     db.commit()
@@ -4566,6 +5030,15 @@ def nf(e):
     return render_template("denied.html", path=request.path, notfound=True), 404
 
 
+# ================================================================ 産業医面談管理
+# 別システム「産業医面談管理システム」の機能を組み込んだモジュール（/oh …）。
+# 認証・ロール・担当範囲・操作ログ・CSV出力は、このファイルの共通処理をそのまま使う。
+import sys as _sys           # noqa: E402
+import sanmen               # noqa: E402
+
+sanmen.init_app(app, _sys.modules[__name__])
+
+
 def local_ipv4():
     """同じネットワークの端末から見えるIPアドレスを調べる"""
     import socket
@@ -4611,20 +5084,35 @@ def pick_port(host, port):
     raise SystemExit(1)
 
 
+# 起動のしかた（python app.py／waitress／テスト）に関わらず、
+# 読み込み時に一度だけ「初期データの復元 → スキーマ移行 → 控え」を行う。
+_DB_WAS_MISSING = not os.path.exists(DB_PATH) and not os.path.exists(INITIAL_DB)
+BOOTSTRAP_LINES = init_db()
+
+
 if __name__ == "__main__":
-    fresh = not os.path.exists(DB_PATH)
-    for line in init_db():          # 起動時にスキーマを確認・移行
+    for line in BOOTSTRAP_LINES:
         print("[HIA] " + line)
-    if fresh:
+    if _DB_WAS_MISSING:
         print("[HIA] seed.py で初期データを投入してください。")
     host = os.environ.get("HIA_HOST", "0.0.0.0")
     port = pick_port(host, int(os.environ.get("HIA_PORT", "8000")))
     ip = local_ipv4() if host == "0.0.0.0" else host
     print(f"[HIA] build {BUILD}")
+    try:
+        _con = sqlite3.connect(DB_PATH)
+        _n_acc = _con.execute("SELECT COUNT(*) FROM account"
+                              " WHERE status <> 'deleted'").fetchone()[0]
+        _con.close()
+        print(f"[HIA] データベース              {DB_PATH}（アカウント {_n_acc} 件）")
+        print(f"[HIA] 控えの保存先              {BACKUP_DIR}")
+    except Exception:
+        pass
     print(f"[HIA] このパソコンから           http://127.0.0.1:{port}/login")
     print(f"[HIA] 同じネットワークの端末から  http://{ip}:{port}/login")
     print(f"[HIA] HIA総合管理（当社）       http://{ip}:{port}/km")
     print(f"[HIA] HIA健保管理（健保・企業）  http://{ip}:{port}/app")
+    print(f"[HIA] 産業医面談管理            http://{ip}:{port}/oh/")
     # 疾患予測の設定（サーバー側で指定した内容）を起動時に確認できるようにする
     print("[HIA] 疾患予測 予測エンジン    "
           + ("日立API（" + risk_setting("hitachi_endpoint") + "）"

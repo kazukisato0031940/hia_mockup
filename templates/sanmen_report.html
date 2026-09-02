@@ -1,0 +1,170 @@
+{% extends LAYOUT %}
+{% from "_sanmen_flow.html" import legend, jtag %}
+{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">労基署報告</h1>
+<p class="page-lead">社内管理用のサマリーと、提出書類（2種）を作成します。</p>
+{% endif %}
+
+<div class="link-bar">
+  <div class="link-bar-info">
+    <span class="st st-role">{{ fy }}年度</span>
+    {% if CAN_MED %}<span class="dest-now ok">報告書に記名・サインできます</span>
+    {% else %}<span class="dest-now">人事はプレビューと出力ができます（サインは産業医のみ）</span>{% endif %}
+  </div>
+  <div class="actions">
+    <form method="get" style="display:flex;gap:8px;align-items:center;margin:0">
+      <label class="fld-label" style="margin:0">対象年度</label>
+      <select name="fy" class="w-s" style="width:120px" onchange="this.form.submit()">
+        {% for y in fys %}<option value="{{ y }}" {{ 'selected' if y == fy }}>{{ y }}年度</option>{% endfor %}
+      </select>
+    </form>
+    <a class="btn-sm" href="{{ url_for('oh.oh_report_csv', fy=fy) }}"
+       style="text-decoration:none">CSV出力</a>
+    <a class="btn-sm" href="{{ url_for('oh.oh_list', fy=fy) }}"
+       style="text-decoration:none">面談対象者一覧</a>
+  </div>
+</div>
+
+{# ============ 社内管理用サマリー ============ #}
+<div class="rk-row">
+  <div class="rk-box"><span class="rk-label">在籍労働者</span>
+    <span class="rk-value">{{ s.total }}</span><span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">健診受診</span>
+    <span class="rk-value">{{ s.done }}</span><span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">受診率</span>
+    <span class="rk-value">{{ '%.1f'|format(s.rate) }}</span><span class="rk-unit">％</span></div>
+  <div class="rk-box"><span class="rk-label">有所見（C以上）</span>
+    <span class="rk-value risk-高">{{ s.finding }}</span><span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">面接指導 実施</span>
+    <span class="rk-value">{{ s.iv_done }}</span><span class="rk-unit">／{{ s.iv_target }}名</span></div>
+  <div class="rk-box"><span class="rk-label">高ストレス者</span>
+    <span class="rk-value">{{ s.st_high }}</span><span class="rk-unit">名</span></div>
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>社内管理用サマリー</h2>
+      <span class="hint">提出書類の元になる集計です。数値は画面の登録内容から自動で算出しています。</span></div>
+  </div>
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr><th class="tl" style="width:280px">項目</th><th style="width:120px">人数</th>
+      <th class="tl">内容</th></tr></thead>
+    <tbody>
+      <tr class="ls-row"><td class="tl">在籍労働者数</td><td class="num">{{ s.total }}</td>
+        <td class="tl"><span class="hint">担当範囲の加入者数</span></td></tr>
+      <tr class="ls-row"><td class="tl">受診労働者数</td><td class="num">{{ s.done }}</td>
+        <td class="tl"><span class="hint">{{ fy }}年度に定期健診の結果が登録されている方</span></td></tr>
+      <tr class="ls-row"><td class="tl">未受診者数</td><td class="num">{{ s.notdone }}</td>
+        <td class="tl"><span class="hint">受診勧奨の対象</span></td></tr>
+      <tr class="ls-row"><td class="tl">有所見者数（C判定以上）</td><td class="num">{{ s.finding }}</td>
+        <td class="tl"><span class="hint">要再検査・要精密検査・治療中を含む</span></td></tr>
+      {% for j in JUDGES %}
+      <tr class="ls-row"><td class="tl">　判定区分 {{ jtag(j, JUDGE_LABEL) }} {{ JUDGE_LABEL[j] }}</td>
+        <td class="num">{{ s.judges[j] }}</td>
+        <td class="tl"><span class="hint">学会区分（2026年4月1日改定）</span></td></tr>
+      {% endfor %}
+      <tr class="ls-row"><td class="tl">深夜健診 対象者数／受診者数</td>
+        <td class="num">{{ s.night_total }}／{{ s.night_done }}</td>
+        <td class="tl"><span class="hint">特定業務従事者（深夜業従事）・6か月ごと</span></td></tr>
+      <tr class="ls-row"><td class="tl">面接指導 対象者数</td><td class="num">{{ s.iv_target }}</td>
+        <td class="tl"><span class="hint">健診有所見・長時間労働・高ストレスの該当者</span></td></tr>
+      <tr class="ls-row"><td class="tl">面接指導 実施数／未実施数</td>
+        <td class="num">{{ s.iv_done }}／{{ s.iv_rest }}</td>
+        <td class="tl"><span class="hint">面談記録の登録件数から算出</span></td></tr>
+      {% for w, n in s.work.items() %}
+      <tr class="ls-row"><td class="tl">　就業区分 {{ w }}</td><td class="num">{{ n }}</td>
+        <td class="tl"><span class="hint">産業医の判定</span></td></tr>
+      {% endfor %}
+      <tr class="ls-row"><td class="tl">ストレスチェック 受検者数</td><td class="num">{{ s.st_done }}</td>
+        <td class="tl"><span class="hint">対象 {{ s.st_total }}名</span></td></tr>
+      <tr class="ls-row"><td class="tl">高ストレス者数／面接指導の申出</td>
+        <td class="num">{{ s.st_high }}／{{ s.st_apply }}</td>
+        <td class="tl"><span class="hint">うち面接指導を実施 {{ s.st_iv }}名</span></td></tr>
+    </tbody>
+  </table>
+  {{ legend(JUDGE_LABEL) }}
+</div>
+
+{# ============ 提出書類 ============ #}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>提出書類</h2>
+      <span class="hint">プレビューを開き、印刷ダイアログで「PDFとして保存」またはPDFダウンロードで出力します。</span></div>
+  </div>
+
+  <div class="oh-grid">
+    <div class="src-box on" style="display:block">
+      <span class="src-t">① 定期健康診断結果報告書（様式第6号 準拠）</span>
+      <span class="src-v">実施状況・判定区分内訳（A〜E）・面接指導実施状況を集計します。</span>
+      <p style="margin:10px 0 0">
+        {% if signs.get('kenshin') %}
+        <span class="st st-active">記名済</span>
+        <span class="hint">{{ signs['kenshin'].name }}
+          （{{ signs['kenshin'].signed_at[:16] }}）</span>
+        {% else %}<span class="st st-invited">産業医の記名待ち</span>{% endif %}
+      </p>
+      <p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn-sm primary" target="_blank" style="text-decoration:none"
+           href="{{ url_for('oh.oh_report_print', kind='kenshin', fy=fy) }}">
+          プレビュー・PDF出力</a>
+      </p>
+    </div>
+
+    <div class="src-box on" style="display:block">
+      <span class="src-t">② 心理的な負担の程度を把握するための検査結果等報告書</span>
+      <span class="src-v">ストレスチェックの実施状況・高ストレス者数・面接指導の実施状況を集計します。</span>
+      <p style="margin:10px 0 0">
+        {% if signs.get('stress') %}
+        <span class="st st-active">記名済</span>
+        <span class="hint">{{ signs['stress'].name }}
+          （{{ signs['stress'].signed_at[:16] }}）</span>
+        {% else %}<span class="st st-invited">産業医の記名待ち</span>{% endif %}
+      </p>
+      <p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn-sm primary" target="_blank" style="text-decoration:none"
+           href="{{ url_for('oh.oh_report_print', kind='stress', fy=fy) }}">
+          プレビュー・PDF出力</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+{% if CAN_MED %}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>産業医の記名・サイン</h2>
+      <span class="hint">記名すると報告書に反映されます。次回以降の初期値として保持します。</span></div>
+  </div>
+  <form method="post" action="{{ url_for('oh.oh_report_sign') }}" class="search-row"
+        style="margin:0">
+    <input type="hidden" name="fy" value="{{ fy }}">
+    <div class="search-group"><label for="sk">対象の報告書</label>
+      <select id="sk" name="kind" style="width:280px">
+        <option value="kenshin">定期健康診断結果報告書（様式第6号）</option>
+        <option value="stress">ストレスチェック結果等報告書</option>
+      </select></div>
+    <div class="search-group"><label for="sn">産業医氏名</label>
+      <input type="text" id="sn" name="name" style="width:170px"
+             value="{{ signs.get('kenshin').name if signs.get('kenshin') else '' }}"
+             placeholder="例）田中 一郎"></div>
+    <div class="search-group"><label for="stt">所属・資格</label>
+      <input type="text" id="stt" name="title" style="width:220px"
+             value="{{ signs.get('kenshin').title if signs.get('kenshin') else '' }}"
+             placeholder="例）○○産業医事務所／労働衛生コンサルタント"></div>
+    <button class="btn-sm primary">記名する</button>
+  </form>
+</div>
+{% else %}
+<p class="oh-note">報告書への記名・サインは産業医のみが行えます。人事はプレビューと出力（PDF／CSV）を行えます。</p>
+{% endif %}
+
+<div class="block note-card">
+  <h2>報告書の作成について</h2>
+  <ul class="note-list">
+    <li>判定区分の内訳は<b>日本人間ドック・予防医療学会の判定区分（A〜E）</b>で集計し、報告書に凡例を付けています。</li>
+    <li>様式の記載欄（事業場情報・労働保険番号など）は、提出前に所轄労働基準監督署の様式に転記してご確認ください。</li>
+    <li>本画面の集計は登録済みデータからの自動算出です。<b>提出内容の最終確認は産業医・人事の担当者</b>が行ってください。</li>
+  </ul>
+</div>
+{% endblock %}

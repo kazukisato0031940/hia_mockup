@@ -34,7 +34,7 @@
     <tbody>
     {% for k in kenpos %}
     {% set on = selected and selected|int == k.id %}
-    <tr class="pt-row {{ 'on' if on }}" data-code="{{ k.code }}" data-name="{{ k.name }}">
+    <tr class="pick-row {{ 'on' if on }}" data-code="{{ k.code }}" data-name="{{ k.name }}">
       <td>
         <button type="button" class="pick-btn {{ 'on' if on }}"
                 onclick="kpSelect(this)">{{ '選択中' if on else '選択' }}</button>
@@ -87,11 +87,10 @@
     <tbody>
     {% for c in comps %}
     {% set on = selected and c.id in selected %}
-    <tr class="pt-row {{ 'on' if on }}"
+    <tr class="pick-row {{ 'on' if on }}"
         data-code="{{ c.ext_code or c.code }}"
         data-name="{{ c.name }} {{ c.kana or '' }}"
-        data-kenpo="{{ c.kenpo_name }} {{ c.kenpo_code }}"
-        data-kenpo-id="{{ c.kenpo_id }}">
+        data-kenpo="{{ c.kenpo_name }} {{ c.kenpo_code }}">
       <td>
         <button type="button" class="pick-btn {{ 'on' if on }}"
                 onclick="cpToggle(this)">{{ '選択中' if on else '選択' }}</button>
@@ -124,7 +123,7 @@ function pkCard(prefix){
 }
 function pkRows(prefix){
   var card = pkCard(prefix);
-  return card ? [].slice.call(card.querySelectorAll('tr.pt-row')) : [];
+  return card ? [].slice.call(card.querySelectorAll('tr.pick-row')) : [];
 }
 function pkCount(prefix){
   var el = document.getElementById(prefix + '-count');
@@ -148,59 +147,35 @@ function cpToggle(btn){
   var row = btn.closest('tr');
   pkMark(row, !row.querySelector('input').checked);
   pkCount('cp');
-  document.dispatchEvent(new CustomEvent('cp-change'));
 }
-function kpSelectRow(row){
+function kpSelect(btn){
+  var row = btn.closest('tr');
   pkRows('kp').forEach(function(r){ pkMark(r, r === row); });
   pkCount('kp');
-  var inp = row.querySelector('input');
-  document.dispatchEvent(new CustomEvent('kp-select',
-    {detail: {id: inp ? inp.value : null, code: row.dataset.code, name: row.dataset.name}}));
 }
-function kpSelect(btn){ kpSelectRow(btn.closest('tr')); }
-window.kpSelectById = function(kid){
-  if(!kid) return;
-  var radio = document.querySelector('#kenpocard-list input[name="kenpo_id"][value="' + kid + '"]');
-  if(radio) kpSelectRow(radio.closest('tr'));
-};
 function cpAll(){
   pkRows('cp').forEach(function(r){ if(r.style.display !== 'none') pkMark(r, true); });
   pkCount('cp');
-  document.dispatchEvent(new CustomEvent('cp-change'));
 }
 
 /* 絞り込み（コードと名称を別々に指定できる） */
-var pkKenpoFilter = {};
 function pkFilter(prefix){
   var c = document.getElementById(prefix + '-code');
   var n = document.getElementById(prefix + '-name');
   if(!c || !n) return;
   var vc = (c.value || '').trim().toLowerCase();
   var vn = (n.value || '').trim().toLowerCase();
-  var kf = pkKenpoFilter[prefix];
   var shown = 0;
   pkRows(prefix).forEach(function(r){
     var ok = (!vc || (r.dataset.code || '').toLowerCase().indexOf(vc) >= 0)
-          && (!vn || (r.dataset.name || '').toLowerCase().indexOf(vn) >= 0)
-          && (!kf || r.dataset.kenpoId === kf);
-    if(!ok){
-      var inp = r.querySelector('input');
-      if(inp && inp.checked) pkMark(r, false);
-    }
+          && (!vn || (r.dataset.name || '').toLowerCase().indexOf(vn) >= 0);
     r.style.display = ok ? '' : 'none';
     if(ok) shown++;
   });
   var card = pkCard(prefix);
   var none = card && card.querySelector('tr.pick-none');
   if(none) none.style.display = shown ? 'none' : '';
-  pkCount(prefix);
-  if(prefix === 'cp') document.dispatchEvent(new CustomEvent('cp-change'));
 }
-/* 企業一覧を健保IDで絞り込む（企業担当者の担当範囲は1健保内に限る） */
-window.pkSetKenpoFilter = function(prefix, kenpoId){
-  pkKenpoFilter[prefix] = kenpoId ? String(kenpoId) : null;
-  pkFilter(prefix);
-};
 
 /* サジェスト */
 function pkSuggest(input, box, words){
