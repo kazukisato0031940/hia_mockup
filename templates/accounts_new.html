@@ -73,47 +73,49 @@
 {% endif %}
 {{ company_picker(comps, selected, acc) }}
 
-{# ---- 事業所・部署も担当範囲に加えられる（企業を跨いで選べる） ---- #}
+{# ---- 健保 → 企業 → 事業所 → 部署 の連動。事業所・部署は選んだ企業の配下だけ ---- #}
 <div class="block" id="card-scope">
   <h2>担当する事業所・部署（任意）</h2>
   <p class="note" style="margin-bottom:12px">
-    上で選んだ企業のほかに、<b>他の企業の事業所や部署だけ</b>を担当させることもできます。
-    企業・事業所・部署は<b>跨いで何件でも</b>選べます。選んだものすべての加入者が対象になります。</p>
+    上で選んだ企業の<b>すべての加入者</b>が担当対象です。
+    特定の事業所・部署だけに絞りたい場合は、以下で選択してください
+    （<b>企業を選ぶと候補が表示されます</b>。企業を跨いだ指定はできません）。</p>
 
   <div class="scope-cols">
     <div>
       <div class="scope-head">事業所
         <span class="count"><span id="sc-o-n">0</span>件選択中</span></div>
       <div class="search-group" style="margin-bottom:6px">
-        <input type="text" id="sc-oq" placeholder="企業名・事業所名で絞り込む"
+        <input type="text" id="sc-oq" placeholder="事業所名で絞り込む"
                autocomplete="off" style="width:100%"></div>
       <div class="pick-rows" id="sc-offs">
         {% for o in offs %}
-        <label class="pick-row chk-row" data-text="{{ o.company_name }} {{ o.name }} {{ o.ext_code or o.code }}">
+        <label class="pick-row chk-row" data-company="{{ o.company_id }}"
+               data-text="{{ o.company_name }} {{ o.name }} {{ o.ext_code or o.code }}">
           <input type="checkbox" name="office_ids" value="{{ o.id }}">
           <span class="pr-code">{{ o.ext_code or o.code }}</span>
           <span class="pr-name">{{ o.company_name }}　／　{{ o.name }}</span>
         </label>
         {% endfor %}
-        {% if not offs %}<div class="ribbon-empty">選べる事業所がありません。</div>{% endif %}
+        <div class="ribbon-empty" id="sc-offs-empty">先に「対象の企業」で企業を選択してください。</div>
       </div>
     </div>
     <div>
       <div class="scope-head">部署
         <span class="count"><span id="sc-d-n">0</span>件選択中</span></div>
       <div class="search-group" style="margin-bottom:6px">
-        <input type="text" id="sc-dq" placeholder="企業名・事業所名・部署名で絞り込む"
+        <input type="text" id="sc-dq" placeholder="部署名で絞り込む"
                autocomplete="off" style="width:100%"></div>
       <div class="pick-rows" id="sc-depts">
         {% for d in depts %}
-        <label class="pick-row chk-row"
+        <label class="pick-row chk-row" data-office="{{ d.office_id }}"
                data-text="{{ d.company_name }} {{ d.office_name }} {{ d.name }} {{ d.ext_code or d.code }}">
           <input type="checkbox" name="dept_ids" value="{{ d.id }}">
           <span class="pr-code">{{ d.ext_code or d.code }}</span>
           <span class="pr-name">{{ d.company_name }}　／　{{ d.office_name }}　／　{{ d.name }}</span>
         </label>
         {% endfor %}
-        {% if not depts %}<div class="ribbon-empty">選べる部署がありません。</div>{% endif %}
+        <div class="ribbon-empty" id="sc-depts-empty">先に事業所を選択してください。</div>
       </div>
     </div>
   </div>
@@ -135,12 +137,18 @@
   function upd(){
     var el=document.querySelector('input[name="role"]:checked');
     var v = el ? el.value : '';
-    show('kenpocard-search', v==='kenpo_user');
-    show('kenpocard-list',   v==='kenpo_user');
+    /* 健保の選択カードは、健保担当者と企業担当者で共通のUIを使う */
+    var kshow = (v==='kenpo_user' || v==='company_user');
+    show('kenpocard-search', kshow);
+    show('kenpocard-list',   kshow);
     show('compcard-search',  v==='company_user');
     show('compcard-list',    v==='company_user');
     show('card-scope',       v==='company_user');
     show('subrole-group',    v==='company_user');
+    var hint = document.getElementById('kp-hint');
+    if(hint) hint.textContent = (v==='company_user')
+      ? '選んだ健康保険組合に属する企業だけが、下の「対象の企業」に表示されます。'
+      : '健保担当者は、選んだ健康保険組合に所属する全企業の加入者を閲覧できます。';
     /* 企業担当者以外ではサブロールを外す */
     if(v !== 'company_user'){
       var none = document.querySelector('input[name="sub_role"][value=""]');
@@ -152,37 +160,13 @@
         .forEach(function(c){ c.checked = false; });
       if(window.scUpd) window.scUpd();
     }
+    /* 企業担当者に切り替えたら、選択中の健保で企業一覧を絞り直す */
+    if(v==='company_user' && typeof cpKenpoSync==='function') cpKenpoSync();
   }
   radios.forEach(function(r){ r.addEventListener('change', upd); });
   upd();
 })();
 </script>
-<script>
-/* 担当する事業所・部署の選択と絞り込み */
-(function(){
-  function wire(boxId, qId, outId){
-    var box = document.getElementById(boxId);
-    var q = document.getElementById(qId);
-    var out = document.getElementById(outId);
-    if(!box) return function(){};
-    function upd(){
-      out.textContent = box.querySelectorAll('input[type=checkbox]:checked').length;
-    }
-    box.addEventListener('change', upd);
-    if(q) q.addEventListener('input', function(){
-      var t = q.value.trim().toLowerCase();
-      [].slice.call(box.querySelectorAll('.chk-row')).forEach(function(r){
-        r.style.display = (!t || (r.dataset.text || '').toLowerCase().indexOf(t) >= 0)
-          ? '' : 'none';
-      });
-    });
-    upd();
-    return upd;
-  }
-  var a = wire('sc-offs', 'sc-oq', 'sc-o-n');
-  var b = wire('sc-depts', 'sc-dq', 'sc-d-n');
-  window.scUpd = function(){ a(); b(); };
-})();
-</script>
+{% include "_scope_cascade.html" %}
 {{ picker_script() }}
 {% endblock %}

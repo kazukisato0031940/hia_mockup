@@ -4400,21 +4400,36 @@ def scope_kenpo_id(acc, scopes):
 
 def _resolve_scope(acc, role, company_ids, office_ids=None, dept_ids=None):
     """ロールから閲覧範囲を決定する。手動指定はさせない。
-    企業担当者は、企業・事業所・部署を跨いで複数まとめて担当できる。
+    企業担当者は「健保 → 企業 → 事業所 → 部署」の連動で担当範囲を選ぶ。
+    - 事業所は選択企業の配下、部署は選択事業所の配下に限る（企業を跨いだ指定はできない）。
+    - 企業配下の事業所を1つも選ばなければ、その企業まるごとが担当範囲。
+      1つ以上選んだ場合は企業まるごとの担当を外し、選んだ事業所（＋部署）だけに絞る。
     指定できるのは発行者の操作範囲内のものだけ。"""
     if role == "system_admin":
-        return "all", {"company": [], "office": [], "dept": []}
+        return "all", {"company": [], "office": [], "dept": []}, []
     if role == "kenpo_user":
-        return "kenpo_all", {"company": [], "office": [], "dept": []}
+        return "kenpo_all", {"company": [], "office": [], "dept": []}, []
+    offs = scoped_offices(acc)
+    depts = scoped_departments(acc)
     ok_c = {c["id"] for c in scoped_companies(acc)}
-    ok_o = {o["id"] for o in scoped_offices(acc)}
-    ok_d = {d["id"] for d in scoped_departments(acc)}
-    scopes = {
-        "company": [i for i in (company_ids or []) if i in ok_c],
-        "office": [i for i in (office_ids or []) if i in ok_o],
-        "dept": [i for i in (dept_ids or []) if i in ok_d],
-    }
-    return "own_company", scopes
+    ok_o = {o["id"] for o in offs}
+    ok_d = {d["id"] for d in depts}
+    want_c = list(company_ids or [])
+    want_o = list(office_ids or [])
+    want_d = list(dept_ids or [])
+    # 発行者の操作範囲の外にあるものは弾く（なりすまし・改ざん対策）
+    rejected = ([i for i in want_c if i not in ok_c]
+                + [i for i in want_o if i not in ok_o]
+                + [i for i in want_d if i not in ok_d])
+    comp_sel = [i for i in want_c if i in ok_c]
+    cset = set(comp_sel)
+    off_sel = [o["id"] for o in offs if o["id"] in set(want_o) and o["company_id"] in cset]
+    oset = set(off_sel)
+    dept_sel = [d["id"] for d in depts if d["id"] in set(want_d) and d["office_id"] in oset]
+    # 事業所を選んだ企業は「まるごと担当」から外す（選んだ事業所・部署だけに絞る）
+    narrowed = {o["company_id"] for o in offs if o["id"] in oset}
+    comp_sel = [c for c in comp_sel if c not in narrowed]
+    return "own_company", {"company": comp_sel, "office": off_sel, "dept": dept_sel}, rejected
 
 
 @app.route("/accounts/new", methods=["GET", "POST"])
@@ -4454,10 +4469,13 @@ def accounts_new():
 
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
+    view_scope, scopes, rejected = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
     company_ids = scopes["company"]
-    if view_scope == "own_company" and not any(scopes.values()):
-        errs.append("担当する企業・事業所・部署のいずれかを1件以上選択してください。")
+    if view_scope == "own_company":
+        if rejected:
+            errs.append("選択した企業・事業所・部署のうち、操作する権限のないものが含まれています。")
+        if not any(scopes.values()):
+            errs.append("担当する企業を選択してください（特定の事業所・部署だけに絞ることもできます）。")
     if role == "kenpo_user":
         if acc["role"] != "system_admin":
             kenpo_id = acc["kenpo_id"]
@@ -4505,19 +4523,18 @@ def accounts_create():
             detail=f"権限外のロール（{ROLE_LABELS.get(role, role)}）を指定")
         flash("そのロールを発行する権限がありません。", "error")
         return redirect(url_for("accounts_new"))
-    requested = len(company_ids)
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
+    view_scope, scopes, rejected = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
     company_ids = scopes["company"]
     if view_scope == "own_company":
-        if requested != len(company_ids):
+        if rejected:
             log("account", "アカウント発行をブロック", "blocked", target=email,
-                detail=f"スコープ外の企業が指定された（要求{requested}社／許可{len(company_ids)}社）")
-            flash("選択された企業のうち、操作する権限のないものが含まれています。", "error")
+                detail=f"スコープ外の企業・事業所・部署が指定された（{rejected}）")
+            flash("選択された企業・事業所・部署のうち、操作する権限のないものが含まれています。", "error")
             return redirect(url_for("accounts_new"))
         if not any(scopes.values()):
-            flash("担当する企業・事業所・部署のいずれかを1件以上選択してください。", "error")
+            flash("担当する企業を選択してください。", "error")
             return redirect(url_for("accounts_new"))
     if role == "kenpo_user" and acc["role"] != "system_admin":
         kenpo_id = acc["kenpo_id"]
@@ -4596,10 +4613,13 @@ def accounts_edit(aid):
         errs.append(f"「{ROLE_LABELS.get(role, role)}」へ変更する権限がありません。")
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
+    view_scope, scopes, rejected = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
     company_ids = scopes["company"]
-    if view_scope == "own_company" and not any(scopes.values()):
-        errs.append("担当する企業・事業所・部署のいずれかを1件以上選択してください。")
+    if view_scope == "own_company":
+        if rejected:
+            errs.append("選択した企業・事業所・部署のうち、操作する権限のないものが含まれています。")
+        if not any(scopes.values()):
+            errs.append("担当する企業を選択してください（特定の事業所・部署だけに絞ることもできます）。")
     if role == "kenpo_user" and acc["role"] == "system_admin":
         kid = request.form.get("kenpo_id", type=int)
         if not kid:
@@ -4674,19 +4694,18 @@ def accounts_edit_apply(aid):
             detail=f"権限外のロール（{ROLE_LABELS.get(role, role)}）への変更を試行")
         flash("そのロールへ変更する権限がありません。", "error")
         return redirect(url_for("accounts_edit", aid=aid))
-    requested = len(company_ids)
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
+    view_scope, scopes, rejected = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
     company_ids = scopes["company"]
     if view_scope == "own_company":
-        if requested != len(company_ids):
+        if rejected:
             log("account", "権限変更をブロック", "blocked", target=row["email"],
-                detail=f"スコープ外の企業が指定された（要求{requested}社／許可{len(company_ids)}社）")
-            flash("選択された企業のうち、操作する権限のないものが含まれています。", "error")
+                detail=f"スコープ外の企業・事業所・部署が指定された（{rejected}）")
+            flash("選択された企業・事業所・部署のうち、操作する権限のないものが含まれています。", "error")
             return redirect(url_for("accounts_edit", aid=aid))
         if not any(scopes.values()):
-            flash("担当する企業・事業所・部署のいずれかを1件以上選択してください。", "error")
+            flash("担当する企業を選択してください。", "error")
             return redirect(url_for("accounts_edit", aid=aid))
     old_ids = account_company_ids(aid)
     kenpo_id = row["kenpo_id"]
