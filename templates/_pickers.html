@@ -34,7 +34,7 @@
     <tbody>
     {% for k in kenpos %}
     {% set on = selected and selected|int == k.id %}
-    <tr class="pt-row {{ 'on' if on }}" data-code="{{ k.code }}" data-name="{{ k.name }}">
+    <tr class="pick-row {{ 'on' if on }}" data-code="{{ k.code }}" data-name="{{ k.name }}">
       <td>
         <button type="button" class="pick-btn {{ 'on' if on }}"
                 onclick="kpSelect(this)">{{ '選択中' if on else '選択' }}</button>
@@ -49,7 +49,7 @@
     </tbody>
   </table>
   </div>
-  <p class="hint">健保担当者は、選んだ健康保険組合に所属する全企業の加入者を閲覧できます。</p>
+  <p class="hint" id="kp-hint">健保担当者は、選んだ健康保険組合に所属する全企業の加入者を閲覧できます。</p>
 </div>
 {%- endmacro %}
 
@@ -87,11 +87,11 @@
     <tbody>
     {% for c in comps %}
     {% set on = selected and c.id in selected %}
-    <tr class="pt-row {{ 'on' if on }}"
+    <tr class="pick-row {{ 'on' if on }}"
         data-code="{{ c.ext_code or c.code }}"
         data-name="{{ c.name }} {{ c.kana or '' }}"
-        data-kenpo="{{ c.kenpo_name }} {{ c.kenpo_code }}"
-        data-kenpo-id="{{ c.kenpo_id }}">
+        data-kid="{{ c.kenpo_id }}"
+        data-kenpo="{{ c.kenpo_name }} {{ c.kenpo_code }}">
       <td>
         <button type="button" class="pick-btn {{ 'on' if on }}"
                 onclick="cpToggle(this)">{{ '選択中' if on else '選択' }}</button>
@@ -124,7 +124,7 @@ function pkCard(prefix){
 }
 function pkRows(prefix){
   var card = pkCard(prefix);
-  return card ? [].slice.call(card.querySelectorAll('tr.pt-row')) : [];
+  return card ? [].slice.call(card.querySelectorAll('tr.pick-row')) : [];
 }
 function pkCount(prefix){
   var el = document.getElementById(prefix + '-count');
@@ -144,63 +144,72 @@ function pkMark(row, on){
   b.textContent = on ? '選択中' : '選択';
   row.querySelector('input').checked = on;
 }
+function cpNotify(){ if(window.scUpd) window.scUpd(); }
 function cpToggle(btn){
   var row = btn.closest('tr');
   pkMark(row, !row.querySelector('input').checked);
   pkCount('cp');
-  document.dispatchEvent(new CustomEvent('cp-change'));
+  cpNotify();
 }
-function kpSelectRow(row){
+/* 企業一覧を健保で絞るか（健保の選択カードが出ているときだけ有効） */
+function cpKenpoActive(){ return !!document.querySelector('input[name="kenpo_id"]'); }
+function cpKenpoId(){
+  var r = document.querySelector('input[name="kenpo_id"]:checked');
+  return r ? r.value : '';
+}
+/* 健保を選び直したら、企業一覧を絞り込み、対象外の企業のチェックを外す */
+function cpKenpoSync(){
+  var vk = cpKenpoId();
+  pkRows('cp').forEach(function(r){
+    if(vk && (r.dataset.kid || '') !== vk && r.querySelector('input').checked){
+      pkMark(r, false);
+    }
+  });
+  pkFilter('cp');
+  pkCount('cp');
+  cpNotify();
+}
+function kpSelect(btn){
+  var row = btn.closest('tr');
   pkRows('kp').forEach(function(r){ pkMark(r, r === row); });
   pkCount('kp');
-  var inp = row.querySelector('input');
-  document.dispatchEvent(new CustomEvent('kp-select',
-    {detail: {id: inp ? inp.value : null, code: row.dataset.code, name: row.dataset.name}}));
+  cpKenpoSync();
 }
-function kpSelect(btn){ kpSelectRow(btn.closest('tr')); }
-window.kpSelectById = function(kid){
-  if(!kid) return;
-  var radio = document.querySelector('#kenpocard-list input[name="kenpo_id"][value="' + kid + '"]');
-  if(radio) kpSelectRow(radio.closest('tr'));
-};
 function cpAll(){
   pkRows('cp').forEach(function(r){ if(r.style.display !== 'none') pkMark(r, true); });
   pkCount('cp');
-  document.dispatchEvent(new CustomEvent('cp-change'));
+  cpNotify();
 }
 
-/* 絞り込み（コードと名称を別々に指定できる） */
-var pkKenpoFilter = {};
+/* 絞り込み（コードと名称を別々に指定できる。企業は選択中の健保でも絞る） */
 function pkFilter(prefix){
   var c = document.getElementById(prefix + '-code');
   var n = document.getElementById(prefix + '-name');
   if(!c || !n) return;
   var vc = (c.value || '').trim().toLowerCase();
   var vn = (n.value || '').trim().toLowerCase();
-  var kf = pkKenpoFilter[prefix];
+  var byKenpo = prefix === 'cp' && cpKenpoActive();
+  var vk = byKenpo ? cpKenpoId() : '';
   var shown = 0;
   pkRows(prefix).forEach(function(r){
     var ok = (!vc || (r.dataset.code || '').toLowerCase().indexOf(vc) >= 0)
-          && (!vn || (r.dataset.name || '').toLowerCase().indexOf(vn) >= 0)
-          && (!kf || r.dataset.kenpoId === kf);
-    if(!ok){
-      var inp = r.querySelector('input');
-      if(inp && inp.checked) pkMark(r, false);
-    }
+          && (!vn || (r.dataset.name || '').toLowerCase().indexOf(vn) >= 0);
+    if(byKenpo) ok = ok && !!vk && (r.dataset.kid || '') === vk;
     r.style.display = ok ? '' : 'none';
     if(ok) shown++;
   });
   var card = pkCard(prefix);
   var none = card && card.querySelector('tr.pick-none');
-  if(none) none.style.display = shown ? 'none' : '';
-  pkCount(prefix);
-  if(prefix === 'cp') document.dispatchEvent(new CustomEvent('cp-change'));
+  if(none){
+    none.style.display = shown ? 'none' : '';
+    if(byKenpo){
+      var cell = none.querySelector('td');
+      if(cell) cell.textContent = vk
+        ? '該当する企業がありません。'
+        : '先に健康保険組合を選択してください。';
+    }
+  }
 }
-/* 企業一覧を健保IDで絞り込む（企業担当者の担当範囲は1健保内に限る） */
-window.pkSetKenpoFilter = function(prefix, kenpoId){
-  pkKenpoFilter[prefix] = kenpoId ? String(kenpoId) : null;
-  pkFilter(prefix);
-};
 
 /* サジェスト */
 function pkSuggest(input, box, words){
@@ -260,5 +269,9 @@ function pkSuggest(input, box, words){
   });
   pkCount(prefix);
 });
+
+/* 健保 → 企業 の連動：健保の選択カードがある場合、初期表示にも絞り込みを反映する
+   （未選択なら企業を隠す。エラー再表示では選択済みの健保で復元される） */
+if(cpKenpoActive()) pkFilter('cp');
 </script>
 {%- endmacro %}

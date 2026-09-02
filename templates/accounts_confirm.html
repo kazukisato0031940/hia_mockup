@@ -6,10 +6,8 @@
   <input type="hidden" name="email" value="{{ email }}">
   <input type="hidden" name="name" value="{{ name }}">
   <input type="hidden" name="role" value="{{ role }}">
-  {# 事業所・部署を選んだことで「対象の企業」欄が0社に絞り込まれていても、
-     再送信時に企業チェックの事実そのものは伝える必要がある
-     （送らないと、次の検証で事業所・部署の親企業が特定できず全て弾かれてしまう） #}
-  {% for cid in checked_companies %}<input type="hidden" name="company_ids" value="{{ cid }}">{% endfor %}
+    <input type="hidden" name="sub_role" value="{{ srole or '' }}">
+  {% for c in companies %}<input type="hidden" name="company_ids" value="{{ c.id }}">{% endfor %}
   <input type="hidden" name="kenpo_id" value="{{ kenpo_id or '' }}">
   {% for i in (scopes.office if scopes else []) %}<input type="hidden" name="office_ids" value="{{ i }}">{% endfor %}
   {% for i in (scopes.dept if scopes else []) %}<input type="hidden" name="dept_ids" value="{{ i }}">{% endfor %}
@@ -21,6 +19,7 @@
   <div class="perm-head">
     <span class="perm-ttl">登録される権限</span>
     <span class="st st-role">{{ ROLE_LABELS[role] }}</span>
+    {% if srole %}<span class="st st-dl">{{ SUB_ROLE_LABELS[srole] }}</span>{% endif %}
     <span class="st {{ 'st-all' if view_scope != 'own_company' else 'st-own' }}">閲覧範囲：{{ SCOPE_LABELS[view_scope] }}{% if companies %}（{{ companies|length }}社）{% endif %}</span>
     {% if scope_label and scope_label != '指定なし' %}<span class="st st-own">担当範囲：{{ scope_label }}</span>{% endif %}
     {% if is_primary %}<span class="st st-role">代表者</span>{% endif %}

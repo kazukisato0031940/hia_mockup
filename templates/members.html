@@ -6,7 +6,7 @@
 {# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
 {% if not EMBED %}
 <h1 class="page-title">加入者情報</h1>
-<p class="page-lead">加入者の登録・編集・削除とCSV取込を行います。閲覧範囲内の加入者だけが表示されます。</p>
+<p class="page-lead">{% if CAN_MASTER %}加入者の登録・編集・削除とCSV取込を行います。{% else %}産業医は加入者情報を<b>閲覧のみ</b>できます（登録・変更は人事・企業担当者が行います）。{% endif %}閲覧範囲内の加入者だけが表示されます。</p>
 {% endif %}
 
 {{ search_card([('no', '被保険者証番号', '140px'), ('name', '氏名・カナ', '180px'),
@@ -21,6 +21,7 @@
     <div class="blk-head-left">
       <h2>加入者一覧</h2>
       <div class="actions">
+        {% if CAN_MASTER %}
         <button type="button" class="btn-sm primary" id="mk-open" onclick="mkOpen()" disabled
                 title="選択した加入者に企業・事業所・部署を設定します">
           選択した<span id="mk-n">0</span>件を紐づける</button>
@@ -31,12 +32,17 @@
            title="取込した加入者情報のコードで、まとめて紐づけます">コードで紐づける</a>
         <a class="btn-sm" href="{{ url_for('members_link_page') }}" style="text-decoration:none"
            title="紐づけ先を選んでから、ドラッグで紐づける専用ページを開きます">紐づけページ</a>
+        {% endif %}
+        {% if CAN_MASTER %}
         <button type="button" class="btn-sm" onclick="openImport('imp-member')">一括インポート</button>
+        {% endif %}
         <a class="btn-sm" href="{{ url_for('members_export') }}" style="text-decoration:none">CSVで出力</a>
       </div>
     </div>
     <div class="actions">
+      {% if CAN_MASTER %}
       <a class="btn-sm primary" href="{{ url_for('member_new') }}" style="text-decoration:none">加入者を登録する</a>
+      {% endif %}
     </div>
   </div>
   {% if rows %}
@@ -44,8 +50,8 @@
        data-loaded="{{ rows|length }}" data-total="{{ total }}">
   <table class="result-table" style="table-layout:auto">
     <thead><tr>
-      <th style="width:44px"><input type="checkbox" id="mk-all"
-            title="表示中をすべて選択" onchange="mkAll(this.checked)"></th>
+      <th style="width:44px">{% if CAN_MASTER %}<input type="checkbox" id="mk-all"
+            title="表示中をすべて選択" onchange="mkAll(this.checked)">{% endif %}</th>
       <th style="width:130px">被保険者証番号</th>
       <th class="tl" style="width:160px">氏名</th>
       <th class="tl" style="width:160px">カナ</th>
@@ -241,6 +247,7 @@
 {{ search_script([('no','no'), ('name','name'), ('cname','cname'), ('oname','oname'),
                   ('dname','dname')]) }}
 {{ rows_script() }}
+{% if CAN_MASTER %}
 {{ import_modal('imp-member', '加入者の一括インポート', url_for('members_import'),
    url_for('members_template'),
    [('加入者ID','任意','**当システムで採番**します。ファイルの値は使いません'),
@@ -268,5 +275,6 @@
     ('個人ID','任意','—')],
    kenpos if acc.role == 'system_admin' else None,
    sample=url_for('sample_csv', name='subscriber')) }}
+{% endif %}
 {{ import_script() }}
 {% endblock %}

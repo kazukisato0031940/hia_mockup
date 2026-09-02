@@ -1,0 +1,109 @@
+{% extends LAYOUT %}{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">マイアカウント</h1>
+<p class="page-lead">ご自身の利用者名・メールアドレス・パスワードを変更できます。</p>
+{% endif %}
+
+<div class="link-bar">
+  <div class="link-bar-info">
+    <span class="st st-role">{{ role_full(row) }}</span>
+    <span class="st {{ 'st-own' if row.view_scope=='own_company' else 'st-all' }}">
+      {{ SCOPE_LABELS.get(row.view_scope, row.view_scope) }}</span>
+    <span class="st st-{{ row.status }}">{{ STATUS_LABELS.get(row.status, row.status) }}</span>
+    {% if row.is_primary %}<span class="st st-role">代表者</span>{% endif %}
+  </div>
+  <div class="actions">
+    <a class="btn-sm" href="{{ url_for('accounts') }}"
+       style="text-decoration:none">アカウント管理へ</a>
+  </div>
+</div>
+
+<div class="form-grid">
+  {# ---- 本人が変更できる情報 ---- #}
+  <div class="block">
+    <h2>アカウント情報</h2>
+    <form method="post" action="{{ url_for('me_account') }}">
+      <div class="search-group"><label for="name">利用者名</label>
+        <input type="text" id="name" name="name" required style="width:100%"
+               value="{{ (form.name if form else row.name) or '' }}"></div>
+      <div class="search-group" style="margin-top:12px">
+        <label for="email">メールアドレス（ログインID）</label>
+        <input type="email" id="email" name="email" required style="width:100%"
+               value="{{ (form.email if form else row.email) or '' }}">
+        <p class="fld-help">変更すると<b>次回のログインから新しいアドレス</b>を使います。
+          変更前と変更後の両方へ通知メールを送ります。</p></div>
+      <div class="actions" style="justify-content:flex-end;margin-top:14px">
+        <button class="btn-sm primary">この内容で保存する</button>
+      </div>
+    </form>
+  </div>
+
+  {# ---- パスワードの変更 ---- #}
+  <div class="block">
+    <h2>パスワードの変更</h2>
+    <form method="post" action="{{ url_for('me_password') }}">
+      <div class="search-group"><label for="current">現在のパスワード</label>
+        <input type="password" id="current" name="current" required style="width:100%"
+               autocomplete="current-password"></div>
+      <div class="search-group" style="margin-top:12px">
+        <label for="pw1">新しいパスワード</label>
+        <input type="password" id="pw1" name="pw1" required style="width:100%"
+               autocomplete="new-password"></div>
+      <div class="search-group" style="margin-top:12px">
+        <label for="pw2">新しいパスワード（確認）</label>
+        <input type="password" id="pw2" name="pw2" required style="width:100%"
+               autocomplete="new-password"></div>
+      <p class="fld-help" style="margin-top:10px">
+        <b>12文字以上</b>で、英字と数字をそれぞれ1文字以上含めてください。
+        現在と同じパスワードは設定できません。</p>
+      <div class="actions" style="justify-content:flex-end;margin-top:14px">
+        <button class="btn-sm primary">パスワードを変更する</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ---- 本人では変更できない項目（表示のみ） ---- #}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>権限と担当する範囲</h2>
+      <span class="hint">ここは本人では変更できません。変更が必要な場合は、
+        アカウントを発行した管理者へご依頼ください。</span></div>
+  </div>
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr><th class="tl" style="width:220px">項目</th><th class="tl">内容</th></tr></thead>
+    <tbody>
+      <tr class="ls-row"><td class="tl">権限ロール</td>
+        <td class="tl">{{ ROLE_LABELS.get(row.role, row.role) }}</td></tr>
+      <tr class="ls-row"><td class="tl">サブロール</td>
+        <td class="tl">{% if sub_role_of(row) %}{{ SUB_ROLE_LABELS[sub_role_of(row)] }}
+          {% else %}<span class="hint">なし（通常）</span>{% endif %}</td></tr>
+      <tr class="ls-row"><td class="tl">閲覧範囲</td>
+        <td class="tl">{{ SCOPE_LABELS.get(row.view_scope, row.view_scope) }}</td></tr>
+      <tr class="ls-row"><td class="tl">健康保険組合</td>
+        <td class="tl">{{ kenpo.name if kenpo else '—' }}</td></tr>
+      <tr class="ls-row"><td class="tl">対象の企業</td>
+        <td class="tl wrap">{{ companies }}</td></tr>
+      <tr class="ls-row"><td class="tl">担当する範囲</td>
+        <td class="tl wrap">{{ scope_label }}</td></tr>
+      <tr class="ls-row"><td class="tl">CSVのダウンロード</td>
+        <td class="tl">{{ '可' if row.can_download else '不可' }}</td></tr>
+      <tr class="ls-row"><td class="tl">区分</td>
+        <td class="tl">{{ '代表者' if row.is_primary else '一般' }}</td></tr>
+      <tr class="ls-row"><td class="tl">最終ログイン</td>
+        <td class="tl code">{{ row.last_login_at or '—' }}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="block note-card">
+  <h2>ご注意</h2>
+  <ul class="note-list">
+    <li><b>権限ロール・サブロール・閲覧範囲・担当する範囲は本人では変更できません。</b>
+      自分で権限を広げられないようにするための制限です（サーバ側でも判定しています）。</li>
+    <li>利用者名・メールアドレス・パスワードの変更は<b>操作ログに記録</b>されます
+      （パスワードそのものは記録しません）。</li>
+    <li>パスワードを忘れた場合は、ログイン画面の「パスワードを忘れた方」から再設定できます。</li>
+  </ul>
+</div>
+{% endblock %}

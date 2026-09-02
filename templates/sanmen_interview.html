@@ -1,0 +1,202 @@
+{% extends LAYOUT %}
+{% from "_sanmen_flow.html" import flow, jtag, sttag, clip %}
+{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">面談結果入力</h1>
+<p class="page-lead">面談日・方法・目的・就業区分・措置・所見・次回予定を記録します。</p>
+{% endif %}
+
+{{ flow(flow_c, fy, 'interview') }}
+
+<div class="link-bar">
+  <div class="link-bar-info">
+    {% if CAN_MED %}
+    <span class="st st-role">産業医として操作中</span>
+    <span class="dest-now ok">面談記録の登録ができます</span>
+    {% else %}
+    <span class="st st-disabled">面談記録の登録は産業医のみ</span>
+    <span class="dest-now">人事は実施状況の確認と報告書の出力ができます。</span>
+    {% endif %}
+    <span class="hint">面談記録を保存すると「面談完了」となり、労基署報告の面接指導実施状況に反映されます。</span>
+  </div>
+  <div class="actions">
+    <a class="btn-sm" href="{{ url_for('oh.oh_list', fy=fy) }}"
+       style="text-decoration:none">面談対象者一覧</a>
+    <a class="btn-sm" href="{{ url_for('oh.oh_report', fy=fy) }}"
+       style="text-decoration:none">労基署報告</a>
+  </div>
+</div>
+
+<div class="rk-row">
+  <div class="rk-box"><span class="rk-label">面談対象（承認済以降）</span>
+    <span class="rk-value">{{ rows|length }}</span><span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">面談実施済</span>
+    <span class="rk-value">{{ done }}</span><span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">未実施</span>
+    <span class="rk-value {{ 'risk-高' if rows|length - done }}">{{ rows|length - done }}</span>
+    <span class="rk-unit">名</span></div>
+</div>
+
+<div class="block">
+  <div class="blk-head"><div class="blk-head-left"><h2>絞り込み</h2></div></div>
+  <form method="get" class="search-row" style="margin:0">
+    <div class="search-group"><label for="fy">受診年度</label>
+      <select id="fy" name="fy" style="width:120px" onchange="this.form.submit()">
+        {% for y in fys %}<option value="{{ y }}" {{ 'selected' if y == fy }}>{{ y }}年度</option>{% endfor %}
+      </select></div>
+    <div class="search-group"><label for="name">氏名・社員ID</label>
+      <input type="text" id="name" name="name" value="{{ f.name }}" style="width:150px"></div>
+    <div class="search-group"><label for="status">ステータス</label>
+      <select id="status" name="status" style="width:170px">
+        <option value="">すべて</option>
+        {% for s in STATUSES %}<option value="{{ s }}" {{ 'selected' if f.status == s }}>{{ s }}</option>{% endfor %}
+      </select></div>
+    <button class="btn-sm primary">絞り込む</button>
+    <a class="btn-sm" href="{{ url_for('oh.oh_interview', fy=fy) }}"
+       style="text-decoration:none">条件をクリア</a>
+  </form>
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>面談対象者と面談記録</h2>
+      <span class="count">{{ rows|length }}件</span></div>
+  </div>
+  {% if rows %}
+  <div class="table-scroll">
+  <table class="result-table oh-table" style="table-layout:auto">
+    <thead><tr>
+      <th class="tl" style="width:140px">氏名</th>
+      <th class="tl" style="width:150px">部署</th>
+      <th style="width:86px">健診判定</th>
+      <th class="tl" style="width:180px">抽出理由</th>
+      <th style="width:130px">ステータス</th>
+      <th style="width:110px">面談日</th>
+      <th style="width:96px">面談方法</th>
+      <th style="width:96px">就業区分</th>
+      <th style="width:150px">操作</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr class="ls-row">
+      <td class="tl"><b>{{ r.m.name }}</b>
+        <div class="hint" style="font-size:10.5px">{{ r.m.employee_code or '' }}</div></td>
+      <td class="tl">{{ clip(r.m.dept_name or '—', '部署', 145) }}</td>
+      <td>{{ jtag(r.judge, JUDGE_LABEL) }}</td>
+      <td class="tl">{{ clip(r.reason_text, '抽出理由（全文）', 175) }}</td>
+      <td>{{ sttag(r.status) }}</td>
+      <td class="code">{{ (r.iv.met_on if r.iv else '') or '—' }}</td>
+      <td>{{ (r.iv.method if r.iv else '') or '—' }}</td>
+      <td>{{ (r.iv.work_class if r.iv else '') or (r.work_class or '—') }}</td>
+      <td>
+        {% if CAN_MED %}
+        <button class="btn-sm primary" type="button" onclick="ivOpen(this)"
+                data-id="{{ r.id }}" data-name="{{ r.m.name }}"
+                data-reason="{{ r.reason_text }}"
+                data-met="{{ (r.iv.met_on if r.iv else '') or '' }}"
+                data-method="{{ (r.iv.method if r.iv else '') or '' }}"
+                data-purpose="{{ (r.iv.purpose if r.iv else '') or '' }}"
+                data-work="{{ (r.iv.work_class if r.iv else '') or (r.work_class or '') }}"
+                data-measure="{{ (r.iv.measure if r.iv else '') or '' }}"
+                data-findings="{{ (r.iv.findings if r.iv else '') or '' }}"
+                data-next="{{ (r.iv.next_plan if r.iv else '') or '' }}"
+                data-ot="{{ '%.0f'|format(r.overtime.hours) if r.overtime else '' }}">
+          {{ '記録を修正' if r.iv else '面談結果を入力' }}</button>
+        {% endif %}
+        <a class="btn-sm" href="{{ url_for('oh.oh_member', mid=r.id, fy=fy) }}"
+           target="_blank" style="text-decoration:none">情報</a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-box">
+    面談対象者がいません。対象者一覧で産業医が面談対象を承認すると、この画面に表示されます。</div>
+  {% endif %}
+</div>
+
+{% if CAN_MED %}
+<div class="modal-back" id="ivModal">
+  <div class="modal-card" style="max-width:660px">
+    <div class="modal-head">
+      <h2 id="ivTitle">面談結果の入力</h2>
+      <button class="modal-x" type="button" onclick="ivClose()">×</button>
+    </div>
+    <form method="post" action="{{ url_for('oh.oh_interview_save') }}">
+      <input type="hidden" name="fy" value="{{ fy }}">
+      <input type="hidden" name="member_id" id="ivMid">
+      <div class="modal-body">
+        <p class="note" id="ivReason" style="margin-top:0"></p>
+        <div class="oh-grid">
+          <div class="fld"><label class="fld-label" for="ivMet">面談日<span class="oh-req">必須</span></label>
+            <input type="date" id="ivMet" name="met_on" required style="width:100%"></div>
+          <div class="fld"><label class="fld-label" for="ivMethod">面談方法</label>
+            <select id="ivMethod" name="method" style="width:100%">
+              {% for m in METHODS %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+            </select></div>
+          <div class="fld"><label class="fld-label" for="ivPurpose">面談目的</label>
+            <select id="ivPurpose" name="purpose" style="width:100%">
+              {% for p in PURPOSES %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+            </select></div>
+          <div class="fld"><label class="fld-label" for="ivWork">就業区分（医学的判断）</label>
+            <select id="ivWork" name="work_class" style="width:100%">
+              <option value="">未判定</option>
+              {% for w in WORK_CLASSES %}<option value="{{ w }}">{{ w }}</option>{% endfor %}
+            </select></div>
+          <div class="fld"><label class="fld-label" for="ivOt">面談時点の時間外（時間／月）</label>
+            <input type="number" step="0.1" id="ivOt" name="overtime" style="width:100%"></div>
+        </div>
+        <div class="fld"><label class="fld-label" for="ivFind">産業医所見</label>
+          <textarea id="ivFind" name="findings" rows="3" style="width:100%"
+                    placeholder="例）血圧が高値で推移。降圧治療の継続と、月45時間以内への時間外抑制が望ましい。"></textarea></div>
+        <div class="fld"><label class="fld-label" for="ivMeasure">事後措置</label>
+          <textarea id="ivMeasure" name="measure" rows="2" style="width:100%"
+                    placeholder="例）時間外労働を月45時間以内に制限。深夜業からの一時的な除外。"></textarea></div>
+        <div class="fld"><label class="fld-label" for="ivNext">次回予定</label>
+          <input type="text" id="ivNext" name="next_plan" style="width:100%"
+                 placeholder="例）3か月後に再面談（血圧手帳を持参）"></div>
+      </div>
+      <div class="modal-foot">
+        <span class="hint" style="margin-right:auto">
+          就業区分・措置は産業医の医学的判断として記録されます。</span>
+        <button class="btn-sm" type="button" onclick="ivClose()">閉じる</button>
+        <button class="btn-sm primary" type="submit">面談記録を保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function ivClose(){ document.getElementById('ivModal').classList.remove('open'); }
+function ivOpen(btn){
+  var d = btn.dataset;
+  document.getElementById('ivMid').value = d.id;
+  document.getElementById('ivTitle').textContent = d.name + ' さんの面談結果';
+  document.getElementById('ivReason').innerHTML =
+    '抽出理由：' + (d.reason || '（該当なし）');
+  document.getElementById('ivMet').value = (d.met || '').slice(0, 10);
+  document.getElementById('ivMethod').value = d.method || '対面';
+  document.getElementById('ivPurpose').value = d.purpose || '健診有所見';
+  document.getElementById('ivWork').value = d.work || '';
+  document.getElementById('ivOt').value = d.ot || '';
+  document.getElementById('ivFind').value = d.findings || '';
+  document.getElementById('ivMeasure').value = d.measure || '';
+  document.getElementById('ivNext').value = d.next || '';
+  var b = document.getElementById('ivModal');
+  b.classList.add('open');
+  if (window.hiaCenterModal) window.hiaCenterModal(b.querySelector('.modal-card'));
+}
+</script>
+{% endif %}
+
+<div class="block note-card">
+  <h2>面談記録の取り扱い</h2>
+  <ul class="note-list">
+    <li>面談記録の登録・修正は<b>産業医のみ</b>が行えます。人事は実施状況の確認と報告書の出力ができます。</li>
+    <li>記録した就業区分は対象者一覧のステータスにも反映され、対応区分は「産業医判定済」となります。</li>
+    <li>所見・措置の内容は要配慮個人情報です。閲覧・利用は健康管理の目的に限られます。</li>
+  </ul>
+</div>
+{% endblock %}

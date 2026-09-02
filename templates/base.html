@@ -13,6 +13,7 @@
     <span>{{ acc.name }}</span>
     <span class="st st-role">{{ ROLE_LABELS[acc.role] }}</span>
     <span class="st {{ 'st-own' if acc.view_scope=='own_company' else 'st-all' }}">{{ SCOPE_LABELS[acc.view_scope] }}</span>
+    <a href="{{ url_for('me_account') }}" style="color:var(--accent);text-decoration:none">マイアカウント</a>
     <a href="{{ url_for('spa_km') if SHELL=='km' else url_for('spa') }}" style="color:var(--accent);text-decoration:none">統合画面へ</a>
     <a href="{{ url_for('logout') }}" style="color:#718096;text-decoration:none">ログアウト</a>
   </div>

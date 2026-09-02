@@ -1,0 +1,431 @@
+{% extends LAYOUT %}
+{% from "_sanmen_flow.html" import flow, legend, sttag, jtag, clip %}
+{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">産業医面談 対象者一覧</h1>
+<p class="page-lead">健診・長時間労働・ストレスチェックを横断して、面談が必要な方を抽出します。</p>
+{% endif %}
+
+{{ flow(flow_c, fy, 'list') }}
+
+<div class="link-bar">
+  <div class="link-bar-info">
+    <span class="st st-role">{{ ROLE_NAME }}として操作中</span>
+    {% if CAN_MED %}
+    <span class="dest-now ok">承認・就業区分・面談記録・記名ができます</span>
+    {% else %}
+    <span class="dest-now">運用事務（取込・配信・対応区分・出力）ができます。医学的判断は産業医のみです。</span>
+    {% endif %}
+  </div>
+  <div class="actions">
+    <a class="btn-sm" href="{{ url_for('oh.oh_kenshin', fy=fy) }}"
+       style="text-decoration:none">定期健診</a>
+    <a class="btn-sm" href="{{ url_for('oh.oh_kenshin', fy=fy, kind='深夜') }}"
+       style="text-decoration:none">深夜健診</a>
+    <a class="btn-sm" href="{{ url_for('oh.oh_interview', fy=fy) }}"
+       style="text-decoration:none">面談結果入力</a>
+    <a class="btn-sm" href="{{ url_for('oh.oh_report', fy=fy) }}"
+       style="text-decoration:none">労基署報告</a>
+    <button class="btn-sm" type="button" onclick="ohOpen('ohColModal')">表示列</button>
+  </div>
+</div>
+
+<div class="rk-row">
+  <div class="rk-box"><span class="rk-label">対象者</span>
+    <span class="rk-value">{{ total }}</span><span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">面談候補（抽出理由あり）</span>
+    <span class="rk-value risk-高">{{ flow_c.cand }}</span><span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">産業医確認待ち</span>
+    <span class="rk-value">{{ flow_c.wait }}</span><span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">健診 受診済</span>
+    <span class="rk-value">{{ done }}</span><span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">健診 未受診</span>
+    <span class="rk-value">{{ notdone }}</span><span class="rk-unit">名</span></div>
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>絞り込み</h2>
+      <span class="hint">受診年度を選ぶと、その年度の受診状況と判定に表示が切り替わります（対象者は全員表示）。</span>
+    </div>
+  </div>
+  <form method="get" class="search-row" style="margin:0">
+    <div class="search-group"><label for="fy">受診年度</label>
+      <select id="fy" name="fy" style="width:120px" onchange="this.form.submit()">
+        {% for y in fys %}<option value="{{ y }}" {{ 'selected' if y == fy }}>{{ y }}年度</option>{% endfor %}
+      </select></div>
+    <div class="search-group"><label for="name">氏名・社員ID</label>
+      <input type="text" id="name" name="name" value="{{ f.name }}" style="width:150px"
+             list="ohNames" placeholder="部分一致"></div>
+    <div class="search-group"><label for="dept">部署・事業所</label>
+      <input type="text" id="dept" name="dept" value="{{ f.dept }}" style="width:140px"
+             placeholder="部分一致"></div>
+    <div class="search-group"><label for="cond">抽出条件</label>
+      <select id="cond" name="cond" style="width:150px">
+        <option value="">すべて</option>
+        <option value="any" {{ 'selected' if f.cond == 'any' }}>面談候補のみ</option>
+        <option value="kenshin" {{ 'selected' if f.cond == 'kenshin' }}>健診有所見（C以上）</option>
+        <option value="overtime" {{ 'selected' if f.cond == 'overtime' }}>長時間労働（月{{ OT_LIMIT }}時間超）</option>
+        <option value="stress" {{ 'selected' if f.cond == 'stress' }}>高ストレス</option>
+        <option value="none" {{ 'selected' if f.cond == 'none' }}>候補以外</option>
+      </select></div>
+    <div class="search-group"><label>健診判定（複数選択）</label>
+      <div class="oh-chks">
+        {% for j in JUDGES %}
+        <label><input type="checkbox" name="judge" value="{{ j }}"
+                 {{ 'checked' if j in f.judges }}> {{ j }}</label>
+        {% endfor %}
+      </div></div>
+    {% if CAN_MED %}
+    <div class="search-group"><label for="status">ステータス（面談）</label>
+      <select id="status" name="status" style="width:170px">
+        <option value="">すべて</option>
+        {% for s in STATUSES %}<option value="{{ s }}" {{ 'selected' if f.status == s }}>{{ s }}</option>{% endfor %}
+      </select></div>
+    {% else %}
+    <div class="search-group"><label for="hr_class">ステータス（対応区分）</label>
+      <select id="hr_class" name="hr_class" style="width:170px">
+        <option value="">すべて</option>
+        {% for s in HR_CLASSES %}<option value="{{ s }}" {{ 'selected' if f.hr_class == s }}>{{ s }}</option>{% endfor %}
+      </select></div>
+    {% endif %}
+    <div class="search-group"><label for="done">受診状況</label>
+      <select id="done" name="done" style="width:120px">
+        <option value="">すべて</option>
+        <option value="done" {{ 'selected' if f.done == 'done' }}>受診済</option>
+        <option value="not" {{ 'selected' if f.done == 'not' }}>未受診</option>
+      </select></div>
+    <button class="btn-sm primary">絞り込む</button>
+    <a class="btn-sm" href="{{ url_for('oh.oh_list', fy=fy) }}"
+       style="text-decoration:none">条件をクリア</a>
+  </form>
+  <datalist id="ohNames">
+    {% for r in rows %}<option value="{{ r.m.name }}"></option>{% endfor %}
+  </datalist>
+  {{ legend(JUDGE_LABEL) }}
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>対象者一覧</h2>
+      <span class="count">{{ rows|length }}件</span>
+      <span class="hint" id="ohSelCount">選択 0名</span>
+    </div>
+    <div class="actions">
+      <button class="btn-sm primary" type="button" onclick="ohBulk()">
+        選択した対象者をまとめて処理</button>
+      <button class="btn-sm" type="button" onclick="ohSubmitSel('{{ url_for('oh.oh_export_csv') }}')">
+        CSV出力</button>
+      <button class="btn-sm" type="button"
+              onclick="ohSubmitSel('{{ url_for('oh.oh_export_pdf') }}', true)">
+        健診結果票をPDF出力</button>
+    </div>
+  </div>
+
+  {% if rows %}
+  <div class="table-scroll">
+  <table class="result-table oh-table" style="table-layout:auto">
+    <thead><tr>
+      <th class="oh-narrow"><input type="checkbox" onclick="ohAll(this)" title="すべて選択"></th>
+      {% if 'emp' in cols %}<th class="tl" style="width:90px">社員ID</th>{% endif %}
+      {% if 'name' in cols %}<th class="tl" style="width:150px">氏名</th>{% endif %}
+      {% if 'dept' in cols %}<th class="tl" style="width:170px">部署（事業所）</th>{% endif %}
+      {% if 'age' in cols %}<th style="width:60px">年齢</th>{% endif %}
+      {% if 'judge' in cols %}<th style="width:96px">健診判定</th>{% endif %}
+      {% if 'reason' in cols %}<th class="tl" style="width:200px">抽出理由</th>{% endif %}
+      {% if 'overtime' in cols %}<th style="width:100px">時間外（最大）</th>{% endif %}
+      {% if 'stress' in cols %}<th style="width:110px">ストレス</th>{% endif %}
+      {% if 'memo' in cols %}<th class="tl" style="width:180px">メモ</th>{% endif %}
+      {% if 'status' in cols %}<th style="width:150px">
+        {{ 'ステータス（面談）' if CAN_MED else 'ステータス（対応区分）' }}</th>{% endif %}
+      <th style="width:150px">操作</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr class="ls-row">
+      <td class="oh-narrow">
+        <input type="checkbox" class="oh-chk" value="{{ r.id }}" onclick="ohCount()"></td>
+      {% if 'emp' in cols %}<td class="tl code">{{ r.m.employee_code or '—' }}</td>{% endif %}
+      {% if 'name' in cols %}
+      <td class="tl"><b>{{ r.m.name }}</b>
+        <div class="hint" style="font-size:10.5px">{{ r.m.kana or '' }}</div></td>{% endif %}
+      {% if 'dept' in cols %}
+      <td class="tl">{{ clip((r.m.dept_name or '—') ~ '（' ~ (r.m.office_name or '—') ~ '）',
+                            '部署・事業所', 165) }}</td>{% endif %}
+      {% if 'age' in cols %}<td class="num">{{ r.age if r.age is not none else '—' }}</td>{% endif %}
+      {% if 'judge' in cols %}
+      <td>{{ jtag(r.judge, JUDGE_LABEL) }}
+        {% if r.exam_date %}<div class="hint" style="font-size:10px">{{ r.exam_date }}</div>
+        {% else %}<div class="hint" style="font-size:10px">未受診</div>{% endif %}</td>{% endif %}
+      {% if 'reason' in cols %}
+      <td class="tl">{{ clip(r.reason_text, '抽出理由（全文）', 195) }}</td>{% endif %}
+      {% if 'overtime' in cols %}
+      <td class="num">
+        {% if r.overtime %}
+        <b {% if r.overtime.hours > OT_LIMIT %}class="risk-高"{% endif %}>
+          {{ '%.0f'|format(r.overtime.hours) }}</b>h
+        <div class="hint" style="font-size:10px">{{ r.overtime.ym }}</div>
+        {% else %}<span class="hint">—</span>{% endif %}</td>{% endif %}
+      {% if 'stress' in cols %}
+      <td>
+        {% if r.stress %}
+          {% if r.stress.high %}<span class="st st-all">高ストレス</span>
+          {% else %}<span class="st st-active">該当なし</span>{% endif %}
+          <div class="hint" style="font-size:10px">
+            {{ r.stress.score if r.stress.score is not none else '—' }}点
+            {{ '・申出あり' if r.stress.applied else '' }}</div>
+        {% else %}<span class="hint">未受検</span>{% endif %}</td>{% endif %}
+      {% if 'memo' in cols %}
+      <td class="tl">
+        {% if r.memo %}{{ clip(r.memo.body, r.memo.created_at[:16] ~ '　' ~ (r.memo.author or '') ~ '（' ~ (r.memo.role or '') ~ '）', 175) }}
+        {% else %}<span class="hint">—</span>{% endif %}</td>{% endif %}
+      {% if 'status' in cols %}
+      <td>
+        {% if CAN_MED %}{{ sttag(r.status) }}
+          {% if r.work_class %}<div class="hint" style="font-size:10px">就業：{{ r.work_class }}</div>{% endif %}
+        {% else %}<span class="oh-st oh-st-appr">{{ r.hr_class }}</span>
+          <div class="hint" style="font-size:10px">{{ r.status }}</div>{% endif %}
+      </td>{% endif %}
+      <td>
+        <button class="btn-sm" type="button" onclick="ohRow(this)"
+                data-id="{{ r.id }}" data-name="{{ r.m.name }}"
+                data-work="{{ r.work_class or '' }}" data-hr="{{ r.hr_class or '未判定' }}"
+                data-status="{{ r.status }}" data-reason="{{ r.reason_text }}"
+                data-judge="{{ r.judge or '' }}">確認・処理</button>
+        <button class="btn-sm" type="button" onclick="ohPreview({{ r.id }})">結果票</button>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-box">条件に一致する対象者がいません。加入者マスタと取込データをご確認ください。</div>
+  {% endif %}
+</div>
+
+{# 選択した対象者をCSV／PDFへ送るための隠しフォーム #}
+<form id="ohSelForm" method="post" target="_self" style="display:none">
+  <input type="hidden" name="fy" value="{{ fy }}">
+</form>
+
+{# ============ 確認・処理モーダル（B-08〜B-14） ============ #}
+<div class="modal-back" id="ohModal">
+  <div class="modal-card" style="max-width:620px">
+    <div class="modal-head">
+      <h2 id="ohModalTitle">確認・処理</h2>
+      <button class="modal-x" type="button" onclick="ohClose('ohModal')">×</button>
+    </div>
+    <form method="post" action="{{ url_for('oh.oh_save') }}">
+      <input type="hidden" name="fy" value="{{ fy }}">
+      <input type="hidden" name="back" value="{{ request.full_path }}">
+      <input type="hidden" name="action" id="ohAction" value="save">
+      <div id="ohIds"></div>
+      <div class="modal-body">
+        <p class="note" id="ohSummary" style="margin-top:0"></p>
+
+        {% if CAN_MED %}
+        <div class="oh-med">
+          <h3>医学的判断（産業医のみ）</h3>
+          <div class="oh-grid">
+            <div class="fld">
+              <label class="fld-label" for="ohWork">就業区分</label>
+              <select id="ohWork" name="work_class">
+                <option value="">変更しない</option>
+                {% for w in WORK_CLASSES %}<option value="{{ w }}">{{ w }}</option>{% endfor %}
+              </select>
+              <p class="fld-help">通常勤務／就業制限／要休業。設定すると面談対象として扱います。</p>
+            </div>
+            <div class="fld">
+              <label class="fld-label">面談対象の承認</label>
+              <div style="display:flex;gap:8px">
+                <button class="btn-sm primary" type="submit"
+                        onclick="document.getElementById('ohAction').value='approve'">承認する</button>
+                <button class="btn-sm" type="submit"
+                        onclick="document.getElementById('ohAction').value='unapprove'">承認を取消</button>
+              </div>
+              <p class="fld-help">承認すると「面談対象（承認済）」となり、メール配信へ進めます。</p>
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <p class="note" style="background:#f7fafc">
+          承認・就業区分・面談不要の設定は<b>産業医のみ</b>が行います。
+          この画面から送信された場合もサーバ側で反映しません。</p>
+        {% endif %}
+
+        {% if CAN_HR %}
+        <div class="fld">
+          <label class="fld-label" for="ohHr">対応区分（人事）</label>
+          <select id="ohHr" name="hr_class">
+            <option value="">変更しない</option>
+            {% for s in HR_CLASSES %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+          </select>
+          <p class="fld-help">「産業医判定済」は産業医の承認・就業判定から自動で反映されます。</p>
+        </div>
+        {% endif %}
+
+        <div class="fld">
+          <label class="fld-label" for="ohMemo">メモ（記入者・日時つきで履歴に追加します）</label>
+          <textarea id="ohMemo" name="memo" rows="3" style="width:100%"
+                    placeholder="例）本人と連絡済み。来週の面談を調整中。"></textarea>
+          <p class="fld-help">産業医・人事の双方が追記できます。最新のメモを一覧と報告書に表示します。</p>
+        </div>
+
+        {% if CAN_MED %}
+        <div class="fld">
+          <label class="fld-label" for="ohEx">面談不要（対象外）にする理由</label>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <input type="text" id="ohEx" name="exclude_reason" style="flex:1"
+                   placeholder="例）主治医の管理下にあり、就業上の措置は不要">
+            <button class="btn-sm" type="submit"
+                    onclick="document.getElementById('ohAction').value='exclude'">対象外にする</button>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="modal-foot">
+        <span class="hint" style="margin-right:auto">
+          就業判定・措置の最終判断は産業医・医師が行います。</span>
+        <button class="btn-sm" type="button" onclick="ohClose('ohModal')">閉じる</button>
+        <button class="btn-sm primary" type="submit"
+                onclick="document.getElementById('ohAction').value='save'">保存する</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ============ 健診結果票プレビュー（B-15） ============ #}
+<div class="modal-back" id="ohPrevModal">
+  <div class="modal-card" style="max-width:900px">
+    <div class="modal-head">
+      <h2>健康診断結果表（前年比較）</h2>
+      <button class="modal-x" type="button" onclick="ohClose('ohPrevModal')">×</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <iframe id="ohPrevFrame" src="" title="健診結果票"
+              style="width:100%;height:70vh;border:0;background:#fff"></iframe>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-sm" type="button" onclick="ohClose('ohPrevModal')">閉じる</button>
+    </div>
+  </div>
+</div>
+
+{# ============ 表示列の設定（A-06） ============ #}
+<div class="modal-back" id="ohColModal">
+  <div class="modal-card" style="max-width:460px">
+    <div class="modal-head"><h2>表示列の設定</h2>
+      <button class="modal-x" type="button" onclick="ohClose('ohColModal')">×</button></div>
+    <form method="post" action="{{ url_for('oh.oh_cols') }}">
+      <input type="hidden" name="back" value="{{ request.full_path }}">
+      <div class="modal-body">
+        <p class="note" style="margin-top:0">表示する列を選びます。設定は<b>ロールごとに保存</b>され、次回以降も適用されます。</p>
+        {% for key, label in LIST_COLS %}
+        <label class="chk" style="display:block;margin-bottom:7px">
+          <input type="checkbox" name="cols" value="{{ key }}"
+                 {{ 'checked' if key in cols }} {{ 'disabled' if key == 'name' }}>
+          {{ label }}{{ '（必須）' if key == 'name' }}</label>
+        {% endfor %}
+        {% if 'name' in cols %}<input type="hidden" name="cols" value="name">{% endif %}
+      </div>
+      <div class="modal-foot">
+        <button class="btn-sm" type="submit" name="reset" value="1">初期状態に戻す</button>
+        <button class="btn-sm" type="button" onclick="ohClose('ohColModal')">閉じる</button>
+        <button class="btn-sm primary" type="submit">保存する</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="block note-card">
+  <h2>この画面の運用ルール</h2>
+  <ul class="note-list">
+    <li>面談候補は<b>健診有所見（C判定以上）・時間外労働が月{{ OT_LIMIT }}時間超・高ストレス</b>の
+      いずれかに該当する方を自動で抽出し、抽出理由を付けています（複数該当時は併記）。</li>
+    <li><b>承認・就業区分・面談不要の設定・面談記録・報告書への記名は産業医のみ</b>が行います。
+      人事は取込・配信・対応区分・出力などの運用事務を担当します。</li>
+    <li>健診・面談の情報は要配慮個人情報です。画面の内容を目的外に利用したり、
+      社外へ持ち出したりしないでください。操作はすべて操作ログに記録されます。</li>
+    <li>表示される医学的情報は参考情報です。<b>就業上の措置の最終判断は産業医・医師</b>が行います。</li>
+  </ul>
+</div>
+
+<script>
+function ohOpen(id){
+  var b = document.getElementById(id);
+  b.classList.add('open');
+  var card = b.querySelector('.modal-card');
+  if (window.hiaCenterModal) window.hiaCenterModal(card);
+}
+function ohClose(id){ document.getElementById(id).classList.remove('open'); }
+
+function ohChecked(){
+  return [].filter.call(document.querySelectorAll('.oh-chk'), function(c){ return c.checked; });
+}
+function ohAll(el){
+  [].forEach.call(document.querySelectorAll('.oh-chk'), function(c){ c.checked = el.checked; });
+  ohCount();
+}
+function ohCount(){
+  document.getElementById('ohSelCount').textContent = '選択 ' + ohChecked().length + '名';
+}
+function ohSetIds(ids){
+  var box = document.getElementById('ohIds');
+  box.innerHTML = '';
+  ids.forEach(function(v){
+    var i = document.createElement('input');
+    i.type = 'hidden'; i.name = 'member_ids'; i.value = v;
+    box.appendChild(i);
+  });
+}
+/* 1名の確認・処理 */
+function ohRow(btn){
+  var d = btn.dataset;
+  ohSetIds([d.id]);
+  document.getElementById('ohModalTitle').textContent = d.name + ' さんの確認・処理';
+  document.getElementById('ohSummary').innerHTML =
+    '健診判定：<b>' + (d.judge || '—') + '</b>　ステータス：<b>' + d.status + '</b>' +
+    '<br>抽出理由：' + (d.reason || '（該当なし）');
+  var w = document.getElementById('ohWork'); if (w) w.value = d.work || '';
+  var h = document.getElementById('ohHr');   if (h) h.value = '';
+  document.getElementById('ohMemo').value = '';
+  var e = document.getElementById('ohEx');   if (e) e.value = '';
+  ohOpen('ohModal');
+}
+/* 複数名の一括処理（B-14） */
+function ohBulk(){
+  var ids = ohChecked().map(function(c){ return c.value; });
+  if (!ids.length){ alert('対象者を1名以上選択してください。'); return; }
+  ohSetIds(ids);
+  document.getElementById('ohModalTitle').textContent = '一括処理（' + ids.length + '名）';
+  document.getElementById('ohSummary').innerHTML =
+    '選択した<b>' + ids.length + '名</b>にまとめて反映します。' +
+    '「変更しない」のままの項目は変更されません。';
+  var w = document.getElementById('ohWork'); if (w) w.value = '';
+  var h = document.getElementById('ohHr');   if (h) h.value = '';
+  document.getElementById('ohMemo').value = '';
+  ohOpen('ohModal');
+}
+/* 健診結果票のプレビュー */
+function ohPreview(id){
+  document.getElementById('ohPrevFrame').src =
+    '{{ url_for('oh.oh_member', mid=0) }}'.replace(/0$/, id) + '?fy={{ fy }}';
+  ohOpen('ohPrevModal');
+}
+/* 選択した対象者をCSV／PDFへ送る */
+function ohSubmitSel(action, blank){
+  var ids = ohChecked().map(function(c){ return c.value; });
+  var f = document.getElementById('ohSelForm');
+  f.action = action;
+  f.target = blank ? '_blank' : '_self';
+  [].forEach.call(f.querySelectorAll('input[name=member_ids]'), function(i){ i.remove(); });
+  ids.forEach(function(v){
+    var i = document.createElement('input');
+    i.type = 'hidden'; i.name = 'member_ids'; i.value = v;
+    f.appendChild(i);
+  });
+  f.submit();
+}
+</script>
+{% endblock %}

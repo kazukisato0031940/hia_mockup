@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS member (
   subscriber_id TEXT,                           -- 加入者ID
   src_company_code TEXT,                        -- 取込時の事業所（企業）コード
   src_office_code  TEXT,                        -- 取込時の所属コード
+  night_work   INTEGER NOT NULL DEFAULT 0,      -- 深夜業従事（1＝深夜健診の対象）
   created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at   TEXT,
   -- 本人と家族は同じ被保険者証番号で枝番が異なるため、枝番まで含めて一意にする
@@ -114,12 +115,15 @@ CREATE TABLE IF NOT EXISTS member (
 
 -- アカウント
 -- role      : system_admin（当社スタッフ）/ kenpo_user（健保担当者）/ company_user（企業担当者）
+-- sub_role  : 企業担当者のサブロール。doctor（産業医）/ hr（人事）/ 空（通常）
 -- view_scope: all（全健保）/ kenpo_all（自組合全体）/ own_company（自社のみ）
 CREATE TABLE IF NOT EXISTS account (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   email         TEXT NOT NULL UNIQUE,
   name          TEXT NOT NULL,
   role          TEXT NOT NULL,
+  -- 企業担当者のサブロール（''／doctor＝産業医／hr＝人事）。産業医面談管理で使う
+  sub_role      TEXT NOT NULL DEFAULT '',
   view_scope    TEXT NOT NULL,
   can_download  INTEGER NOT NULL DEFAULT 0,
   is_primary    INTEGER NOT NULL DEFAULT 0,   -- 代表者アカウント
@@ -175,6 +179,18 @@ BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
 
 CREATE TABLE IF NOT EXISTS setting (
   key TEXT PRIMARY KEY, value TEXT NOT NULL
+);
+
+-- 機能制御（ロール・サブロールごとに使える機能を切り替える）
+-- role_key: system_admin / kenpo_user / company_user / company_user/doctor
+--           / company_user/hr
+-- feature : master.write・oh.mail などの機能キー（app.py の FEATURES）
+-- 行が無い機能は app.py の既定値（FEATURE_DEFAULTS）に従う
+CREATE TABLE IF NOT EXISTS role_feature (
+  role_key TEXT NOT NULL,
+  feature  TEXT NOT NULL,
+  allowed  INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (role_key, feature)
 );
 
 CREATE INDEX IF NOT EXISTS idx_log_ts     ON audit_log(ts);

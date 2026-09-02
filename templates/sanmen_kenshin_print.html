@@ -1,0 +1,112 @@
+{% extends LAYOUT %}
+{% from "_sanmen_flow.html" import jtag %}
+{% block body %}
+<div class="oh-toolbar oh-noprint">
+  <button class="btn-sm primary" type="button" onclick="ohPdf()">PDFをダウンロード</button>
+  <button class="btn-sm" type="button" onclick="window.print()">印刷（PDFとして保存）</button>
+  <span class="hint">{{ rows|length }}名分の健康診断結果表を作成しました（1名につき1ページ）。</span>
+</div>
+
+{% if not rows %}
+<div class="oh-doc"><h1>健康診断結果表</h1>
+  <p class="oh-doc-sub">対象者が選択されていません。一覧でチェックを付けてから出力してください。</p>
+</div>
+{% endif %}
+
+{% for r in rows %}
+<div class="oh-doc">
+  <h1>健康診断結果表</h1>
+  <p class="oh-doc-sub">{{ fy }}年度　定期健康診断　／　前年比較つき</p>
+
+  <h2>1. 受診者</h2>
+  <table>
+    <tr><th>氏名</th><td>{{ r.m.name }}（{{ r.m.kana or '' }}）</td></tr>
+    <tr><th>社員ID</th><td>{{ r.m.employee_code or '—' }}</td></tr>
+    <tr><th>企業・事業所・部署</th>
+      <td>{{ r.m.company_name or '—' }}／{{ r.m.office_name or '—' }}／{{ r.m.dept_name or '—' }}</td></tr>
+    <tr><th>年齢・性別</th>
+      <td>{{ r.age if r.age is not none else '—' }}歳／{{ r.m.sex or '—' }}</td></tr>
+    <tr><th>受診日</th><td>{{ r.exam_date or '未受診' }}</td></tr>
+    <tr><th>総合判定</th>
+      <td>{% if r.judge %}{{ r.judge }}　{{ JUDGE_LABEL[r.judge] }}
+        {% else %}—（未受診・判定なし）{% endif %}</td></tr>
+  </table>
+
+  <h2>2. 検査結果（前年比較）</h2>
+  {% if r.ken_items %}
+  <table>
+    <tr><th style="width:34%">検査項目</th><th style="width:16%">今回</th>
+      <th style="width:12%">判定</th><th style="width:16%">前年</th><th>前年比較</th></tr>
+    {% for it in r.ken_items %}
+    {% set pv = r.prev_items.get(it.name) %}
+    <tr>
+      <td>{{ it.name }}</td>
+      <td class="num">{{ it.value or '—' }}{{ it.unit or '' }}</td>
+      <td class="num">{{ it.judge or '—' }}</td>
+      <td class="num">{{ (pv.value if pv else '') or '—' }}</td>
+      <td>
+        {% if pv and pv.judge and it.judge %}
+          {% if pv.judge == it.judge %}前年と同じ判定
+          {% elif JUDGES.index(it.judge) > JUDGES.index(pv.judge) %}
+            前年より悪化（{{ pv.judge }} → {{ it.judge }}）
+          {% else %}前年より改善（{{ pv.judge }} → {{ it.judge }}）{% endif %}
+        {% else %}—{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="oh-foot">検査項目の明細データがありません（総合判定のみ登録されています）。</p>
+  {% endif %}
+  <p class="oh-foot">
+    ※ 判定区分：A 異常なし／B 軽度異常／C 要再検査・生活改善／D 要精密検査・治療／E 治療中
+    （日本人間ドック・予防医療学会 判定区分・2026年4月1日改定）。C判定以上を有所見として扱う。</p>
+
+  <h2>3. 産業医所見・面談の状況</h2>
+  <table>
+    <tr><th>抽出理由</th><td>{{ r.reason_text or '該当なし' }}</td></tr>
+    <tr><th>産業医所見</th>
+      <td>{{ (r.kenshin.findings if r.kenshin else '') or '—' }}</td></tr>
+    <tr><th>就業区分</th><td>{{ r.work_class or '未判定' }}</td></tr>
+    <tr><th>対応区分（人事）</th><td>{{ r.hr_class or '未判定' }}</td></tr>
+    <tr><th>面談の状況</th>
+      <td>{% if r.iv and r.iv.met_on %}{{ r.iv.met_on }} 実施（{{ r.iv.method or '—' }}）
+        {% else %}{{ r.status }}{% endif %}</td></tr>
+    <tr><th>最新メモ</th><td>{{ (r.memo.body if r.memo else '') or '—' }}</td></tr>
+  </table>
+
+  <p class="oh-foot">
+    出力日時：{{ fy }}年度分　／　出力者：{{ acc.name }}（{{ ROLE_NAME }}）<br>
+    本表の医学的情報は参考情報です。就業上の措置の最終判断は産業医・医師が行います。
+    要配慮個人情報を含むため、取り扱いにご注意ください。</p>
+</div>
+{% endfor %}
+
+<script src="{{ url_for('static', filename='vendor/html2canvas.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/jspdf.umd.min.js') }}"></script>
+<script>
+function ohPdf(){
+  var docs = document.querySelectorAll('.oh-doc');
+  var jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (!jsPDFCtor || !window.html2canvas){
+    alert('PDFの生成に必要な部品を読み込めませんでした。「印刷」からPDFとして保存してください。');
+    return;
+  }
+  var pdf = new jsPDFCtor({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  var i = 0;
+  function next(){
+    if (i >= docs.length){ pdf.save('健康診断結果表_{{ fy }}.pdf'); return; }
+    html2canvas(docs[i], { scale: 2, backgroundColor: '#ffffff' }).then(function(cv){
+      var w = 190, h = cv.height * w / cv.width;
+      if (i > 0) pdf.addPage();
+      pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 10, 10, w, Math.min(h, 277));
+      i++;
+      next();
+    }).catch(function(){
+      alert('PDFの生成に失敗しました。「印刷」からPDFとして保存してください。');
+    });
+  }
+  next();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,175 @@
+{% extends LAYOUT %}
+{% from "_sanmen_flow.html" import legend, sttag, jtag %}
+{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">{{ m.name }} さんの健診・面談情報</h1>
+{% endif %}
+
+<div class="block" style="margin-bottom:14px">
+  <div class="blk-head">
+    <div class="blk-head-left">
+      <h2>{{ m.name }}<span class="hint" style="margin-left:8px">{{ m.kana or '' }}</span></h2>
+      <span class="count">{{ fy }}年度</span>
+      {{ sttag(cand.status if cand else '—') }}
+    </div>
+  </div>
+  <div class="oh-grid">
+    <div><span class="fld-label">社員ID</span>
+      <div class="code">{{ m.employee_code or '—' }}</div></div>
+    <div><span class="fld-label">部署（事業所）</span>
+      <div>{{ m.dept_name or '—' }}（{{ m.office_name or '—' }}）</div></div>
+    <div><span class="fld-label">企業</span><div>{{ m.company_name or '—' }}</div></div>
+    <div><span class="fld-label">年齢・性別</span>
+      <div>{{ age if age is not none else '—' }}歳／{{ m.sex or '—' }}</div></div>
+    <div><span class="fld-label">深夜業従事</span>
+      <div>{{ '対象' if m.night_work else '対象外' }}</div></div>
+    <div><span class="fld-label">就業区分／対応区分</span>
+      <div>{{ (cand.work_class if cand and cand.work_class else '—') }}
+        ／{{ (cand.hr_class if cand else '未判定') }}</div></div>
+  </div>
+  {% if reasons %}
+  <p class="note" style="margin:12px 0 0"><b>抽出理由</b><br>
+    {% for r in reasons %}・{{ r }}<br>{% endfor %}</p>
+  {% endif %}
+  {% if cand and cand.exclude_reason %}
+  <p class="note" style="margin:10px 0 0">
+    <b>面談不要（対象外）の理由</b><br>{{ cand.exclude_reason }}</p>
+  {% endif %}
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>健康診断結果表</h2>
+      {% if ken %}<span class="count">受診日 {{ ken.exam_date or '—' }}</span>
+      <span>総合判定 {{ jtag(judge, JUDGE_LABEL) }}
+        <span class="hint">{{ JUDGE_LABEL.get(judge, '') }}</span></span>
+      {% endif %}
+    </div>
+  </div>
+  {% if ken %}
+    {% if items %}
+    <table class="result-table" style="table-layout:auto">
+      <thead><tr>
+        <th class="tl" style="width:180px">検査項目</th>
+        <th style="width:110px">今回</th>
+        <th style="width:70px">単位</th>
+        <th style="width:80px">判定</th>
+        <th style="width:110px">前年</th>
+        <th class="tl">前年比較</th>
+      </tr></thead>
+      <tbody>
+      {% for it in items %}
+      {% set pv = prev_items.get(it.name) %}
+      <tr class="ls-row">
+        <td class="tl">{{ it.name }}</td>
+        <td class="num">{{ it.value or '—' }}</td>
+        <td>{{ it.unit or '' }}</td>
+        <td>{{ jtag(it.judge, JUDGE_LABEL) }}</td>
+        <td class="num">{{ (pv.value if pv else '') or '—' }}</td>
+        <td class="tl">
+          {% if pv and pv.judge and it.judge %}
+            {% if pv.judge == it.judge %}<span class="hint">前年と同じ判定</span>
+            {% elif JUDGES.index(it.judge) > JUDGES.index(pv.judge) %}
+              <span class="st st-all">前年より悪化（{{ pv.judge }} → {{ it.judge }}）</span>
+            {% else %}
+              <span class="st st-active">前年より改善（{{ pv.judge }} → {{ it.judge }}）</span>
+            {% endif %}
+          {% else %}<span class="hint">前年のデータがありません</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-box">明細のデータがありません（総合判定のみ登録されています）。</div>
+    {% endif %}
+    {{ legend(JUDGE_LABEL) }}
+    {% if ken.findings %}
+    <p class="note" style="margin-top:12px"><b>産業医所見・特記事項</b><br>{{ ken.findings }}</p>
+    {% endif %}
+  {% else %}
+  <div class="empty-box">{{ fy }}年度の健康診断は<b>未受診</b>です（結果の登録がありません）。</div>
+  {% endif %}
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>時間外労働の推移</h2>
+      <span class="hint">月{{ OT_LIMIT }}時間超で面談候補、月{{ OT_LIMIT2 }}時間超は医師の面接指導が特に必要な水準です。</span>
+    </div>
+  </div>
+  {% if ots %}
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr><th style="width:110px">対象年月</th><th style="width:120px">時間外</th>
+      <th style="width:120px">うち休日労働</th><th class="tl">水準</th></tr></thead>
+    <tbody>
+    {% for o in ots %}
+    <tr class="ls-row">
+      <td class="code">{{ o.ym }}</td>
+      <td class="num"><b {% if o.hours > OT_LIMIT %}class="risk-高"{% endif %}>{{ '%.1f'|format(o.hours) }}</b>h</td>
+      <td class="num">{{ '%.1f'|format(o.holiday_hours or 0) }}h</td>
+      <td class="tl">
+        {% if o.hours > OT_LIMIT2 %}<span class="st st-all">{{ OT_LIMIT2 }}時間超</span>
+        {% elif o.hours > OT_LIMIT %}<span class="st st-dl">{{ OT_LIMIT }}時間超</span>
+        {% else %}<span class="hint">基準内</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty-box">労働時間データの取込がありません。</div>{% endif %}
+</div>
+
+<div class="block">
+  <div class="blk-head"><div class="blk-head-left"><h2>ストレスチェック</h2></div></div>
+  {% if st %}
+  <div class="oh-grid">
+    <div><span class="fld-label">受検日</span><div>{{ st.exam_date or '—' }}</div></div>
+    <div><span class="fld-label">合計点</span>
+      <div>{{ st.score if st.score is not none else '—' }}</div></div>
+    <div><span class="fld-label">高ストレス者</span>
+      <div>{{ '該当' if st.high else '該当なし' }}</div></div>
+    <div><span class="fld-label">面接指導の申出</span>
+      <div>{{ 'あり' if st.applied else 'なし' }}</div></div>
+  </div>
+  <p class="oh-note">回答内容は法令にもとづき保護され、人事評価には利用されません。</p>
+  {% else %}<div class="empty-box">{{ fy }}年度のストレスチェックは未受検です。</div>{% endif %}
+</div>
+
+{% if iv %}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>面談記録</h2>
+      <span class="count">{{ iv.met_on or '—' }}</span></div>
+  </div>
+  <div class="oh-grid">
+    <div><span class="fld-label">面談方法</span><div>{{ iv.method or '—' }}</div></div>
+    <div><span class="fld-label">面談目的</span><div>{{ iv.purpose or '—' }}</div></div>
+    <div><span class="fld-label">就業区分</span><div>{{ iv.work_class or '—' }}</div></div>
+    <div><span class="fld-label">記録した産業医</span><div>{{ iv.doctor or '—' }}</div></div>
+  </div>
+  {% if iv.findings %}<p class="note" style="margin-top:12px"><b>産業医所見</b><br>{{ iv.findings }}</p>{% endif %}
+  {% if iv.measure %}<p class="note" style="margin-top:8px"><b>事後措置</b><br>{{ iv.measure }}</p>{% endif %}
+  {% if iv.next_plan %}<p class="note" style="margin-top:8px"><b>次回予定</b><br>{{ iv.next_plan }}</p>{% endif %}
+</div>
+{% endif %}
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>メモ履歴</h2>
+      <span class="count">{{ memos|length }}件</span>
+      <span class="hint">新しい順。産業医・人事の双方が追記できます。</span></div>
+  </div>
+  {% if memos %}
+  {% for mo in memos %}
+  <div class="oh-memo">
+    <div class="oh-memo-m">{{ mo.created_at[:16] }}　{{ mo.author or '—' }}（{{ mo.role or '—' }}）</div>
+    {{ mo.body }}
+  </div>
+  {% endfor %}
+  {% else %}<div class="empty-box">メモはまだありません。</div>{% endif %}
+</div>
+
+<p class="oh-note">
+  表示している医学的情報は参考情報です。就業上の措置の最終判断は産業医・医師が行います。
+  この画面の内容は要配慮個人情報にあたるため、目的外の利用・社外への持ち出しはできません。</p>
+{% endblock %}

@@ -1,0 +1,167 @@
+{% extends LAYOUT %}
+{% from "_sanmen_flow.html" import legend, jtag, sttag, clip %}
+{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">{{ kind }}健康診断 受診一覧</h1>
+{% endif %}
+
+<div class="link-bar">
+  <div class="link-bar-info">
+    {% if kind == '定期' %}
+    <span class="st st-role">定期健康診断（年1回）</span>
+    <span class="dest-now ok">労働安全衛生規則 第44条</span>
+    {% else %}
+    <span class="st st-role">深夜健診（特定業務従事者・6か月ごと）</span>
+    <span class="dest-now ok">労働安全衛生規則 第45条</span>
+    {% endif %}
+    <span class="hint">加入者マスタの「深夜業従事」区分で深夜健診の対象者を判定します。</span>
+  </div>
+  <div class="actions">
+    <a class="btn-sm {{ 'primary' if kind == '定期' }}"
+       href="{{ url_for('oh.oh_kenshin', fy=fy) }}" style="text-decoration:none">定期健診</a>
+    <a class="btn-sm {{ 'primary' if kind == '深夜' }}"
+       href="{{ url_for('oh.oh_kenshin', fy=fy, kind='深夜') }}"
+       style="text-decoration:none">深夜健診</a>
+    <a class="btn-sm" href="{{ url_for('oh.oh_list', fy=fy) }}"
+       style="text-decoration:none">面談対象者一覧</a>
+    <a class="btn-sm" href="{{ url_for('oh.oh_export_csv', fy=fy, kind=kind) }}"
+       style="text-decoration:none">CSV出力</a>
+  </div>
+</div>
+
+<div class="rk-row">
+  <div class="rk-box"><span class="rk-label">対象者数</span>
+    <span class="rk-value">{{ total }}</span><span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">受診済</span>
+    <span class="rk-value">{{ done }}</span><span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">未受診</span>
+    <span class="rk-value {{ 'risk-高' if notdone }}">{{ notdone }}</span>
+    <span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">受診率</span>
+    <span class="rk-value">{{ '%.1f'|format(rate) }}</span><span class="rk-unit">％</span></div>
+  <div class="rk-box"><span class="rk-label">有所見（C判定以上）</span>
+    <span class="rk-value">{{ finding }}</span><span class="rk-unit">名</span></div>
+  <div class="rk-box"><span class="rk-label">健診区分</span>
+    <span class="rk-value" style="font-size:17px">{{ kind }}</span>
+    <span class="rk-unit">{{ fy }}年度</span></div>
+</div>
+
+<div class="block">
+  <div class="blk-head"><div class="blk-head-left"><h2>絞り込み</h2></div></div>
+  <form method="get" class="search-row" style="margin:0">
+    <input type="hidden" name="kind" value="{{ kind }}">
+    <div class="search-group"><label for="fy">受診年度</label>
+      <select id="fy" name="fy" style="width:120px" onchange="this.form.submit()">
+        {% for y in fys %}<option value="{{ y }}" {{ 'selected' if y == fy }}>{{ y }}年度</option>{% endfor %}
+      </select></div>
+    <div class="search-group"><label for="name">氏名・社員ID</label>
+      <input type="text" id="name" name="name" value="{{ f.name }}" style="width:150px"></div>
+    <div class="search-group"><label for="dept">部署・事業所</label>
+      <input type="text" id="dept" name="dept" value="{{ f.dept }}" style="width:150px"></div>
+    <div class="search-group"><label for="done">受診状況</label>
+      <select id="done" name="done" style="width:130px">
+        <option value="">すべて</option>
+        <option value="done" {{ 'selected' if f.done == 'done' }}>受診済</option>
+        <option value="not" {{ 'selected' if f.done == 'not' }}>未受診</option>
+      </select></div>
+    <div class="search-group"><label>健診判定（複数選択）</label>
+      <div class="oh-chks">
+        {% for j in JUDGES %}
+        <label><input type="checkbox" name="judge" value="{{ j }}"
+                 {{ 'checked' if j in f.judges }}> {{ j }}</label>
+        {% endfor %}
+      </div></div>
+    <button class="btn-sm primary">絞り込む</button>
+    <a class="btn-sm" href="{{ url_for('oh.oh_kenshin', fy=fy, kind=kind) }}"
+       style="text-decoration:none">条件をクリア</a>
+  </form>
+  {{ legend(JUDGE_LABEL) }}
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>{{ kind }}健診 受診状況</h2>
+      <span class="count">{{ rows|length }}件</span></div>
+  </div>
+  {% if rows %}
+  <div class="table-scroll">
+  <table class="result-table oh-table" style="table-layout:auto">
+    <thead><tr>
+      <th class="tl" style="width:90px">社員ID</th>
+      <th class="tl" style="width:140px">氏名</th>
+      <th class="tl" style="width:170px">部署（事業所）</th>
+      <th style="width:60px">年齢</th>
+      <th style="width:100px">受診状況</th>
+      <th style="width:110px">受診日</th>
+      <th style="width:96px">総合判定</th>
+      <th class="tl" style="width:190px">抽出理由</th>
+      {% if kind == '深夜' %}<th style="width:110px">深夜業従事</th>{% endif %}
+      <th style="width:140px">ステータス</th>
+      <th style="width:90px">操作</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr class="ls-row">
+      <td class="tl code">{{ r.m.employee_code or '—' }}</td>
+      <td class="tl"><b>{{ r.m.name }}</b></td>
+      <td class="tl">{{ clip((r.m.dept_name or '—') ~ '（' ~ (r.m.office_name or '—') ~ '）', '部署・事業所', 165) }}</td>
+      <td class="num">{{ r.age if r.age is not none else '—' }}</td>
+      <td>{% if r.exam_date %}<span class="st st-active">受診済</span>
+          {% else %}<span class="st st-invited">未受診</span>{% endif %}</td>
+      <td class="code">{{ r.exam_date or '—' }}</td>
+      <td>{{ jtag(r.judge, JUDGE_LABEL) }}</td>
+      <td class="tl">{{ clip(r.reason_text, '抽出理由（全文）', 185) }}</td>
+      {% if kind == '深夜' %}
+      <td>
+        {% if CAN_KENSHIN %}
+        <form method="post" action="{{ url_for('oh.oh_night') }}" style="margin:0">
+          <input type="hidden" name="member_id" value="{{ r.id }}">
+          <input type="hidden" name="back" value="{{ request.full_path }}">
+          <button class="btn-sm" type="submit">対象から外す</button>
+        </form>
+        {% else %}<span class="st st-active">対象</span>{% endif %}
+      </td>
+      {% endif %}
+      <td>{{ sttag(r.status) }}</td>
+      <td>
+        <a class="btn-sm" href="{{ url_for('oh.oh_member', mid=r.id, fy=fy) }}"
+           target="_blank" style="text-decoration:none">結果票</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-box">
+    {% if kind == '深夜' %}
+      深夜業従事の対象者が登録されていません。加入者マスタの「深夜業従事」区分を設定してください。
+    {% else %}条件に一致する対象者がいません。{% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{% if kind == '深夜' and CAN_KENSHIN %}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>深夜業従事区分の設定</h2>
+      <span class="hint">加入者を深夜健診の対象に加えます（加入者マスタの区分を更新します）。</span></div>
+  </div>
+  <form method="post" action="{{ url_for('oh.oh_night') }}" class="search-row" style="margin:0">
+    <input type="hidden" name="back" value="{{ request.full_path }}">
+    <input type="hidden" name="night_work" value="1">
+    <div class="search-group"><label for="mid">加入者ID（社員ID検索は面談対象者一覧から）</label>
+      <input type="number" id="mid" name="member_id" style="width:160px" placeholder="例 12"></div>
+    <button class="btn-sm primary">対象に加える</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="block note-card">
+  <h2>受診管理の考え方</h2>
+  <ul class="note-list">
+    <li><b>定期健康診断</b>は年1回、<b>深夜健診</b>は特定業務従事者（深夜業従事）に対して6か月ごとに実施します。</li>
+    <li>受診年度を選ぶと、その年度の受診状況（受診済／未受診）と判定に表示が切り替わります。</li>
+    <li>健診結果は「データ取込」から登録します（CSV、または本システムの健診結果連携から生成）。</li>
+  </ul>
+</div>
+{% endblock %}

@@ -3,3 +3,10 @@ server_out.log
 server_err.log
 server.out.log
 server.err.log
+
+# ローカルの作業用ファイル（DBバックアップ・送信済みメール等）
+backup/
+outbox/
+*.db.bak
+hia.db.premerge.*
+hia_initial.db

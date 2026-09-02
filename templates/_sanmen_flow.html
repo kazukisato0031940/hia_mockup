@@ -1,0 +1,77 @@
+{# 業務フローナビ（A-04）
+   「対象者スクリーニング → メール配信 → 労基署報告」の進捗を件数付きで常時表示する。
+   クリックでそれぞれの画面・絞り込みへ移動する。 #}
+{% macro flow(c, fy, cur='list') %}
+<div class="oh-flow">
+  <a href="{{ url_for('oh.oh_list', fy=fy, cond='any') }}"
+     class="{{ 'on' if cur == 'list' }}" title="健診有所見・長時間労働・高ストレスの該当者">
+    <span class="oh-step-t">① 面談候補（自動抽出）</span>
+    <span class="oh-step-n">{{ c.cand }}</span>
+    <span class="oh-step-u">名／{{ fy }}年度</span>
+  </a>
+  <a href="{{ url_for('oh.oh_list', fy=fy, status='産業医確認待ち') }}"
+     class="{{ 'warn' if c.wait }}" title="産業医の確認・承認を待っている対象者">
+    <span class="oh-step-t">② 産業医確認待ち</span>
+    <span class="oh-step-n">{{ c.wait }}</span>
+    <span class="oh-step-u">名</span>
+  </a>
+  <a href="{{ url_for('oh.oh_list', fy=fy, status='面談対象（承認済）') }}"
+     title="産業医が承認し、メール配信へ進める対象者">
+    <span class="oh-step-t">③ 面談対象（承認済）</span>
+    <span class="oh-step-n">{{ c.approved }}</span>
+    <span class="oh-step-u">名</span>
+  </a>
+  <a href="{{ url_for('oh.oh_mail', fy=fy) }}" class="{{ 'on' if cur == 'mail' }}"
+     title="受診勧奨メールの配信状況">
+    <span class="oh-step-t">④ 勧奨メール送信済</span>
+    <span class="oh-step-n">{{ c.mailed }}</span>
+    <span class="oh-step-u">名</span>
+  </a>
+  <a href="{{ url_for('oh.oh_interview', fy=fy) }}"
+     class="{{ 'on' if cur == 'interview' }}" title="面談記録の入力・実施済の確認">
+    <span class="oh-step-t">⑤ 面談完了</span>
+    <span class="oh-step-n">{{ c.done }}</span>
+    <span class="oh-step-u">名</span>
+  </a>
+  <a href="{{ url_for('oh.oh_report', fy=fy) }}" class="{{ 'on' if cur == 'report' }}"
+     title="定期健康診断結果報告書・ストレスチェック結果等報告書">
+    <span class="oh-step-t">⑥ 労基署報告</span>
+    <span class="oh-step-n">報告書</span>
+    <span class="oh-step-u">2種類</span>
+  </a>
+</div>
+{% endmacro %}
+
+{# 判定区分の凡例（学会区分 A〜E） #}
+{% macro legend(JUDGE_LABEL) %}
+<p class="oh-legend">
+  {% for j, lab in JUDGE_LABEL.items() %}
+  <span><span class="oh-j oh-j-{{ j }}">{{ j }}</span> {{ lab }}</span>
+  {% endfor %}
+  <span class="hint">日本人間ドック・予防医療学会 判定区分（2026年4月1日改定）に準拠。C判定以上を有所見として扱います。</span>
+</p>
+{% endmacro %}
+
+{# 面談ワークフローのタグ #}
+{% macro sttag(s) %}
+{% if s == '産業医確認待ち' %}<span class="oh-st oh-st-wait">{{ s }}</span>
+{% elif s == '面談対象（承認済）' %}<span class="oh-st oh-st-appr">{{ s }}</span>
+{% elif s in ('勧奨メール送信済', '面談予約済') %}<span class="oh-st oh-st-mail">{{ s }}</span>
+{% elif s == '面談完了' %}<span class="oh-st oh-st-done">{{ s }}</span>
+{% elif s == '対象外' %}<span class="oh-st oh-st-out">{{ s }}</span>
+{% else %}<span class="oh-st oh-st-none">—</span>{% endif %}
+{% endmacro %}
+
+{# 判定バッジ #}
+{% macro jtag(j, JUDGE_LABEL) %}
+{% if j %}<span class="oh-j oh-j-{{ j }}" title="{{ JUDGE_LABEL.get(j, '') }}">{{ j }}</span>
+{% else %}<span class="oh-j oh-j-none" title="未受診・判定なし">—</span>{% endif %}
+{% endmacro %}
+
+{# 長い文の冒頭表示＋マウスオーバーで全文（B-06・B-07） #}
+{% macro clip(text, title, width=170) %}
+{% if text %}
+<span class="oh-clip" tabindex="0" style="max-width:{{ width }}px">{{ text }}
+  <span class="oh-full"><b>{{ title }}</b>{{ text }}</span></span>
+{% else %}<span class="hint">—</span>{% endif %}
+{% endmacro %}

@@ -347,8 +347,8 @@ body.theme-km .perm-card.wide{background:#fdecea}
 .pick-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .pick-btn.on:hover{background:var(--primary);border-color:var(--primary)}
 .pick-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.result-table tr.pt-row.on td{background:#ebf8ff}
-body.theme-km .result-table tr.pt-row.on td{background:#e8f4ec}
+.result-table tr.pick-row.on td{background:#ebf8ff}
+body.theme-km .result-table tr.pick-row.on td{background:#e8f4ec}
 .pick-card .blk-head .count{font-weight:400}
 
 /* 権限カードのフッター（説明は左、ボタンは右下） */
@@ -412,11 +412,13 @@ body.theme-km .result-table tr.pt-row.on td{background:#e8f4ec}
   border-radius:50%;background:var(--primary);color:#fff;font-size:11px;flex:0 0 auto}
 .pick-rows{border:1px solid var(--border);border-radius:6px;background:#f7fafc;
   padding:6px;max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
-.pick-row{display:flex;align-items:center;gap:10px;padding:7px 11px;background:#fff;
+/* 縦に並べる選択リストの行。テーブルの <tr class="pick-row"> には効かせない
+   （効いてしまうと行が flex になり、表の列がヘッダーとずれる） */
+.pick-rows .pick-row{display:flex;align-items:center;gap:10px;padding:7px 11px;background:#fff;
   border:1px solid var(--border);border-radius:5px;cursor:pointer;
   transition:background .12s,border-color .12s}
-.pick-row:hover{background:#f0f7ff;border-color:#b6c2cf}
-.pick-row.on{background:#ebf8ff;border-color:var(--accent);
+.pick-rows .pick-row:hover{background:#f0f7ff;border-color:#b6c2cf}
+.pick-rows .pick-row.on{background:#ebf8ff;border-color:var(--accent);
   box-shadow:0 0 0 2px rgba(49,130,206,.25) inset;font-weight:700}
 .pr-code{font-family:'Inter',Consolas,monospace;font-size:11.5px;color:var(--gray-label);
   flex:0 0 auto;width:74px}
@@ -544,9 +546,9 @@ body.fixed-h .list-card .empty-box{flex:0 0 auto}
 .scope-head{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;
   color:var(--text-main);margin-bottom:8px}
 .scope-head .count{font-weight:400}
-.pick-row.chk-row{cursor:pointer;font-weight:400}
-.pick-row.chk-row input{margin:0 2px 0 0;flex:0 0 auto}
-.pick-row.chk-row:has(input:checked){background:#ebf8ff;border-color:var(--accent);
+.pick-rows .pick-row.chk-row{cursor:pointer;font-weight:400}
+.pick-rows .pick-row.chk-row input{margin:0 2px 0 0;flex:0 0 auto}
+.pick-rows .pick-row.chk-row:has(input:checked){background:#ebf8ff;border-color:var(--accent);
   font-weight:700}
 
 /* 加入者情報のコードで紐づける案内 */
@@ -748,3 +750,104 @@ textarea { min-height: 40px; box-sizing: border-box; }
 .jg-table td{padding:6px 8px}
 .jg-table input, .jg-table select{font-size:12.5px;height:40px;min-height:40px}
 .jg-table .btn-sm{height:40px;min-height:40px}
+
+/* ============================================================
+   産業医面談管理（対象者スクリーニング・健診受診・面談記録・労基署報告）
+   ============================================================ */
+/* 業務フローナビ（対象者スクリーニング → メール配信 → 労基署報告） */
+.oh-flow{display:flex;align-items:stretch;gap:0;margin-bottom:18px;flex-wrap:wrap;
+  background:#fff;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.oh-flow a,.oh-flow span.oh-step{flex:1 1 120px;min-width:120px;padding:10px 14px;
+  text-decoration:none;color:var(--text-main);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;gap:3px;position:relative;transition:background .12s}
+.oh-flow a:hover{background:#f0f7ff}
+.oh-flow a:last-child,.oh-flow span.oh-step:last-child{border-right:0}
+.oh-flow .oh-step-t{font-size:11px;color:var(--gray-label);font-weight:700}
+.oh-flow .oh-step-n{font-size:19px;font-weight:800;line-height:1.1}
+.oh-flow .oh-step-u{font-size:10.5px;color:#a0aec0}
+.oh-flow .on{background:#ebf8ff}
+.oh-flow .warn .oh-step-n{color:var(--error)}
+
+/* 判定バッジ（日本人間ドック・予防医療学会の判定区分 A〜E） */
+.oh-j{display:inline-block;min-width:22px;padding:2px 7px;border-radius:4px;
+  font-size:11px;font-weight:800;text-align:center}
+.oh-j-A{background:#c6f6d5;color:#22683f}
+.oh-j-B{background:#e2f4c7;color:#4d6b16}
+.oh-j-C{background:#feebc8;color:#9c5806}
+.oh-j-D{background:#fed7d7;color:#b52a2a}
+.oh-j-E{background:#e9d8fd;color:#553c9a}
+.oh-j-none{background:#edf2f7;color:#a0aec0;font-weight:700}
+.oh-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:#4a5568;
+  margin:8px 0 0}
+.oh-legend span{white-space:nowrap}
+
+/* 長い文はマウスオーバーで全文をカード表示する */
+.oh-clip{position:relative;display:inline-block;max-width:100%;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;cursor:help}
+.oh-clip .oh-full{display:none;position:absolute;left:0;top:100%;z-index:60;
+  white-space:normal;width:290px;background:#fff;border:1px solid var(--border);
+  border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:9px 11px;
+  font-size:12px;line-height:1.7;color:var(--text-main);text-align:left}
+.oh-clip:hover .oh-full,.oh-clip:focus .oh-full{display:block}
+.oh-clip .oh-full b{display:block;font-size:11px;color:var(--gray-label);margin-bottom:3px}
+
+/* 面談ワークフロー・対応区分のタグ */
+.oh-st{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10.5px;
+  font-weight:700;white-space:nowrap}
+.oh-st-wait{background:#fffaf0;color:#b7791f}
+.oh-st-appr{background:#ebf8ff;color:#2b6cb0}
+.oh-st-mail{background:#e6fffa;color:#22706b}
+.oh-st-done{background:#f0fff4;color:#276749}
+.oh-st-out{background:#f7fafc;color:#718096}
+.oh-st-none{background:transparent;color:#cbd5e0}
+
+/* 一覧の行の高さを一定に保つ */
+.oh-table td{vertical-align:middle}
+.oh-table td.oh-narrow{width:34px;text-align:center}
+.oh-note{font-size:11.5px;color:#718096;margin:4px 0 0}
+.oh-req{color:var(--error);font-size:11px;margin-left:4px}
+.oh-med{background:#fff8f8;border:1px solid #fbd5d5;border-radius:6px;padding:12px 14px;
+  margin-bottom:14px}
+.oh-med h3{margin:0 0 6px;font-size:12.5px;color:#9b2c2c}
+.oh-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.oh-grid .fld-label{margin-bottom:4px}
+.oh-memo{border-left:3px solid var(--accent);background:#f7fafc;border-radius:4px;
+  padding:8px 11px;margin-bottom:8px;font-size:12.5px;line-height:1.7}
+.oh-memo .oh-memo-m{font-size:11px;color:var(--gray-label);margin-bottom:2px}
+
+/* 提出書類（印刷・PDF用のA4レイアウト） */
+.oh-doc{background:#fff;color:#1a202c;max-width:760px;margin:0 auto 24px;padding:26px 30px;
+  border:1px solid var(--border);border-radius:6px}
+.oh-doc h1{font-size:17px;text-align:center;margin:0 0 4px;letter-spacing:.06em}
+.oh-doc h2{font-size:13px;margin:20px 0 8px;padding-bottom:4px;
+  border-bottom:1.5px solid #2d3748}
+.oh-doc .oh-doc-sub{text-align:center;font-size:11.5px;color:#4a5568;margin:0 0 18px}
+.oh-doc table{width:100%;border-collapse:collapse;font-size:12px}
+.oh-doc th,.oh-doc td{border:1px solid #718096;padding:6px 9px}
+.oh-doc th{background:#f1f5f9;text-align:left;font-weight:700;width:42%}
+.oh-doc td.num{text-align:right;font-variant-numeric:tabular-nums}
+.oh-doc .oh-sign{margin-top:22px;border:1px solid #718096;padding:12px 14px;font-size:12px}
+.oh-doc .oh-sign .oh-sign-l{font-size:11px;color:#4a5568;margin-bottom:6px}
+.oh-doc .oh-sign-name{font-size:15px;font-weight:700;letter-spacing:.08em}
+.oh-doc .oh-foot{margin-top:16px;font-size:10.5px;color:#4a5568;line-height:1.8}
+.oh-toolbar{max-width:760px;margin:0 auto 16px;display:flex;gap:10px;align-items:center;
+  flex-wrap:wrap}
+@media print{
+  .oh-toolbar,.oh-noprint{display:none !important}
+  body{background:#fff !important}
+  .oh-doc{border:0;border-radius:0;max-width:none;margin:0;padding:0;page-break-after:always}
+  .oh-doc:last-child{page-break-after:auto}
+}
+
+/* 判定区分のチェックボックスを1行にそろえる（絞り込み条件の中で使う） */
+.oh-chks{display:flex;gap:11px;align-items:center;height:40px}
+.oh-chks label{display:inline-flex;align-items:center;gap:4px;margin:0;
+  font-size:12px;font-weight:700;color:#4a5568;white-space:nowrap;cursor:pointer}
+.oh-chks input{width:16px;height:16px;padding:0;margin:0;cursor:pointer}
+
+/* 企業担当者のサブロール（なし・産業医・人事）は3列で並べる */
+#subrole-group .role-pick{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+#subrole-group .role-btn{min-width:0}
+@media (max-width:900px){
+  #subrole-group .role-pick{grid-template-columns:1fr}
+}

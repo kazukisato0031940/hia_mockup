@@ -1,0 +1,257 @@
+{% extends LAYOUT %}{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">機能制御の設定</h1>
+<p class="page-lead">権限ロール・サブロールごとに、使える機能を切り替えます。</p>
+{% endif %}
+
+<style>
+/* ============ 機能制御の設定（この画面だけのスタイル） ============ */
+.fsx{--fsx-on:#2e7d64;--fsx-line:#e4e9ee;--fsx-ink:#0f172a;--fsx-mute:#6b7a8c;}
+.fsx-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  flex-wrap:wrap;background:#fff;border:1px solid var(--fsx-line);border-radius:10px;
+  padding:12px 16px;margin-bottom:14px;}
+.fsx-bar-l{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.fsx-chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;
+  border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;}
+.fsx-chip.admin{background:#eef4f2;color:#2e7d64;border:1px solid #cfe3db;}
+.fsx-chip.on{background:#eaf6f1;color:#1f6b55;border:1px solid #bfe0d3;}
+.fsx-chip.off{background:#f4f6f8;color:#6b7a8c;border:1px solid #e2e8ee;}
+.fsx-bar-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.fsx-mini{height:30px;padding:0 12px;border:1px solid #cfd8e0;background:#fff;
+  border-radius:7px;font-size:12px;font-weight:600;color:#41525f;cursor:pointer;}
+.fsx-mini:hover{background:#f5f8fa;border-color:#b6c3ce;}
+
+.fsx-card{background:#fff;border:1px solid var(--fsx-line);border-radius:12px;
+  overflow:hidden;}
+.fsx-scroll{overflow-x:auto;}
+.fsx-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;}
+.fsx-tbl th,.fsx-tbl td{border-bottom:1px solid var(--fsx-line);}
+.fsx-tbl thead th{position:sticky;top:0;z-index:3;background:#f7f9fa;
+  padding:10px 8px;vertical-align:bottom;font-weight:600;color:var(--fsx-ink);}
+.fsx-tbl thead th.fx{text-align:left;padding-left:16px;min-width:290px;
+  position:sticky;left:0;z-index:4;background:#f7f9fa;}
+.fsx-col{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.fsx-col-base{font-size:11px;color:var(--fsx-mute);font-weight:500;line-height:1.2;}
+.fsx-col-sub{font-size:12.5px;font-weight:700;color:var(--fsx-ink);line-height:1.2;}
+.fsx-col-sub.none{color:var(--fsx-mute);font-weight:600;}
+.fsx-colbtn{margin-top:2px;height:22px;padding:0 8px;border:1px solid #d7dee5;
+  background:#fff;border-radius:6px;font-size:10.5px;color:#5a6a78;cursor:pointer;}
+.fsx-colbtn:hover{background:#eef3f6;}
+
+.fsx-grp td{background:#fbfcfd;padding:9px 16px;position:sticky;left:0;}
+.fsx-grp b{font-size:12.5px;color:#2f4f4f;letter-spacing:.04em;}
+.fsx-grp span{margin-left:8px;font-size:11px;color:var(--fsx-mute);}
+
+.fsx-tbl tbody tr:hover td{background:#fafcfd;}
+.fsx-name{text-align:left;padding:11px 16px;position:sticky;left:0;background:#fff;
+  z-index:1;}
+.fsx-tbl tbody tr:hover .fsx-name{background:#fafcfd;}
+.fsx-name b{font-size:13px;color:var(--fsx-ink);font-weight:600;}
+.fsx-name .d{margin-top:2px;font-size:11.5px;color:var(--fsx-mute);line-height:1.5;}
+.fsx-lock{display:inline-flex;align-items:center;gap:4px;margin-left:8px;height:20px;
+  padding:0 7px;border-radius:5px;background:#fff7ed;color:#b45309;
+  border:1px solid #fed7aa;font-size:10.5px;font-weight:700;vertical-align:1px;}
+.fsx-cell{text-align:center;padding:9px 8px;min-width:104px;}
+
+/* トグルスイッチ */
+.fsx-sw{position:relative;display:inline-block;width:40px;height:22px;}
+.fsx-sw input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;
+  cursor:pointer;z-index:2;}
+.fsx-sw i{position:absolute;inset:0;border-radius:999px;background:#d6dde4;
+  transition:background .15s;pointer-events:none;}
+.fsx-sw i::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;
+  border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.28);
+  transition:transform .15s;}
+.fsx-sw input:checked + i{background:var(--fsx-on);}
+.fsx-sw input:checked + i::after{transform:translateX(18px);}
+.fsx-sw input:focus-visible + i{box-shadow:0 0 0 3px rgba(46,125,100,.28);}
+.fsx-cell.chg{background:#fffbeb !important;box-shadow:inset 3px 0 0 #f59e0b;}
+.fsx-cell.na{background:#f7faf9;}
+.fsx-colbtn.all{display:inline-block;background:#eef4f2;color:#2e7d64;border-color:#cfe3db;font-weight:700;cursor:default;}
+
+.fsx-fixed td{background:#fcfcfd;}
+.fsx-fx{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;}
+.fsx-fx.y{color:#1f6b55;}
+.fsx-fx.n{color:#aab4bf;font-weight:500;}
+.fsx-dot{width:8px;height:8px;border-radius:50%;background:currentColor;display:block;}
+
+.fsx-foot{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;
+  justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px;
+  background:#fff;border:1px solid var(--fsx-line);border-radius:10px;
+  padding:11px 16px;box-shadow:0 -2px 10px rgba(15,23,42,.05);}
+.fsx-foot-l{font-size:12.5px;color:var(--fsx-mute);}
+.fsx-foot-l b{color:#b45309;}
+.fsx-foot-r{display:flex;gap:8px;align-items:center;}
+.fsx-save{height:38px;padding:0 22px;border:0;border-radius:8px;background:#2f4f4f;
+  color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;}
+.fsx-save:hover{background:#264040;}
+.fsx-save:disabled{background:#cfd8d8;color:#eef2f2;cursor:default;}
+.fsx-reset{height:38px;padding:0 16px;border:1px solid #e3c9c9;background:#fff;
+  border-radius:8px;font-size:12.5px;font-weight:600;color:#a13b3b;cursor:pointer;}
+.fsx-reset:hover{background:#fdf4f4;}
+
+.fsx-note{margin-top:16px;background:#fbfcfd;border:1px solid var(--fsx-line);
+  border-radius:12px;padding:16px 18px;}
+.fsx-note h3{margin:0 0 10px;font-size:13px;color:#2f4f4f;font-weight:700;}
+.fsx-note ul{margin:0;padding-left:18px;}
+.fsx-note li{font-size:12.5px;color:#41525f;line-height:1.85;}
+@media (max-width:820px){
+  .fsx-tbl thead th.fx,.fsx-name,.fsx-grp td{position:static;}
+}
+</style>
+
+<div class="fsx">
+  <div class="fsx-bar">
+    <div class="fsx-bar-l">
+      <span class="fsx-chip admin">当社スタッフのみ設定できます</span>
+      {% if n_over %}
+      <span class="fsx-chip on">設定を保存中（{{ n_over }}件）</span>
+      {% else %}
+      <span class="fsx-chip off">いまは初期値で動いています</span>
+      {% endif %}
+      <span class="fsx-chip off">切替できる項目 {{ n_cells }}</span>
+    </div>
+    <div class="fsx-bar-r">
+      <button class="fsx-mini" type="button" onclick="ftAll(true)">すべて利用可</button>
+      <button class="fsx-mini" type="button" onclick="ftAll(false)">すべて利用不可</button>
+      <button class="fsx-mini" type="button" onclick="ftUndo()">変更を取り消す</button>
+    </div>
+  </div>
+
+<form method="post" action="{{ url_for('feature_settings_save') }}" id="ft-form">
+  <div class="fsx-card">
+    <div class="fsx-scroll">
+      <table class="fsx-tbl">
+        <thead>
+          <tr>
+            <th class="fx">機能</th>
+            {% for c in role_cols %}
+            <th title="{{ c.full }}">
+              <div class="fsx-col">
+                <span class="fsx-col-base">{{ c.base }}</span>
+                {% if c.sub %}
+                  <span class="fsx-col-sub{{ ' none' if c.sub == 'サブロールなし' }}">（{{ c.sub }}）</span>
+                {% else %}
+                  <span class="fsx-col-sub">&nbsp;</span>
+                {% endif %}
+                {% if c.settable %}
+                <button class="fsx-colbtn" type="button"
+                        onclick="ftCol('{{ c.key }}')">列を反転</button>
+                {% else %}
+                <span class="fsx-colbtn all" title="機能制御の対象外です">全機能</span>
+                {% endif %}
+              </div>
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+        {% for group, items in groups %}
+          <tr class="fsx-grp">
+            <td colspan="{{ role_cols|length + 1 }}">
+              <b>{{ group }}</b><span>{{ items|length }}機能</span>
+            </td>
+          </tr>
+          {% for it in items %}
+          <tr class="{{ 'fsx-fixed' if it.fixed }}">
+            <td class="fsx-name">
+              <b>{{ it.label }}</b>
+              {% if it.fixed %}<span class="fsx-lock">🔒 固定</span>{% endif %}
+              <div class="d">{{ it.desc }}</div>
+            </td>
+            {% for rk in role_keys %}
+            <td class="fsx-cell{{ ' na' if rk == all_role_key and not it.fixed }}">
+              {% if it.fixed or rk == all_role_key %}
+                {% if matrix[rk][it.key] %}
+                  <span class="fsx-fx y"><i class="fsx-dot"></i>利用可</span>
+                {% else %}
+                  <span class="fsx-fx n">—</span>
+                {% endif %}
+              {% else %}
+                <label class="fsx-sw">
+                  <input type="checkbox" class="ft-chk" name="allow"
+                         value="{{ rk }}|{{ it.key }}" data-rk="{{ rk }}"
+                         {{ 'checked' if matrix[rk][it.key] }}
+                         aria-label="{{ role_labels[rk] }}／{{ it.label }}"><i></i>
+                </label>
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="fsx-foot">
+    <div class="fsx-foot-l" id="ft-status">変更はありません</div>
+    <div class="fsx-foot-r">
+      <button class="fsx-reset" type="submit" name="reset" value="1"
+              onclick="return confirm('機能制御を初期値に戻します。よろしいですか？')">
+        初期値に戻す</button>
+      <button class="fsx-save" type="submit" id="ft-save" disabled>この内容で保存する</button>
+    </div>
+  </div>
+</form>
+
+  <div class="fsx-note">
+    <h3>設定の考え方</h3>
+    <ul>
+      <li>オフにした機能は、その<b>画面・ボタンを表示せず</b>、URLを直接呼び出した場合も
+        <b>403で拒否して操作ログに記録</b>します。</li>
+      <li><b>{{ all_role or '当社スタッフ' }}は機能制御の対象外です。</b>
+        システムの管理者なので、設定に関係なく<b>すべての機能を利用できます</b>
+        （この列は切り替えられません）。ただし下の「固定」の機能は除きます。</li>
+      <li><b>「固定」の機能は変更できません。</b>面談対象の承認・就業区分の判定・面談結果の記録・
+        報告書への記名は<b>医学的判断</b>であり、労働安全衛生法の考え方にもとづき
+        <b>{{ fixed_role or '産業医' }}のみ</b>が行います。</li>
+      <li>CSVのダウンロードは、ここでの設定と<b>アカウントごとのダウンロード権限</b>の
+        両方が「可」の場合だけ行えます。</li>
+      <li>この設定はロール単位です。特定の人だけ範囲を変えたい場合は、
+        アカウント管理で<b>担当する範囲</b>を調整してください。</li>
+      <li>変更内容は操作ログに記録され、<b>各アカウントの次のアクセスから</b>適用されます。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function(){
+  var chks = [].slice.call(document.querySelectorAll('.ft-chk'));
+  chks.forEach(function(c){ c.dataset.init = c.checked ? '1' : '0'; });
+
+  function refresh(){
+    var n = 0;
+    chks.forEach(function(c){
+      var changed = (c.checked ? '1' : '0') !== c.dataset.init;
+      var td = c.closest('.fsx-cell');
+      if(td) td.classList.toggle('chg', changed);
+      if(changed) n++;
+    });
+    var st = document.getElementById('ft-status');
+    var sv = document.getElementById('ft-save');
+    if(st) st.innerHTML = n ? ('変更 <b>' + n + '件</b>（黄色の欄が変更点です）')
+                            : '変更はありません';
+    if(sv) sv.disabled = (n === 0);
+  }
+  chks.forEach(function(c){ c.addEventListener('change', refresh); });
+
+  window.ftAll = function(on){
+    chks.forEach(function(c){ c.checked = !!on; });
+    refresh();
+  };
+  window.ftCol = function(rk){
+    var col = chks.filter(function(c){ return c.dataset.rk === rk; });
+    var on = col.some(function(c){ return !c.checked; });   // 1つでも未設定なら全部オン
+    col.forEach(function(c){ c.checked = on; });
+    refresh();
+  };
+  window.ftUndo = function(){
+    chks.forEach(function(c){ c.checked = c.dataset.init === '1'; });
+    refresh();
+  };
+  refresh();
+})();
+</script>
+{% endblock %}

@@ -15,6 +15,8 @@ import sys
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "hia.db")
 SCHEMA = os.path.join(BASE, "schema.sql")
+# 産業医面談管理の追加テーブル（新規作成でも移行でも、常にこのファイルを適用する）
+SCHEMA_SANMEN = os.path.join(BASE, "schema_sanmen.sql")
 
 # 旧ロール名 → 新ロール名
 ROLE_MAP = {
@@ -44,6 +46,23 @@ def add_col(con, table, col, decl, log):
         log.append(f"{table}.{col} を追加")
 
 
+def apply_sanmen(con, log):
+    """産業医面談管理のテーブルを作成する（CREATE TABLE IF NOT EXISTS のため何度でも安全）"""
+    if not os.path.exists(SCHEMA_SANMEN):
+        return
+    before = tables(con)
+    with open(SCHEMA_SANMEN, encoding="utf-8") as f:
+        con.executescript(f.read())
+    # 深夜業従事区分（深夜健診の対象者判定に使う）
+    if "night_work" not in cols(con, "member"):
+        con.execute("ALTER TABLE member ADD COLUMN night_work INTEGER NOT NULL DEFAULT 0")
+        log.append("member に night_work（深夜業従事）を追加")
+    added = sorted(t for t in tables(con) - before if t.startswith("oh_"))
+    if added:
+        log.append(f"産業医面談管理のテーブルを追加（{len(added)}件）")
+    con.commit()
+
+
 def ensure_schema(db_path=DB, verbose=False):
     """新規なら schema.sql で作成、既存なら不足分を移行する。戻り値は実施内容のリスト。"""
     fresh = not os.path.exists(db_path)
@@ -55,8 +74,9 @@ def ensure_schema(db_path=DB, verbose=False):
         with open(SCHEMA, encoding="utf-8") as f:
             con.executescript(f.read())
         con.commit()
+        apply_sanmen(con, log)
         con.close()
-        return ["データベースを新規作成しました"]
+        return ["データベースを新規作成しました"] + log
 
     con.execute("PRAGMA foreign_keys = OFF")
 
@@ -66,6 +86,17 @@ def ensure_schema(db_path=DB, verbose=False):
     add_col(con, "account", "reset_expire", "TEXT", log)
     add_col(con, "account", "reset_at", "TEXT", log)
     add_col(con, "account", "updated_at", "TEXT", log)
+    # 企業担当者のサブロール（産業医・人事）
+    add_col(con, "account", "sub_role", "TEXT NOT NULL DEFAULT ''", log)
+    # 旧構成（産業医・人事を独立したロールにしていたもの）を
+    # 「企業担当者＋サブロール」へ付け替える
+    for old_role in ("doctor", "hr"):
+        n = con.execute("SELECT COUNT(*) c FROM account WHERE role=?",
+                        (old_role,)).fetchone()["c"]
+        if n:
+            con.execute("UPDATE account SET role='company_user', sub_role=? WHERE role=?",
+                        (old_role, old_role))
+            log.append(f"ロール {old_role} を 企業担当者＋サブロール へ付け替え（{n} 件）")
 
     # ロール名の付け替え
     for old, new in ROLE_MAP.items():
@@ -419,6 +450,21 @@ def ensure_schema(db_path=DB, verbose=False):
         CREATE INDEX IF NOT EXISTS idx_ac_company  ON account_company(company_id);
     """)
     con.commit()
+
+    # ---------- 9. 機能制御（ロール・サブロールごとの利用可否） ----------
+    if "role_feature" not in tables(con):
+        con.execute("""
+            CREATE TABLE role_feature (
+              role_key TEXT NOT NULL,
+              feature  TEXT NOT NULL,
+              allowed  INTEGER NOT NULL DEFAULT 1,
+              PRIMARY KEY (role_key, feature)
+            )""")
+        log.append("機能制御のテーブル（role_feature）を追加")
+        con.commit()
+
+    # ---------- 10. 産業医面談管理のテーブル ----------
+    apply_sanmen(con, log)
     con.execute("PRAGMA foreign_keys = ON")
     ok = con.execute("PRAGMA foreign_key_check").fetchall()
     if ok:
