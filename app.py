@@ -602,15 +602,19 @@ def account_scope_ids(aid):
     return out
 
 
-def set_account_scopes(aid, scopes):
-    """担当範囲を置き換える。企業は従来の account_company にも反映する。"""
+def set_account_scopes(aid, scopes, companies=None):
+    """担当範囲を置き換える。企業は従来の account_company にも反映する。
+    companies を渡すと account_company にはそちら（まるごと＋絞り込み対象の親企業）を入れる。
+    渡さなければ従来どおり scopes["company"] を使う。"""
     db = get_db()
     db.execute("DELETE FROM account_scope WHERE account_id=?", (aid,))
     for kind in ("company", "office", "dept"):
         for rid in dict.fromkeys(scopes.get(kind) or []):
             db.execute("INSERT OR IGNORE INTO account_scope (account_id, kind, ref_id)"
                        " VALUES (?,?,?)", (aid, kind, rid))
-    set_account_companies(aid, scopes.get("company") or [])
+    if companies is None:
+        companies = scopes.get("company") or []
+    set_account_companies(aid, list(dict.fromkeys(companies)))
 
 
 def scope_summary(scopes):
@@ -4404,11 +4408,16 @@ def _resolve_scope(acc, role, company_ids, office_ids=None, dept_ids=None):
     - 事業所は選択企業の配下、部署は選択事業所の配下に限る（企業を跨いだ指定はできない）。
     - 企業配下の事業所を1つも選ばなければ、その企業まるごとが担当範囲。
       1つ以上選んだ場合は企業まるごとの担当を外し、選んだ事業所（＋部署）だけに絞る。
-    指定できるのは発行者の操作範囲内のものだけ。"""
+    指定できるのは発行者の操作範囲内のものだけ。
+    戻り値は (view_scope, scopes, rejected, rel_companies)。
+    - scopes … 実際の閲覧範囲。company は「まるごと担当」の企業だけ（絞り込んだ企業は含めない）。
+    - rel_companies … この担当が関わる企業すべて（まるごと＋絞り込み対象の親企業）。
+      account_company・確認画面・編集画面の企業選択の復元に使う。確認画面の再送信で
+      親企業が失われて絞り込みが消えるのを防ぐ。"""
     if role == "system_admin":
-        return "all", {"company": [], "office": [], "dept": []}, []
+        return "all", {"company": [], "office": [], "dept": []}, [], []
     if role == "kenpo_user":
-        return "kenpo_all", {"company": [], "office": [], "dept": []}, []
+        return "kenpo_all", {"company": [], "office": [], "dept": []}, [], []
     offs = scoped_offices(acc)
     depts = scoped_departments(acc)
     ok_c = {c["id"] for c in scoped_companies(acc)}
@@ -4426,10 +4435,13 @@ def _resolve_scope(acc, role, company_ids, office_ids=None, dept_ids=None):
     off_sel = [o["id"] for o in offs if o["id"] in set(want_o) and o["company_id"] in cset]
     oset = set(off_sel)
     dept_sel = [d["id"] for d in depts if d["id"] in set(want_d) and d["office_id"] in oset]
+    # 選択した企業すべて（まるごと＋絞り込み対象の親企業）。account_company に入れる。
+    rel_companies = list(comp_sel)
     # 事業所を選んだ企業は「まるごと担当」から外す（選んだ事業所・部署だけに絞る）
     narrowed = {o["company_id"] for o in offs if o["id"] in oset}
-    comp_sel = [c for c in comp_sel if c not in narrowed]
-    return "own_company", {"company": comp_sel, "office": off_sel, "dept": dept_sel}, rejected
+    scope_c = [c for c in comp_sel if c not in narrowed]
+    return ("own_company", {"company": scope_c, "office": off_sel, "dept": dept_sel},
+            rejected, rel_companies)
 
 
 @app.route("/accounts/new", methods=["GET", "POST"])
@@ -4469,8 +4481,8 @@ def accounts_new():
 
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    view_scope, scopes, rejected = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
-    company_ids = scopes["company"]
+    view_scope, scopes, rejected, rel_c = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
+    company_ids = rel_c
     if view_scope == "own_company":
         if rejected:
             errs.append("選択した企業・事業所・部署のうち、操作する権限のないものが含まれています。")
@@ -4525,8 +4537,8 @@ def accounts_create():
         return redirect(url_for("accounts_new"))
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    view_scope, scopes, rejected = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
-    company_ids = scopes["company"]
+    view_scope, scopes, rejected, rel_c = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
+    company_ids = rel_c
     if view_scope == "own_company":
         if rejected:
             log("account", "アカウント発行をブロック", "blocked", target=email,
@@ -4552,13 +4564,13 @@ def accounts_create():
         " VALUES (?,?,?,?,?,?,?,?,?,'invited',?,?,?)",
         (email, name, role, srole, view_scope, can_dl, is_primary, kenpo_id, None,
          token, expire, acc["email"]))
-    set_account_scopes(cur.lastrowid, scopes)
+    set_account_scopes(cur.lastrowid, scopes, rel_c)
     db.commit()
     log("account", "アカウントを発行", "success", target=email,
         detail=(f"ロール={ROLE_LABELS[role]}"
                 + (f"（{SUB_ROLE_LABELS[srole]}）" if srole else "")
                 + f"／閲覧範囲={SCOPE_LABELS[view_scope]}"
-                + (f"（{company_names(company_ids)}）" if company_ids else "")
+                + (f"（{company_names(scopes['company'])}）" if scopes.get("company") else "")
                 + f"／担当範囲={scope_summary(scopes)}"
                 + f"／{'代表者／' if is_primary else ''}"
                 f"閲覧対象={vis['total']}件（{vis['companies']}社・{vis['offices']}事業所）"
@@ -4613,8 +4625,8 @@ def accounts_edit(aid):
         errs.append(f"「{ROLE_LABELS.get(role, role)}」へ変更する権限がありません。")
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    view_scope, scopes, rejected = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
-    company_ids = scopes["company"]
+    view_scope, scopes, rejected, rel_c = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
+    company_ids = rel_c
     if view_scope == "own_company":
         if rejected:
             errs.append("選択した企業・事業所・部署のうち、操作する権限のないものが含まれています。")
@@ -4696,8 +4708,8 @@ def accounts_edit_apply(aid):
         return redirect(url_for("accounts_edit", aid=aid))
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    view_scope, scopes, rejected = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
-    company_ids = scopes["company"]
+    view_scope, scopes, rejected, rel_c = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
+    company_ids = rel_c
     if view_scope == "own_company":
         if rejected:
             log("account", "権限変更をブロック", "blocked", target=row["email"],
@@ -4752,7 +4764,7 @@ def accounts_edit_apply(aid):
     db.execute("UPDATE account SET name=?, role=?, sub_role=?, view_scope=?, kenpo_id=?,"
                " can_download=?, is_primary=?, updated_at=? WHERE id=?",
                (name, role, srole, view_scope, kenpo_id, can_dl, is_primary, now(), aid))
-    set_account_scopes(aid, scopes)
+    set_account_scopes(aid, scopes, rel_c)
     db.commit()
     log("account", "アカウントの権限を変更", "success", target=row["email"],
         detail=("／".join(f"{k} {a} → {b2}" for k, a, b2 in changes) or "変更なし")
