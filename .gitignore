@@ -10,3 +10,7 @@ outbox/
 *.db.bak
 hia.db.premerge.*
 hia_initial.db
+
+# 要件定義・設計資料、モックアップ（ローカル成果物のため追跡しない）
+docs/
+mockups/
