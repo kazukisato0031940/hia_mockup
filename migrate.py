@@ -57,6 +57,13 @@ def apply_sanmen(con, log):
     if "night_work" not in cols(con, "member"):
         con.execute("ALTER TABLE member ADD COLUMN night_work INTEGER NOT NULL DEFAULT 0")
         log.append("member に night_work（深夜業従事）を追加")
+    if "excluded" not in cols(con, "member"):
+        con.execute("ALTER TABLE member ADD COLUMN excluded INTEGER NOT NULL DEFAULT 0")
+        log.append("member に excluded（健診の対象から除外）を追加")
+    # 加入者向けサイトの本人確認（認証）で使う項目のパターン
+    if "auth_pattern" not in cols(con, "kenpo"):
+        con.execute("ALTER TABLE kenpo ADD COLUMN auth_pattern TEXT NOT NULL DEFAULT 'A'")
+        log.append("kenpo に auth_pattern（認証方式）を追加")
     added = sorted(t for t in tables(con) - before if t.startswith("oh_"))
     if added:
         log.append(f"産業医面談管理のテーブルを追加（{len(added)}件）")

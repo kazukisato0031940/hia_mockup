@@ -1,10 +1,12 @@
 {% extends LAYOUT %}
 {% block body %}
+{% if not request.args.get('preview') %}
 <div class="oh-toolbar oh-noprint">
   <button class="btn-sm primary" type="button" onclick="ohPdf()">PDFをダウンロード</button>
   <button class="btn-sm" type="button" onclick="window.print()">印刷（PDFとして保存）</button>
   <span class="hint">「印刷」から出力先に「PDFとして保存」を選ぶと、そのままPDFになります。</span>
 </div>
+{% endif %}
 
 {% if kind == 'kenshin' %}
 {# ============ 定期健康診断結果報告書（労働安全衛生規則 様式第6号 準拠） ============ #}

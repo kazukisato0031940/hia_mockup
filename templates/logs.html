@@ -39,16 +39,24 @@
   {% if rows %}
   <div class="table-scroll">
   <table class="result-table" style="table-layout:auto">
-    <thead><tr><th style="width:145px">日時</th><th style="width:100px">画面</th><th style="width:80px">区分</th>
-      <th class="tl">操作</th><th style="width:75px">結果</th><th class="tl">実行者</th>
-      <th style="width:115px">IPアドレス</th><th class="tl">対象</th><th class="tl">詳細</th></tr></thead>
+    <!-- 列幅は「列幅の標準」（.col-*）に合わせています。
+         「操作内容」「対象」「詳細」は長文なので残り幅を受けます -->
+    <colgroup>
+      <col class="col-date"><col class="col-status"><col class="col-flag">
+      <col class="col-long"><col class="col-flag"><col class="col-name">
+      <col class="col-num"><col class="col-long"><col class="col-long">
+    </colgroup>
+    <thead><tr><th>日時</th><th>画面</th><th>区分</th>
+      <th class="tl">操作内容</th><th>結果</th><th class="tl">実行者</th>
+      <th>IPアドレス</th><th class="tl">対象</th><th class="tl">詳細</th></tr></thead>
     <tbody>
     {% for r in rows %}
     <tr class="{{ 'bad' if r.result!='success' }}">
       <td class="ts">{{ r.ts }}</td>
       <td>{{ {'km':'総合管理','kenpo':'健保管理'}.get(r.shell, '—') }}</td>
-      <td>{{ r.category }}</td><td class="tl">{{ r.action }}</td>
-      <td class="res-{{ r.result }}">{{ {'success':'成功','failure':'失敗','blocked':'ブロック'}.get(r.result, r.result) }}</td>
+      <td><span class="st-label">{{ r.category }}</span></td>
+      <td class="tl">{{ r.action }}</td>
+      <td class="res-{{ r.result }}"><span class="st-label {{ 'ok' if r.result == 'success' else ('ng' if r.result == 'failure' else 'warn') }}">{{ {'success':'成功','failure':'失敗','blocked':'ブロック'}.get(r.result, r.result) }}</span></td>
       <td class="tl code">{{ r.actor_email or '—' }}</td><td class="code">{{ r.ip }}</td>
       <td class="tl">{{ r.target or '—' }}</td><td class="tl wrap">{{ r.detail or '' }}</td>
     </tr>
@@ -57,6 +65,48 @@
   </table>
   </div>
   {% else %}<div class="empty-box">条件に一致するログがありません。</div>{% endif %}
+</div>
+
+{# ============ 配信ログ（メール配信管理から移しました） ============ #}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>配信ログ</h2>
+      <span class="count">直近{{ mails|length }}件</span></div>
+    <div class="actions">
+      <a class="btn-sm" href="{{ url_for('logs_mail_export') }}"
+         style="text-decoration:none">CSV出力</a>
+    </div>
+  </div>
+  {% if mails %}
+  <div class="table-scroll">
+  <table class="result-table" style="table-layout:auto">
+    <colgroup>
+      <col class="col-dt"><col class="col-status"><col class="col-long">
+      <col class="col-flag"><col class="col-flag"><col class="col-flag">
+      <col class="col-flag"><col class="col-long">
+    </colgroup>
+    <thead><tr><th>配信日時</th><th>メール種別</th><th class="tl">テンプレート名</th>
+      <th>宛先数</th><th>成功</th><th>失敗</th><th>スキップ</th>
+      <th class="tl">実行者</th></tr></thead>
+    <tbody>
+    {% for m in mails %}
+    <tr class="ls-row">
+      <td class="ts">{{ m.sent_at }}</td>
+      <td><span class="st-label info">{{ m.kind }}</span></td>
+      <td class="tl" title="{{ m.tpl }}">{{ m.tpl }}</td>
+      <td class="num">{{ m.n }}</td>
+      <td class="num">{{ m.ok }}</td>
+      <td class="num">{{ m.ng }}</td>
+      <td class="num">{{ m.sk }}</td>
+      <td class="tl code">{{ m.actor or '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="hint">1回の配信（同じ日時・種別・テンプレート）を1行にまとめ、件数だけを出しています。
+    宛先の氏名やメールアドレスは表示しません。</p>
+  {% else %}<div class="empty-box">配信ログはまだありません。</div>{% endif %}
 </div>
 
 <script>

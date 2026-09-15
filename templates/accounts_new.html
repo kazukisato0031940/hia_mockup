@@ -2,6 +2,11 @@
 <h1 class="page-title">アカウントの登録</h1>
 <p class="page-lead">権限ロールを選ぶと、閲覧範囲は自動で決まります。範囲を手で指定することはできません。</p>
 
+{# 入力の不備で戻ってきたとき（form あり）は、選んでいた内容をそのまま表示する #}
+{% set fr  = (form.role if form else '') or '' %}
+{% set fsr = (form.sub_role if form else '') or '' %}
+{% set fo  = (form.getlist('office_ids') if form else []) %}
+{% set fd  = (form.getlist('dept_ids') if form else []) %}
 <form method="post">
 <div class="form-grid">
   <div class="block">
@@ -14,7 +19,8 @@
         value="{{ (form.name if form else '') or '' }}"></div>
     <hr class="switch-sep">
     <label class="switch">
-      <input type="checkbox" name="is_primary" value="1">
+      <input type="checkbox" name="is_primary" value="1"
+             {{ 'checked' if form and form.is_primary }}>
       <span class="track"></span>
       <span class="sw-body"><b>代表者アカウント</b>
         <span>健保・企業の代表者として登録します。一覧の先頭に表示されます。</span></span>
@@ -32,7 +38,8 @@
       <div class="role-pick">
         {% for r in roles %}
         <label class="role-btn">
-          <input type="radio" name="role" value="{{ r }}" {{ 'checked' if loop.first }}>
+          <input type="radio" name="role" value="{{ r }}"
+                 {{ 'checked' if (fr == r) or (not fr and loop.first) }}>
           <span class="role-box"><b>{{ ROLE_LABELS[r] }}</b><em>{{ SCOPE_OF[r] }}</em></span>
         </label>
         {% endfor %}
@@ -41,15 +48,16 @@
       <label>サブロール（企業担当者のみ）</label>
       <div class="role-pick">
         <label class="role-btn">
-          <input type="radio" name="sub_role" value="" checked>
+          <input type="radio" name="sub_role" value="" {{ 'checked' if not fsr }}>
           <span class="role-box"><b>なし（通常）</b><em>マスタ・加入者情報などの通常業務</em></span>
         </label>
         <label class="role-btn">
-          <input type="radio" name="sub_role" value="doctor">
+          <input type="radio" name="sub_role" value="doctor"
+                 {{ 'checked' if fsr == 'doctor' }}>
           <span class="role-box"><b>産業医</b><em>面談の承認・就業区分・面談記録・記名</em></span>
         </label>
         <label class="role-btn">
-          <input type="radio" name="sub_role" value="hr">
+          <input type="radio" name="sub_role" value="hr" {{ 'checked' if fsr == 'hr' }}>
           <span class="role-box"><b>人事</b><em>取込・メール配信・対応区分・出力</em></span>
         </label>
       </div>
@@ -58,7 +66,8 @@
     </div>
     <hr class="switch-sep">
     <label class="switch">
-      <input type="checkbox" name="can_download" value="1">
+      <input type="checkbox" name="can_download" value="1"
+             {{ 'checked' if form and form.can_download }}>
       <span class="track"></span>
       <span class="sw-body"><b>CSVのダウンロードを許可する</b>
         <span>既定は不許可です。1回あたり {{ '{:,}'.format(MAX_EXPORT_ROWS) }} 件が上限です。
@@ -76,7 +85,7 @@
 {# ---- 事業所・部署も担当範囲に加えられる（企業を跨いで選べる） ---- #}
 <div class="block" id="card-scope">
   <h2>担当する事業所・部署（任意）</h2>
-  <p class="note" style="margin-bottom:12px">
+  <p class="note" style="margin-bottom:12px;">
     上で選んだ企業のほかに、<b>他の企業の事業所や部署だけ</b>を担当させることもできます。
     企業・事業所・部署は<b>跨いで何件でも</b>選べます。選んだものすべての加入者が対象になります。</p>
 
@@ -90,7 +99,8 @@
       <div class="pick-rows" id="sc-offs">
         {% for o in offs %}
         <label class="pick-row chk-row" data-text="{{ o.company_name }} {{ o.name }} {{ o.ext_code or o.code }}">
-          <input type="checkbox" name="office_ids" value="{{ o.id }}">
+          <input type="checkbox" name="office_ids" value="{{ o.id }}"
+                 {{ 'checked' if o.id|string in fo }}>
           <span class="pr-code">{{ o.ext_code or o.code }}</span>
           <span class="pr-name">{{ o.company_name }}　／　{{ o.name }}</span>
         </label>
@@ -108,7 +118,8 @@
         {% for d in depts %}
         <label class="pick-row chk-row"
                data-text="{{ d.company_name }} {{ d.office_name }} {{ d.name }} {{ d.ext_code or d.code }}">
-          <input type="checkbox" name="dept_ids" value="{{ d.id }}">
+          <input type="checkbox" name="dept_ids" value="{{ d.id }}"
+                 {{ 'checked' if d.id|string in fd }}>
           <span class="pr-code">{{ d.ext_code or d.code }}</span>
           <span class="pr-name">{{ d.company_name }}　／　{{ d.office_name }}　／　{{ d.name }}</span>
         </label>
@@ -120,7 +131,7 @@
 </div>
 
 <div class="actions" style="justify-content:flex-end">
-  <a class="btn-back" href="{{ url_for('accounts') }}" style="text-decoration:none">中止する</a>
+  <a class="btn-back" href="{{ url_for('accounts') }}" style="text-decoration:none">キャンセル</a>
   <button class="btn-submit">確認画面へ進む</button>
 </div>
 </form>

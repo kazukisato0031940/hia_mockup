@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}HIA{% endblock %}</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500;700;900&family=Noto+Sans+JP:wght@300;400;500;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ ASSET_V }}">
 <style>body{margin:0}</style>
 </head>
 <body class="theme-{{ SHELL }}">
@@ -33,7 +36,7 @@
     {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
   {% endwith %}
   {% block body %}{% endblock %}
-  <p class="hint" style="text-align:right;margin-top:26px">build {{ BUILD }}</p>
+  <p class="hint" style="text-align:right;margin-top:26px;">build {{ BUILD }}</p>
 </div>
 
 <script>

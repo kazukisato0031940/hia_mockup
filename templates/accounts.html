@@ -46,17 +46,19 @@
   </div>
   {% if rows %}
   <div class="table-scroll">
-  <table class="result-table">
+  <table class="result-table acc-table" style="min-width:1560px">
+    <!-- 列幅は「列幅の標準」（.col-*）に合わせています。利用者名160px／
+         メールアドレス220px。残り幅は健康保険組合名・所属企業名が受けます -->
     <colgroup>
-      <col style="width:12%"><col style="width:18%"><col style="width:8%">
-      <col style="width:8%"><col style="width:10%"><col style="width:10%">
-      <col style="width:52px"><col style="width:74px"><col style="width:96px">
-      <col style="width:96px"><col style="width:158px">
+      <col class="col-user"><col class="col-mail"><col class="col-status">
+      <col class="col-status"><col class="col-long"><col class="col-long">
+      <col class="col-flag"><col class="col-status"><col class="col-dt">
+      <col class="col-ops">
     </colgroup>
     <thead><tr><th class="tl">利用者名</th><th class="tl">メールアドレス</th><th>権限ロール</th>
       <th>閲覧範囲</th><th class="tl">健康保険組合名</th><th class="tl">所属企業名</th>
-      <th>DL</th><th>状態</th>
-      <th>登録日</th><th>最終<br>ログイン</th>
+      <th>DL</th><th>ステータス</th>
+      <th>最終ログイン</th>
       <th class="ops">操作</th></tr></thead>
     <tbody>
     {% for r in rows %}
@@ -67,26 +69,24 @@
         data-company="{{ (r.companies + r.scopes) | join(' ') }}"
         data-role="{{ role_full(r) }}"
         data-status="{{ STATUS_LABELS.get(r.status, r.status) }}">
-      <td class="tl"><span class="ellip w130" title="{{ r.name }}">{{ r.name }}</span>{% if r.is_primary %}<span class="st st-role" style="margin-left:6px">代表者</span>{% endif %}</td>
-      <td class="tl code"><span class="ellip" title="{{ r.email }}">{{ r.email }}</span></td>
-      <td class="wrap"><span class="st st-role" title="{{ role_full(r) }}">{{ ROLE_LABELS.get(r.role, r.role) }}</span>
-        {% if sub_role_of(r) %}<div style="margin-top:4px"><span class="st st-dl"
-          title="サブロール">{{ SUB_ROLE_LABELS[sub_role_of(r)] }}</span></div>{% endif %}</td>
-      <td><span class="st {{ 'st-own' if r.view_scope=='own_company' else 'st-all' }}"
-                title="{{ SCOPE_LABELS[r.view_scope] }}">{{ SCOPE_LABELS[r.view_scope] }}</span></td>
-      <td class="tl"><span class="ellip w150" title="{{ r.kenpo_name or '—' }}">{{ r.kenpo_name or '—' }}</span></td>
+      <td class="tl"><span class="ellip w110" title="{{ r.name }}">{{ r.name }}</span>{% if r.is_primary %}<span class="st st-role" style="margin-left:6px">代表者</span>{% endif %}</td>
+      <td class="tl code"><span class="ellip wfull" title="{{ r.email }}">{{ r.email }}</span></td>
+      <td class="wrap"><span title="{{ role_full(r) }}">{{ ROLE_LABELS.get(r.role, r.role) }}</span>
+        {% if sub_role_of(r) %}<div style="margin-top:2px" class="hint"
+          title="サブロール">{{ SUB_ROLE_LABELS[sub_role_of(r)] }}</div>{% endif %}</td>
+      <td><span class="ellip" title="{{ SCOPE_LABELS[r.view_scope] }}">{{ SCOPE_LABELS[r.view_scope] }}</span></td>
+      <td class="tl"><span class="ellip wfull" title="{{ r.kenpo_name or '—' }}">{{ r.kenpo_name or '—' }}</span></td>
       <td class="tl">
         {% if r.companies or r.scopes %}
-        <span class="ellip w150"
+        <span class="ellip wfull"
               title="{{ (r.companies + r.scopes) | join('、') }}">{{ (r.companies + r.scopes)[0] }}</span>
         {% set n = (r.companies + r.scopes) | length %}
-        {% if n > 1 %}<span class="st st-role"
+        {% if n > 1 %}<span class="hint"
           title="{{ (r.companies + r.scopes) | join('、') }}">他{{ n - 1 }}件</span>{% endif %}
         {% else %}—{% endif %}
       </td>
-      <td>{% if r.can_download %}<span class="st st-dl">可</span>{% else %}不可{% endif %}</td>
-      <td><span class="st st-{{ r.status }}">{{ STATUS_LABELS.get(r.status, r.status) }}</span></td>
-      <td class="ts">{{ r.created_at[:10] if r.created_at else '—' }}</td>
+      <td>{% if r.can_download %}可{% else %}不可{% endif %}</td>
+      <td><span class="st-label {{ 'ok' if r.status == 'active' else ('warn' if r.status == 'invited' else ('ng' if r.status == 'deleted' else '')) }}">{{ STATUS_LABELS.get(r.status, r.status) }}</span></td>
       <td class="ts">{% if r.last_login_at %}
         <span title="{{ r.last_login_at }}">{{ r.last_login_at[:10] }}<br>
         <span class="hint">{{ r.last_login_at[11:16] }}</span></span>
@@ -101,24 +101,17 @@
             自分の情報を編集</a>
           <div class="hint" style="margin-top:4px">権限の変更は他の管理者へ依頼してください</div>
         {% else %}
-          {% if r.status in ('invited', 'active') %}
-          <a class="btn-sm" href="{{ url_for('accounts_invite_link', aid=r.id) }}"
+          <a class="btn-sm primary btn-edit" href="{{ url_for('accounts_edit', aid=r.id) }}"
              style="text-decoration:none"
-             title="メールが使えない場合に、案内リンクを画面に表示します">リンク</a>
-          <a class="btn-sm" href="{{ url_for('accounts_set_password', aid=r.id) }}"
-             style="text-decoration:none"
-             title="管理者がその場でパスワードを設定します">PW</a>
-          {% endif %}
-          <a class="btn-sm primary" href="{{ url_for('accounts_edit', aid=r.id) }}"
-             style="text-decoration:none">編集</a>
+             title="権限・担当範囲の変更と、案内リンク・パスワードの設定">編集</a>
           <form method="post" action="{{ url_for('accounts_delete', aid=r.id) }}" style="display:inline"
                 onsubmit="return confirm('{{ r.email }} を削除します。\n\nログインできなくなり、【復元はできません】。\n同じメールアドレスを使い直す場合は、続けて完全削除を行ってください。\n\n操作ログの記録は残ります。よろしいですか？')">
-            <button class="btn-sm" style="color:var(--error);border-color:#fed7d7">削除</button></form>
+            <button class="btn-sm btn-del">削除</button></form>
         {% endif %}
       </td>
     </tr>
     {% endfor %}
-    <tr id="acc-none" style="display:none"><td colspan="11" style="padding:22px;color:#a0aec0">
+    <tr id="acc-none" style="display:none"><td colspan="10" style="padding:22px;color:#a0aec0">
       条件に一致するアカウントがありません。</td></tr>
     </tbody>
   </table>
@@ -219,7 +212,7 @@
 {% if rows | selectattr('status', 'equalto', 'invited') | list | length %}
 <div class="block note-card" style="margin-bottom:14px">
   <h2>パスワード未設定のアカウントがあります</h2>
-  <p class="note" style="margin:8px 0 0">
+  <p class="note" style="margin:8px 0 0;">
     メールが届かない場合は、一覧の「<b>案内リンク</b>」でリンクを画面に表示して
     ご本人へお伝えするか、「<b>PW設定</b>」で管理者がその場でパスワードを設定できます。</p>
 </div>
@@ -235,7 +228,7 @@
       <button type="button" class="modal-x" onclick="closeInv()" aria-label="閉じる">&times;</button>
     </div>
     <div class="modal-body">
-      <p class="note" style="margin-bottom:14px">
+      <p class="note" style="margin-bottom:14px;">
         <b>{{ inv.name }}</b> 様（<span class="mono">{{ inv.email }}</span>）宛に、
         パスワード設定用の案内メールを送信します。</p>
 
@@ -255,7 +248,7 @@
         <span class="hint" id="inv-link" style="display:none">{{ inv_link }}</span>
       </div>
 
-      <p class="hint" style="margin-top:12px">
+      <p class="hint" style="margin-top:12px;">
         ・リンクは1回だけ使用できます。ご本人がパスワードを設定すると有効になります。<br>
         ・メールにパスワードは含まれません。<br>
         ・送信は操作ログに記録されます。

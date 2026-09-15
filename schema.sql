@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS kenpo (
   guidance_auth INTEGER NOT NULL DEFAULT 0,   -- 保健指導権限
   flu_enabled   INTEGER NOT NULL DEFAULT 0,   -- インフル機能
   n_hospital    INTEGER NOT NULL DEFAULT 0,   -- 登録医療機関数
+  -- 加入者向けサイトの本人確認（認証）で使う項目のパターン
+  --   A：被保険者記号・被保険者番号・カナ・生年月日・性別
+  --   B：被保険者番号・カナ・生年月日・性別（記号を使わない組合）
+  auth_pattern  TEXT NOT NULL DEFAULT 'A',
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -107,6 +111,7 @@ CREATE TABLE IF NOT EXISTS member (
   src_company_code TEXT,                        -- 取込時の事業所（企業）コード
   src_office_code  TEXT,                        -- 取込時の所属コード
   night_work   INTEGER NOT NULL DEFAULT 0,      -- 深夜業従事（1＝深夜健診の対象）
+  excluded     INTEGER NOT NULL DEFAULT 0,      -- 健診の対象から除外（1＝除外）
   created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at   TEXT,
   -- 本人と家族は同じ被保険者証番号で枝番が異なるため、枝番まで含めて一意にする

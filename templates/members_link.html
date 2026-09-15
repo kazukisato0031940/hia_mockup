@@ -25,7 +25,7 @@
          style="text-decoration:none">内容を確認して紐づける</a>
     </div>
   </div>
-  <p class="note" style="margin:0">
+  <p class="note" style="margin:0;">
     取込した加入者情報に「事業所（企業）コード」「所属コード」が入っているため、
     <b>一件ずつ選ばなくても紐づけられます</b>。
     一覧で内容を確認してから実行できます。</p>
@@ -61,7 +61,7 @@
         </div>
         {% endfor %}
       </div>
-      <p class="hint" id="lk-cnone" style="display:none">条件に一致する企業がありません。</p>
+      <p class="hint" id="lk-cnone" style="display:none;">条件に一致する企業がありません。</p>
       {% else %}
       <div class="empty-box">操作できる企業がありません。</div>
       {% endif %}
@@ -137,7 +137,7 @@
     <span class="hint" id="lk-foot-hint">企業と部署の両方を選ぶと、次へ進めます。</span>
   </div>
   <div class="actions">
-    <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">一覧に戻る</a>
+    <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">戻る</a>
     <button type="button" class="btn-submit" id="lk-next" disabled onclick="lkNext()">
       次へ進む（加入者の紐づけ）</button>
   </div>

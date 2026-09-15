@@ -15,7 +15,7 @@
 </div>
 
 <div class="block" style="border-left:4px solid var(--error)">
-  <h2 style="color:var(--error)">実行前の確認</h2>
+  <h2 style="color:var(--error);">実行前の確認</h2>
   <ul class="ol-steps">
     <li>アカウントの行がデータベースから削除されます。<b>取り消しはできません。</b></li>
     <li><b>操作ログは削除されません。</b>このアカウントが過去に行った操作の記録は残ります。</li>
@@ -27,8 +27,8 @@
       <input type="text" id="confirm_email" name="confirm_email" autocomplete="off"
         placeholder="{{ row.email }}" required style="width:100%"></div>
     <div class="actions" style="margin-top:14px;justify-content:flex-end">
-      <a class="btn-back" href="{{ url_for('accounts') }}" style="text-decoration:none">中止する</a>
-      <button class="btn-submit" style="background:var(--error)">完全に削除する</button>
+      <a class="btn-back" href="{{ url_for('accounts') }}" style="text-decoration:none">キャンセル</a>
+      <button class="btn-submit" style="background:var(--error);">完全に削除する</button>
     </div>
   </form>
 </div>

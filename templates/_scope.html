@@ -1,9 +1,9 @@
 {% macro scope_panel(vis, view_scope, can_dl, kenpo, max_rows, heading='このアカウントが閲覧できる加入者', warn_extra=None, scope_label=None) -%}
 <div class="block" style="border-left:4px solid {{ 'var(--error)' if view_scope!='own_company' else 'var(--primary)' }}">
-  <h2 style="color:{{ 'var(--error)' if view_scope!='own_company' else 'var(--primary)' }}">{{ heading }}</h2>
+  <h2 style="color:{{ 'var(--error)' if view_scope!='own_company' else 'var(--primary)' }};">{{ heading }}</h2>
 
   {% if scope_label and scope_label != '指定なし' %}
-  <p class="note" style="margin-bottom:12px">担当範囲：<b>{{ scope_label }}</b></p>
+  <p class="note" style="margin-bottom:12px;">担当範囲：<b>{{ scope_label }}</b></p>
   {% endif %}
 
   <div class="stat-row">

@@ -1,0 +1,249 @@
+{% extends LAYOUT %}
+{% block body %}
+{# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
+{% if not EMBED %}
+<h1 class="page-title">産業医面談 ダッシュボード</h1>
+<p class="page-lead">面談の進み具合と対象者の内訳をまとめて確認します。</p>
+{% endif %}
+
+{# ================= サマリーカード（健診代行・保健指導と同じ形） =================
+   カードを押すと、その条件でしぼり込んだ対象者一覧が開きます。 #}
+<div class="summary-grid">
+  <a class="summary-card" style="border-top-color:#3182ce"
+     href="{{ url_for('oh.oh_list', fy=fy, cond='any') }}">
+    <div class="label">面談候補（自動抽出）</div>
+    <div class="value"><span>{{ flow_c.cand }}</span>
+      <span class="total">/ {{ total }}</span></div>
+    <div class="rate">抽出理由あり →</div>
+  </a>
+  <a class="summary-card" style="border-top-color:#f59e0b"
+     href="{{ url_for('oh.oh_list', fy=fy, status='産業医確認待ち') }}">
+    <div class="label">産業医確認待ち</div>
+    <div class="value"><span>{{ flow_c.wait }}</span>
+      <span class="total">/ {{ total }}</span></div>
+    <div class="rate">要対応 →</div>
+  </a>
+  <a class="summary-card" style="border-top-color:#805ad5"
+     href="{{ url_for('oh.oh_list', fy=fy, status='面談対象（承認済）') }}">
+    <div class="label">面談対象（承認済）</div>
+    <div class="value"><span>{{ flow_c.approved }}</span>
+      <span class="total">/ {{ total }}</span></div>
+    <div class="rate">案内の送付へ →</div>
+  </a>
+  <a class="summary-card" style="border-top-color:#0694a2"
+     href="{{ url_for('oh.oh_mail', fy=fy) }}">
+    <div class="label">勧奨メール送信済</div>
+    <div class="value"><span>{{ flow_c.mailed }}</span>
+      <span class="total">/ {{ total }}</span></div>
+    <div class="rate">面談予約済を含む →</div>
+  </a>
+  <a class="summary-card" style="border-top-color:#38a169"
+     href="{{ url_for('oh.oh_list', fy=fy, status='面談完了') }}">
+    <div class="label">面談完了</div>
+    <div class="value"><span>{{ flow_c.done }}</span>
+      <span class="total">/ {{ total }}</span></div>
+    <div class="rate">
+      {% if flow_c.cand %}候補に対して
+        {{ '%.1f'|format(flow_c.done * 100.0 / flow_c.cand) }}%{% else %}—{% endif %}</div>
+  </a>
+</div>
+
+{# グラフを出さない場合（産業医）は、年度の切り替えだけを検索条件として置く #}
+{% if acc.sub_role == 'doctor' %}
+<div class="block">
+  <div class="blk-head"><div class="blk-head-left"><h2>検索条件</h2></div></div>
+  <form method="get" class="search-row" style="margin:0">
+    <div class="search-group"><label for="fy">受診年度</label>
+      <select id="fy" name="fy" style="width:120px" onchange="this.form.submit()">
+        {% for y in fys %}<option value="{{ y }}" {{ 'selected' if y == fy }}>{{ y }}年度</option>{% endfor %}
+      </select></div>
+  </form>
+</div>
+{% endif %}
+
+{# ================= グラフ（月次推移＋ワークフロー内訳） =================
+   産業医は面談そのものの入力・判断を行うため、月次推移とワークフローの内訳は出しません #}
+{% set SHOW_CHART = acc.sub_role != 'doctor' %}
+{% if SHOW_CHART %}
+<div class="charts-flex">
+  <div class="block-inner">
+    <div style="display:flex;justify-content:space-between;align-items:center;
+                margin-bottom:14px;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px">
+        <h2 style="margin:0">月次推移比較</h2>
+        <span style="font-size:11px;color:var(--gray-label)">■ 前年度比較</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <form method="get" style="margin:0">
+          <select name="fy" class="control-select" onchange="this.form.submit()"
+                  aria-label="受診年度">
+            {% for y in fys %}
+            <option value="{{ y }}" {{ 'selected' if y == fy }}>{{ y }}年度</option>
+            {% endfor %}
+          </select>
+        </form>
+        <select id="od-chartSelector" class="control-select" onchange="odMonthly()"
+                aria-label="表示する内容">
+          <option value="iv">面談実施</option>
+          <option value="ken">健診受診</option>
+        </select>
+      </div>
+    </div>
+    <div style="height:260px"><canvas id="od-monthlyChart"></canvas></div>
+  </div>
+
+  <div class="block-inner">
+    <h2>ワークフロー内訳</h2>
+    <div style="height:190px;display:flex;align-items:center;justify-content:center">
+      <canvas id="od-statusChart"></canvas></div>
+    <div style="text-align:center;margin-top:10px">
+      <div class="dash-rate-label">健診 受診率</div>
+      <div class="dash-rate-value">
+        {% if total %}{{ '%.1f'|format(done * 100.0 / total) }}%{% else %}—{% endif %}</div>
+      <div class="hint" style="margin-top:4px">受診済 {{ done }}名 ／ 未受診 {{ notdone }}名</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ================= 内訳（抽出理由・ステータス） ================= #}
+<div class="bottom-flex">
+  <div class="block-inner">
+    <h2>抽出理由の内訳</h2>
+    <p class="hint" style="margin:-8px 0 12px">面談候補 {{ flow_c.cand }}名。
+      1人で複数の理由に該当することがあります。カードを押すと一覧が開きます。</p>
+    {% set cand = flow_c.cand or 1 %}
+    <div class="insured-grid">
+      <a class="insured-card" href="{{ url_for('oh.oh_list', fy=fy, cond='kenshin') }}">
+        <div class="ic-label">健診有所見（C判定以上）</div>
+        <div class="ic-rate" style="color:#3182ce">{{ reason_n.kenshin }}名</div>
+        <div class="ic-sub">面談候補の {{ '%.0f'|format(reason_n.kenshin * 100.0 / cand) }}%</div>
+        <div class="ic-bar"><div class="ic-bar-fg" style="background:#3182ce;
+          width:{{ '%.0f'|format(reason_n.kenshin * 100.0 / cand) }}%"></div></div>
+      </a>
+      <a class="insured-card" href="{{ url_for('oh.oh_list', fy=fy, cond='overtime') }}">
+        <div class="ic-label">長時間労働（時間外 {{ OT_LIMIT }}時間超）</div>
+        <div class="ic-rate" style="color:#dd6b20">{{ reason_n.overtime }}名</div>
+        <div class="ic-sub">面談候補の {{ '%.0f'|format(reason_n.overtime * 100.0 / cand) }}%</div>
+        <div class="ic-bar"><div class="ic-bar-fg" style="background:#dd6b20;
+          width:{{ '%.0f'|format(reason_n.overtime * 100.0 / cand) }}%"></div></div>
+      </a>
+      <a class="insured-card" href="{{ url_for('oh.oh_list', fy=fy, cond='stress') }}">
+        <div class="ic-label">高ストレス（本人の申出 {{ reason_n.applied }}名）</div>
+        <div class="ic-rate" style="color:#805ad5">{{ reason_n.stress }}名</div>
+        <div class="ic-sub">面談候補の {{ '%.0f'|format(reason_n.stress * 100.0 / cand) }}%</div>
+        <div class="ic-bar"><div class="ic-bar-fg" style="background:#805ad5;
+          width:{{ '%.0f'|format(reason_n.stress * 100.0 / cand) }}%"></div></div>
+      </a>
+      <a class="insured-card" href="{{ url_for('oh.oh_list', fy=fy, cond='any') }}">
+        <div class="ic-label">複数の理由に該当</div>
+        <div class="ic-rate" style="color:#e53e3e">{{ reason_n.multi }}名</div>
+        <div class="ic-sub">面談候補の {{ '%.0f'|format(reason_n.multi * 100.0 / cand) }}%</div>
+        <div class="ic-bar"><div class="ic-bar-fg" style="background:#e53e3e;
+          width:{{ '%.0f'|format(reason_n.multi * 100.0 / cand) }}%"></div></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="block-inner">
+    <h2>ステータス別 進捗</h2>
+    <p class="hint" style="margin:-8px 0 12px">対象者 {{ total }}名に対する人数です。
+      ステータス名を押すと一覧が開きます。</p>
+    {% set base = total or 1 %}
+    {% set stcolor = {'産業医確認待ち':'#f59e0b', '面談対象（承認済）':'#805ad5',
+                      '勧奨メール送信済':'#0694a2', '面談予約済':'#3182ce',
+                      '面談完了':'#38a169', '対象外':'#a0aec0'} %}
+    <div class="level-bar-wrap" style="margin-top:0">
+      {% for s in STATUSES %}
+      {% set n = status_n.get(s, 0) %}
+      <div class="level-row">
+        <span class="level-label"><a href="{{ url_for('oh.oh_list', fy=fy, status=s) }}"
+          style="color:inherit">{{ s }}</a></span>
+        <div class="bar-bg"><div class="bar-fg"
+          style="background:{{ stcolor.get(s, '#3182ce') }};
+                 width:{{ '%.0f'|format(n * 100.0 / base) }}%"></div></div>
+        <span class="level-val">{{ n }}名</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{# ================= 健診判定の内訳 ================= #}
+<div class="block-inner" style="margin-top:20px">
+  <h2>健診判定の内訳</h2>
+  <p class="hint" style="margin:-8px 0 12px">受診済 {{ done }}名の総合判定です。</p>
+  {% set kbase = done or 1 %}
+  {% set jcolor = {'A':'#38a169', 'B':'#0694a2', 'C':'#dd6b20', 'D':'#e53e3e',
+                   'E':'#805ad5'} %}
+  <div class="insured-grid" style="grid-template-columns:repeat(5,1fr)">
+    {% for j in JUDGES %}
+    {% set n = judge_n.get(j, 0) %}
+    <a class="insured-card"
+       href="{{ url_for('oh.oh_list', fy=fy, judge=j) }}">
+      <div class="ic-label">{{ j }} {{ JUDGE_LABEL.get(j, '') }}</div>
+      <div class="ic-rate" style="color:{{ jcolor.get(j, '#3182ce') }}">{{ n }}名</div>
+      <div class="ic-sub">受診済の {{ '%.0f'|format(n * 100.0 / kbase) }}%</div>
+      <div class="ic-bar"><div class="ic-bar-fg" style="background:{{ jcolor.get(j, '#3182ce') }};
+        width:{{ '%.0f'|format(n * 100.0 / kbase) }}%"></div></div>
+    </a>
+    {% endfor %}
+  </div>
+  <p class="hint" style="margin:14px 0 0">判定区分は日本人間ドック・予防医療学会の区分にもとづく
+    参考情報です。受診の必要性や就業上の措置の最終判断は産業医・医師が行います。</p>
+</div>
+
+{% if SHOW_CHART %}
+<script src="{{ url_for('static', filename='vendor/chart.min.js') }}"></script>
+<script>
+/* ダッシュボードのグラフ（健診代行・保健指導・インフルエンザ補助と同じ形） */
+var OD_LABELS = ['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'];
+var OD_DATA   = {{ monthly|tojson }};
+var OD_NAME   = {iv:'面談実施', ken:'健診受診'};
+var OD_COLOR  = {iv:'#3182ce', ken:'#0694a2'};
+var odMonthlyChart = null, odStatusChart = null;
+
+function odMonthly(){
+  var key = document.getElementById('od-chartSelector').value;
+  var d   = OD_DATA[key] || {cur:[], prev:[]};
+  var cv  = document.getElementById('od-monthlyChart');
+  if(!cv || !window.Chart) return;
+  if(odMonthlyChart) odMonthlyChart.destroy();
+  odMonthlyChart = new Chart(cv, {
+    type:'bar',
+    data:{labels:OD_LABELS, datasets:[
+      {label:'{{ fy }}年度 ' + OD_NAME[key], data:d.cur,
+       backgroundColor:OD_COLOR[key], borderRadius:4, maxBarThickness:26},
+      {label:'{{ fy|int - 1 }}年度 ' + OD_NAME[key], data:d.prev,
+       backgroundColor:'#cbd5e0', borderRadius:4, maxBarThickness:26}
+    ]},
+    options:{responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom', labels:{boxWidth:12, font:{size:11}}}},
+      scales:{y:{beginAtZero:true, ticks:{precision:0, font:{size:11}},
+                 grid:{color:'#edf2f7'}},
+              x:{grid:{display:false}, ticks:{font:{size:11}}}}}
+  });
+}
+
+function odStatus(){
+  var cv = document.getElementById('od-statusChart');
+  if(!cv || !window.Chart) return;
+  var labels = {{ STATUSES|tojson }}, n = {{ status_n|tojson }};
+  var counts = labels.map(function(s){ return n[s] || 0; });
+  if(odStatusChart) odStatusChart.destroy();
+  odStatusChart = new Chart(cv, {
+    type:'doughnut',
+    data:{labels:labels, datasets:[{data:counts,
+      backgroundColor:['#f59e0b','#805ad5','#0694a2','#3182ce','#38a169','#cbd5e0'],
+      borderWidth:0}]},
+    options:{responsive:true, maintainAspectRatio:false, cutout:'62%',
+      plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:10},
+        padding:6}}}}
+  });
+}
+
+odMonthly();
+odStatus();
+</script>
+{% endif %}
+{% endblock %}

@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}HIA{% endblock %}</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500;700;900&family=Noto+Sans+JP:wght@300;400;500;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ ASSET_V }}">
 <style>body{margin:0;background:transparent}</style>
 </head>
 <body class="theme-{{ SHELL }}{% if FIXED_HEIGHT is defined and FIXED_HEIGHT %} fixed-h{% endif %}">
@@ -43,6 +46,30 @@ function hiaCenterModal(card){
 }
 window.hiaCenterModal = hiaCenterModal;
 
+/* モーダルを開いている間は、外側の画面（ヘッダー・サイドバー・枠の外側）も
+   同じ黒（55%＋ぼかし）で覆う。枠の中だけが暗くなるのを防ぐため。 */
+function hiaScrim(on){
+  try{
+    if(window.parent && window.parent !== window && window.parent.SYS
+       && window.parent.SYS.scrim){
+      window.parent.SYS.scrim(!!on, window.frameElement);
+    }
+  }catch(e){}
+}
+window.hiaScrim = hiaScrim;
+(function(){
+  /* モーダルの開閉は .modal-back の open で判断する（画面ごとの書き分けが不要） */
+  function sync(){ hiaScrim(!!document.querySelector('.modal-back.open')); }
+  if(window.MutationObserver){
+    new MutationObserver(sync).observe(document.documentElement,
+      {subtree:true, attributes:true, attributeFilter:['class']});
+  }
+  window.addEventListener('pagehide', function(){ hiaScrim(false); });
+  window.addEventListener('beforeunload', function(){ hiaScrim(false); });
+  document.addEventListener('DOMContentLoaded', sync);
+  sync();
+})();
+
 /* 高さを固定する画面（一覧など）は、親の表示領域いっぱいに合わせる。
    中身の高さで伸び縮みしないので、行の読み込みや検索で画面が動かない。 */
 var FIXED_H = document.body.classList.contains('fixed-h');
@@ -53,11 +80,7 @@ function reportHeight(){
       if (window.parent.SYS.fitHeight) window.parent.SYS.fitHeight(window.frameElement);
       return;
     }
-    /* iframe の実コンテンツ高さを親へ伝える。
-       documentElement.scrollHeight は iframe のビューポート高さが下限になるため、
-       親が高さを広げると次回さらに広がる…という増殖ループになる。
-       body 基準（ビューポート下限なし）で測る。 */
-    var h = Math.max(document.body.scrollHeight, document.body.offsetHeight);
+    var h = document.documentElement.scrollHeight;
     window.parent.SYS.resize(window.frameElement, h);
   }catch(e){}
 }
@@ -75,7 +98,19 @@ function reportHeader(){
     }
   }catch(e){}
 }
-window.addEventListener('load', function(){ reportHeader(); reportHeight(); });
+/* 入力の不備などのメッセージは画面の上に出るため、枠（iframe）の中だと
+   下のほうを見ていると気づけない。メッセージがあるときは枠の先頭まで動かす。 */
+function hiaShowFlash(){
+  try{
+    if(!document.querySelector('.frag > .flash')) return;
+    var fe = window.frameElement;
+    if(!fe) return;
+    /* ヘッダー（固定）に隠れないよう、その分だけ上に余裕を持たせる */
+    var top = fe.getBoundingClientRect().top;
+    window.parent.scrollBy(0, Math.round(top) - 120);
+  }catch(e){}
+}
+window.addEventListener('load', function(){ reportHeader(); reportHeight(); hiaShowFlash(); });
 reportHeader();
 if (!FIXED_H) new ResizeObserver(reportHeight).observe(document.body);
 document.addEventListener('click', function(){ setTimeout(reportHeight, 60); });

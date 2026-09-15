@@ -25,16 +25,16 @@
       <span class="count">{{ items[g.id]|length }}項目</span>
     </div>
     <div class="actions">
-      <a class="btn-sm primary" href="{{ url_for('risk_group_edit', gid=g.id) }}"
+      <a class="btn-sm primary btn-edit" href="{{ url_for('risk_group_edit', gid=g.id) }}"
          style="text-decoration:none">編集</a>
       <form method="post" action="{{ url_for('risk_group_delete', gid=g.id) }}"
             style="display:inline"
             onsubmit="return confirm('判定グループ「{{ g.name }}」を削除しますか？')">
-        <button class="btn-sm danger">削除</button>
+        <button class="btn-sm btn-del">削除</button>
       </form>
     </div>
   </div>
-  {% if g.note %}<p class="note" style="margin:0 0 12px">{{ g.note }}</p>{% endif %}
+  {% if g.note %}<p class="note" style="margin:0 0 12px;">{{ g.note }}</p>{% endif %}
   <table class="result-table">
     <colgroup><col style="width:220px"><col style="width:210px"><col style="width:170px">
       <col style="width:130px"><col style="width:130px"><col></colgroup>

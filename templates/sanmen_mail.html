@@ -1,172 +1,66 @@
 {% extends LAYOUT %}
-{% from "_sanmen_flow.html" import flow, sttag, jtag, clip %}
+{% from "_sanmen_flow.html" import sttag, jtag, clip %}
 {% block body %}
 {% if not EMBED %}
 <h1 class="page-title">産業医面談 メール配信</h1>
 <p class="page-lead">面談受診勧奨とストレスチェック受検案内を1画面で配信します。</p>
 {% endif %}
 
-{{ flow(flow_c, fy, 'mail') }}
 
-<div class="link-bar">
-  <div class="link-bar-info">
-    <span class="st st-role">{{ kind }}</span>
-    {% if mail_on %}<span class="dest-now ok">SMTP設定あり（実際に送信します）</span>
-    {% else %}<span class="dest-now">SMTP未設定のため、送信内容は outbox フォルダーに控えを保存します</span>{% endif %}
-    {% if kind == '面談受診勧奨' %}
-    <span class="hint">面談対象（承認済以降）のみ送信し、非対象はスキップします。</span>
-    {% else %}<span class="hint">ストレスチェック案内は全加入者へ送信します。</span>{% endif %}
-  </div>
-  <div class="actions">
-    {% for k in MAIL_KINDS %}
-    <a class="btn-sm {{ 'primary' if k == kind }}"
-       href="{{ url_for('oh.oh_mail', fy=fy, kind=k) }}" style="text-decoration:none">{{ k }}</a>
-    {% endfor %}
-  </div>
-</div>
-
+{# メール種別を選ぶボタンは置かず、配信テンプレートを選ぶと種別も決まります #}
 {% if not CAN_MAIL %}
 <div class="empty-box">メール配信は人事（運用事務）が行います。産業医の権限では配信できません。</div>
 {% else %}
 
-<form method="post" action="{{ url_for('oh.oh_mail_send') }}" id="mailForm">
-<input type="hidden" name="fy" value="{{ fy }}">
-<input type="hidden" name="kind" value="{{ kind }}">
+{# 左右のカードの高さをそろえて、下に大きな余白ができないようにします #}
+<div class="link-cols" style="display:grid;grid-template-columns:1.15fr 1fr;gap:16px;
+     align-items:stretch">
 
-<div class="block">
-  <div class="blk-head">
-    <div class="blk-head-left"><h2>配信設定</h2>
-      <span class="hint">テンプレート・実施期間・回答締切を指定します。差し込み項目に反映されます。</span></div>
-  </div>
-  <div class="search-row" style="margin:0">
-    <div class="search-group"><label for="tid">配信テンプレート</label>
-      <select id="tid" name="template_id" style="width:230px" onchange="mailPrev()">
-        {% for t in tpls if t.kind == kind %}
-        <option value="{{ t.id }}" data-subject="{{ t.subject }}" data-body="{{ t.body }}">
-          {{ t.name }}</option>
-        {% endfor %}
-      </select></div>
-    <div class="search-group"><label for="pf">実施期間（開始）</label>
-      <input type="date" id="pf" name="period_from" style="width:150px"></div>
-    <div class="search-group"><label for="pt">実施期間（終了）</label>
-      <input type="date" id="pt" name="period_to" style="width:150px"></div>
-    <div class="search-group"><label for="dl">回答締切</label>
-      <input type="date" id="dl" name="deadline" style="width:150px" onchange="mailPrev()"></div>
-    <div class="search-group" style="flex:1;min-width:220px">
-      <label for="bu">予約・受検URL（差し込み）</label>
-      <input type="text" id="bu" name="book_url" style="width:100%"
-             placeholder="例）https://yoyaku.example.local/sanmen" onchange="mailPrev()"></div>
-  </div>
-  <div class="mail-prev" style="margin-top:14px">
-    <div class="mail-prev-head" id="mailSubj">（件名のプレビュー）</div>
-    <div class="mail-prev-body keep" id="mailBody">（本文のプレビュー）</div>
-  </div>
-  <p class="oh-note">差し込み項目：<code>{{ '{{氏名}}' }}</code>・<code>{{ '{{予約URL}}' }}</code>・<code>{{ '{{回答期限}}' }}</code>
-    は送信時に自動で置き換わります。</p>
-</div>
-
-<div class="block">
-  <div class="blk-head">
-    <div class="blk-head-left"><h2>対象者一覧（全加入者）</h2>
-      <span class="count">{{ rows|length }}件</span>
-      <span class="hint" id="mailSel">選択 0名</span></div>
-    <div class="actions">
-      <button class="btn-sm primary" type="submit">選択した対象者へ送信する</button>
-    </div>
-  </div>
-
-  <div class="search-row" style="margin:0 0 12px">
-    <div class="search-group"><label for="fname">氏名で絞り込み</label>
-      <input type="text" id="fname" onkeyup="mailFilter()" style="width:180px"
-             placeholder="入力すると即時に絞り込みます"></div>
-    <div class="search-group"><label>一括選択</label>
-      <div style="display:flex;gap:8px;align-items:center;height:40px">
-        <button class="btn-sm" type="button" onclick="mailAll(true)">表示中をすべて選択</button>
-        <button class="btn-sm" type="button" onclick="mailAll(false)">選択を解除</button>
-        {% if kind == '面談受診勧奨' %}
-        <button class="btn-sm" type="button" onclick="mailTarget()">面談対象のみ選択</button>
-        {% endif %}
-      </div></div>
-  </div>
-
-  {% if rows %}
-  <div class="table-scroll">
-  <table class="result-table oh-table" style="table-layout:auto">
-    <thead><tr>
-      <th class="oh-narrow"><input type="checkbox" onclick="mailAll(this.checked)"></th>
-      <th class="tl" style="width:140px">氏名</th>
-      <th class="tl" style="width:150px">部署</th>
-      <th class="tl" style="width:210px">メールアドレス</th>
-      <th style="width:110px">面談対象</th>
-      <th style="width:130px">ステータス</th>
-      <th style="width:100px">送信回数</th>
-      <th style="width:120px">送信状況</th>
-    </tr></thead>
-    <tbody>
-    {% for r in rows %}
-    {% set target = r.status in ('面談対象（承認済）', '勧奨メール送信済', '面談予約済') %}
-    <tr class="ls-row mail-row" data-name="{{ r.m.name }}{{ r.m.kana or '' }}"
-        data-target="{{ '1' if target else '0' }}">
-      <td class="oh-narrow">
-        <input type="checkbox" class="mail-chk" name="member_ids" value="{{ r.id }}"
-               onclick="mailCount()"></td>
-      <td class="tl"><b>{{ r.m.name }}</b>
-        <div class="hint" style="font-size:10.5px">{{ r.m.employee_code or '' }}</div></td>
-      <td class="tl">{{ clip(r.m.dept_name or '—', '部署', 145) }}</td>
-      <td class="tl">{{ clip(r.m.email or '（未登録）', 'メールアドレス', 205) }}</td>
-      <td>{% if target %}<span class="st st-active">面談対象</span>
-          {% else %}<span class="st st-disabled">非対象</span>{% endif %}</td>
-      <td>{{ sttag(r.status) }}</td>
-      <td class="num">{{ sent_map.get(r.id, 0) }}</td>
-      <td>
-        {% set n = sent_map.get(r.id, 0) %}
-        {% if n > 1 %}<span class="oh-st oh-st-mail">リマインド（{{ n }}回）</span>
-        {% elif n == 1 %}<span class="oh-st oh-st-appr">勧奨済</span>
-        {% else %}<span class="hint">未送信</span>{% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {% else %}<div class="empty-box">対象者がいません。</div>{% endif %}
-</div>
-</form>
-
-<div class="link-cols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-  <div class="block">
+  <form method="post" action="{{ url_for('oh.oh_mail_send') }}" id="mailForm"
+        style="display:flex;flex-direction:column">
+  <input type="hidden" name="fy" value="{{ fy }}">
+  <input type="hidden" name="kind" id="mailKind" value="{{ kind }}">
+  <div class="block" style="flex:1 1 auto;margin-bottom:0">
     <div class="blk-head">
-      <div class="blk-head-left"><h2>配信テンプレート</h2>
-        <span class="count">{{ tpls|length }}件</span></div>
-      <div class="actions">
-        <button class="btn-sm" type="button" onclick="tplNew()">新規追加</button>
-      </div>
+      <div class="blk-head-left"><h2>配信設定</h2></div>
     </div>
-    <table class="result-table" style="table-layout:auto">
-      <thead><tr><th class="tl" style="width:150px">種別</th><th class="tl">テンプレート名</th>
-        <th style="width:90px">操作</th></tr></thead>
-      <tbody>
-      {% for t in tpls %}
-      <tr class="ls-row">
-        <td class="tl"><span class="st st-role">{{ t.kind }}</span></td>
-        <td class="tl">{{ t.name }}
-          <div class="hint" style="font-size:10.5px">{{ t.subject }}</div></td>
-        <td><button class="btn-sm" type="button" onclick="tplEdit(this)"
-              data-id="{{ t.id }}" data-kind="{{ t.kind }}" data-name="{{ t.name }}"
-              data-subject="{{ t.subject }}" data-body="{{ t.body }}">編集</button></td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+    <div class="search-row" style="margin:0">
+      <div class="search-group"><label for="tid">配信テンプレート</label>
+        <select id="tid" name="template_id" style="width:280px" onchange="mailPrev()">
+          {% for t in tpls %}
+          <option value="{{ t.id }}" data-kind="{{ t.kind }}" data-subject="{{ t.subject }}"
+                  data-body="{{ t.body }}">{{ t.kind }}／{{ t.name }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="search-group"><label for="pf">実施期間（開始）</label>
+        <input type="date" id="pf" name="period_from" style="width:150px"></div>
+      <div class="search-group"><label for="pt">実施期間（終了）</label>
+        <input type="date" id="pt" name="period_to" style="width:150px"></div>
+      <div class="search-group"><label for="dl">回答締切</label>
+        <input type="date" id="dl" name="deadline" style="width:150px" onchange="mailPrev()"></div>
+      <div class="search-group" style="flex:1;min-width:220px">
+        <label for="bu">予約・受検URL（差し込み）</label>
+        <input type="text" id="bu" name="book_url" style="width:100%"
+               placeholder="例）https://yoyaku.example.local/sanmen" onchange="mailPrev()"></div>
+    </div>
+    <div class="mail-prev" style="margin-top:14px">
+      <div class="mail-prev-head" id="mailSubj">（件名のプレビュー）</div>
+      <div class="mail-prev-body keep" id="mailBody">（本文のプレビュー）</div>
+    </div>
+    <p class="oh-note">差し込み項目：<code>{{ '{{氏名}}' }}</code>・<code>{{ '{{予約URL}}' }}</code>・<code>{{ '{{回答期限}}' }}</code>
+      は送信時に自動で置き換わります。</p>
   </div>
+  </form>
 
-  <div class="block">
+  <div class="block" style="display:flex;flex-direction:column;margin-bottom:0">
     <div class="blk-head">
       <div class="blk-head-left"><h2>配信履歴</h2>
         <span class="count">直近{{ logs|length }}件</span></div>
     </div>
     {% if logs %}
-    <div class="table-scroll" style="max-height:330px;overflow-y:auto">
+    {# 左のカードと同じ高さまで表を伸ばし、あふれる分だけスクロールします #}
+    <div class="table-scroll" style="flex:1 1 auto;min-height:220px;max-height:560px;
+         overflow-y:auto">
     <table class="result-table" style="table-layout:auto">
       <thead><tr><th style="width:130px">送信日時</th><th class="tl" style="width:120px">氏名</th>
         <th class="tl" style="width:140px">種別</th><th style="width:100px">結果</th>
@@ -190,62 +84,6 @@
   </div>
 </div>
 
-{% if camps %}
-<div class="block">
-  <div class="blk-head">
-    <div class="blk-head-left"><h2>ストレスチェックの実施記録</h2>
-      <span class="count">{{ camps|length }}件</span></div>
-  </div>
-  <table class="result-table" style="table-layout:auto">
-    <thead><tr><th style="width:100px">実施年度</th><th style="width:200px">実施期間</th>
-      <th style="width:120px">回答締切</th><th style="width:100px">送信数</th>
-      <th class="tl">記録者</th></tr></thead>
-    <tbody>
-    {% for c in camps %}
-    <tr class="ls-row">
-      <td>{{ c.fiscal_year }}年度</td>
-      <td class="code">{{ c.period_from or '—' }} 〜 {{ c.period_to or '—' }}</td>
-      <td class="code">{{ c.deadline or '—' }}</td>
-      <td class="num">{{ c.sent }}</td>
-      <td class="tl">{{ c.actor or '—' }}
-        <span class="hint">（{{ c.created_at[:16] }}）</span></td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{# ============ テンプレート編集モーダル ============ #}
-<div class="modal-back" id="tplModal">
-  <div class="modal-card" style="max-width:660px">
-    <div class="modal-head"><h2 id="tplTitle">テンプレートの編集</h2>
-      <button class="modal-x" type="button" onclick="tplClose()">×</button></div>
-    <form method="post" action="{{ url_for('oh.oh_mail_template') }}">
-      <input type="hidden" name="fy" value="{{ fy }}">
-      <input type="hidden" name="id" id="tplId">
-      <div class="modal-body">
-        <div class="oh-grid">
-          <div class="fld"><label class="fld-label" for="tplKind">テンプレート種別</label>
-            <select id="tplKind" name="kind" style="width:100%">
-              {% for k in MAIL_KINDS %}<option value="{{ k }}">{{ k }}</option>{% endfor %}
-            </select></div>
-          <div class="fld"><label class="fld-label" for="tplName">テンプレート名</label>
-            <input type="text" id="tplName" name="name" style="width:100%"></div>
-        </div>
-        <div class="fld"><label class="fld-label" for="tplSubj">件名</label>
-          <input type="text" id="tplSubj" name="subject" style="width:100%"></div>
-        <div class="fld"><label class="fld-label" for="tplBody">本文</label>
-          <textarea id="tplBody" name="body" rows="12" style="width:100%"></textarea>
-          <p class="fld-help">差し込み項目：{{ '{{氏名}}' }}・{{ '{{予約URL}}' }}・{{ '{{回答期限}}' }}</p></div>
-      </div>
-      <div class="modal-foot">
-        <button class="btn-sm" type="button" onclick="tplClose()">閉じる</button>
-        <button class="btn-sm primary" type="submit">保存する</button>
-      </div>
-    </form>
-  </div>
-</div>
 
 <script>
 /* 案内のプレビュー（差し込み項目を反映） */
@@ -262,69 +100,13 @@ function mailPrev(){
   }
   document.getElementById('mailSubj').textContent = fill(op.dataset.subject);
   document.getElementById('mailBody').textContent = fill(op.dataset.body);
+  /* 選んだテンプレートのメール種別を送信内容に反映します */
+  var k = document.getElementById('mailKind');
+  if(k && op.dataset.kind){ k.value = op.dataset.kind; }
 }
-function mailRows(){ return [].slice.call(document.querySelectorAll('.mail-row')); }
-function mailAll(on){
-  mailRows().forEach(function(tr){
-    if (tr.style.display === 'none') return;
-    tr.querySelector('.mail-chk').checked = !!on;
-  });
-  mailCount();
-}
-function mailTarget(){
-  mailRows().forEach(function(tr){
-    tr.querySelector('.mail-chk').checked =
-      (tr.style.display !== 'none' && tr.dataset.target === '1');
-  });
-  mailCount();
-}
-function mailCount(){
-  var n = document.querySelectorAll('.mail-chk:checked').length;
-  document.getElementById('mailSel').textContent = '選択 ' + n + '名';
-}
-function mailFilter(){
-  var q = document.getElementById('fname').value.trim();
-  mailRows().forEach(function(tr){
-    tr.style.display = (!q || tr.dataset.name.indexOf(q) >= 0) ? '' : 'none';
-  });
-}
-/* テンプレートの編集 */
-function tplOpen(){
-  var b = document.getElementById('tplModal');
-  b.classList.add('open');
-  if (window.hiaCenterModal) window.hiaCenterModal(b.querySelector('.modal-card'));
-}
-function tplClose(){ document.getElementById('tplModal').classList.remove('open'); }
-function tplNew(){
-  document.getElementById('tplTitle').textContent = 'テンプレートの新規追加';
-  document.getElementById('tplId').value = '';
-  document.getElementById('tplKind').value = '{{ kind }}';
-  document.getElementById('tplName').value = '';
-  document.getElementById('tplSubj').value = '';
-  document.getElementById('tplBody').value = '';
-  tplOpen();
-}
-function tplEdit(btn){
-  var d = btn.dataset;
-  document.getElementById('tplTitle').textContent = d.name + ' の編集';
-  document.getElementById('tplId').value = d.id;
-  document.getElementById('tplKind').value = d.kind;
-  document.getElementById('tplName').value = d.name;
-  document.getElementById('tplSubj').value = d.subject;
-  document.getElementById('tplBody').value = d.body;
-  tplOpen();
-}
+/* 対象者一覧のカードは廃止したため、選択関連の処理は持ちません */
+function mailCount(){ /* no-op */ }
 mailPrev();
 </script>
 {% endif %}
-
-<div class="block note-card">
-  <h2>配信のルール</h2>
-  <ul class="note-list">
-    <li><b>面談受診勧奨</b>は、産業医が承認した面談対象のみに送信します。非対象を選択した場合はスキップし、履歴に残します。</li>
-    <li><b>ストレスチェック案内</b>は全加入者へ送信し、実施年度・期間・締切・送信数を実施記録として保存します。</li>
-    <li>送信済みの対象者へもう一度送ると<b>リマインド</b>として回数を数えます。</li>
-    <li>メール本文に健診結果・判定などの医学的情報は記載しません（本人への案内のみ）。</li>
-  </ul>
-</div>
 {% endblock %}

@@ -37,7 +37,7 @@
         <div class="drop-file" id="{{ mid }}-info">
           <span class="fn" id="{{ mid }}-name"></span>
           <span class="fs" id="{{ mid }}-size"></span>
-          <button type="button" class="btn-sm" style="float:right"
+          <button type="button" class="btn-sm" style="float:right;"
                   onclick="clearImport('{{ mid }}')">取り消す</button>
         </div>
         <div class="drop-err" id="{{ mid }}-err"></div>
@@ -55,7 +55,7 @@
             </tbody>
           </table>
           </div>
-          <p class="hint" style="margin-top:8px">
+          <p class="hint" style="margin-top:8px;">
             この操作では登録されません。次の画面で内容とエラーを確認したうえで確定します。</p>
         </details>
       </div>
@@ -66,7 +66,7 @@
            title="部署や家族まで入った、そのまま取り込めるサンプルです">サンプルをダウンロード</a>
         {% endif %}
         <span style="flex:1"></span>
-        <button type="button" class="btn-back" onclick="closeImport('{{ mid }}')">中止する</button>
+        <button type="button" class="btn-back" onclick="closeImport('{{ mid }}')">キャンセル</button>
         <button class="btn-submit" id="{{ mid }}-go" disabled>内容を確認する</button>
       </div>
     </form>
