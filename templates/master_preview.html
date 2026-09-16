@@ -4,7 +4,7 @@
 
 {% if err_rows %}
 <div class="block" style="border-left:4px solid var(--error)">
-  <h2 style="color:var(--error)">エラーのある行（{{ err_rows|length }}件）</h2>
+  <h2 style="color:var(--error);">エラーのある行（{{ err_rows|length }}件）</h2>
   <p class="note">エラーが1件でもある間は登録を確定できません。該当行を修正して、もう一度アップロードしてください。</p>
   <div class="table-scroll">
   <table class="result-table" style="table-layout:auto">
@@ -30,7 +30,7 @@
     {% if token %}
     <form method="post" action="{{ commit_url }}">
       <input type="hidden" name="token" value="{{ token }}">
-      <button class="btn-submit">この内容で登録を確定する</button>
+      <button class="btn-submit btn-regsave">登録</button>
     </form>
     {% endif %}
   </div>
@@ -57,5 +57,5 @@
 {% else %}
 <div class="block"><div class="empty-box">登録できる行がありません。</div></div>
 {% endif %}
-<div class="actions" style="justify-content:flex-end"><a class="btn-back" href="{{ back_url }}" style="text-decoration:none">一覧へ戻る</a></div>
+<div class="actions" style="justify-content:flex-end"><a class="btn-back" href="{{ back_url }}" style="text-decoration:none">戻る</a></div>
 {% endblock %}

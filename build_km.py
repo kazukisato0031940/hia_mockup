@@ -299,7 +299,7 @@ def view(vid, title, desc, path, back='settings'):
       <div class="sys-head">
         <h1>{title}</h1>
         <span class="sys-flag">サーバ連携</span>
-        <button class="back-btn" onclick="navigate('{back}')">← 戻る</button>
+        <button class="back-btn" onclick="navigate('{back}')">戻る</button>
       </div>
       <p class="sys-note">{desc}</p>
       <iframe class="sys-frame" data-src="{path}" title="{title}"></iframe>

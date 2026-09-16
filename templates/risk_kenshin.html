@@ -24,7 +24,7 @@
   <div class="blk-head">
     <div class="blk-head-left"><h2>健診結果XMLの取込</h2></div>
   </div>
-  <p class="note" style="margin-bottom:14px">
+  <p class="note" style="margin-bottom:14px;">
     予約管理システムから届いた<b>特定健診のXML（HL7 CDA R2）</b>を読み取ります。
     検査値から判定区分（基準内・要注意・要医療）を求め、属性区分ごとに集計します。
     検査値そのものと個人を特定する項目は保存しません。</p>
@@ -39,7 +39,7 @@
       <input type="file" id="files" name="files" accept=".xml" multiple style="width:100%"></div>
     <button class="btn-sm primary">XMLを取込む</button>
   </form>
-  <p class="fld-help" style="margin-top:10px">
+  <p class="fld-help" style="margin-top:10px;">
     ファイルを選ばずに押すと、<b>同梱のサンプルXML</b>を取込みます。動作確認にお使いください。</p>
 </div>
 
@@ -49,7 +49,7 @@
     <div class="actions">
       <form method="post" action="{{ url_for('risk_kenshin_sync') }}"
             style="display:flex;gap:10px;align-items:center;margin:0">
-        <label class="fld-label" style="margin:0">対象年度</label>
+        <label class="fld-label" style="margin:0;">対象年度</label>
         <select name="fiscal_year" class="w-s" style="width:120px">
           {% for y in years %}<option value="{{ y }}">{{ y }}年度</option>{% endfor %}
         </select>
@@ -57,7 +57,7 @@
       </form>
     </div>
   </div>
-  <p class="note" style="margin:0">
+  <p class="note" style="margin:0;">
     {% if endpoint %}接続先：<b>{{ endpoint }}</b>
     {% else %}接続先が未設定のため、<b>加入者の属性から連携内容を再現</b>して動作を確認できます。
     接続先は<b>サーバー側（run.bat）</b>で設定します。{% endif %}

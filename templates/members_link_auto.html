@@ -30,7 +30,7 @@
   </div>
 
   {% if ok %}
-  <p class="note" style="margin-bottom:12px">
+  <p class="note" style="margin-bottom:12px;">
     加入者情報の「事業所（企業）コード」「所属コード」と一致する企業・事業所が見つかりました。
     内容を確認して紐づけてください。</p>
   <div class="table-scroll" style="max-height:420px;overflow-y:auto">
@@ -38,7 +38,7 @@
     <thead><tr>
       <th style="width:44px"><input type="checkbox" id="al-all" checked
             onchange="alAll(this.checked)"></th>
-      <th style="width:120px">被保険者証番号</th>
+      <th style="width:120px">被保険者<br>証番号</th>
       <th class="tl" style="width:150px">氏名</th>
       <th style="width:110px">企業コード</th>
       <th class="tl" style="width:200px">紐づけ先の企業</th>
@@ -76,13 +76,13 @@
       <span class="count">{{ ng|length }}件</span>
     </div>
   </div>
-  <p class="note" style="margin-bottom:12px">
+  <p class="note" style="margin-bottom:12px;">
     加入者情報にコードはありますが、一致する企業・事業所が見つかりません。
     先に企業・事業所を登録するか、「紐づけ先を選んで紐づける」から手作業で紐づけてください。</p>
   <div class="table-scroll" style="max-height:300px;overflow-y:auto">
   <table class="result-table" style="table-layout:auto">
     <thead><tr>
-      <th style="width:120px">被保険者証番号</th>
+      <th style="width:120px">被保険者<br>証番号</th>
       <th class="tl" style="width:150px">氏名</th>
       <th style="width:110px">企業コード</th>
       <th style="width:100px">所属コード</th>
@@ -109,7 +109,7 @@
     <span class="hint" id="al-hint">選択した加入者を、加入者情報のコードのとおりに紐づけます。</span>
   </div>
   <div class="actions">
-    <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">一覧に戻る</a>
+    <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">戻る</a>
     <button class="btn-submit" {{ 'disabled' if not ok }}>
       選択した<span id="al-n">{{ ok|length }}</span>件を紐づける</button>
   </div>

@@ -1,5 +1,5 @@
 <div class="view" id="view-master-oid">
-      <div class="back-row"><h1>OID結果マスタ</h1><button class="back-btn" onclick="navigate('master')">← 戻る</button></div>
+      <div class="back-row"><h1>OID結果マスタ</h1><button class="back-btn" onclick="navigate('master')">戻る</button></div>
       <div class="panel-col">
         <div class="right-panel no-flex">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
@@ -21,7 +21,7 @@
                 <option value="その他">その他</option>
               </select>
               <input type="text" id="oid-filter-kw" oninput="OID.render()" placeholder="コード・名称で検索" style="width:220px;height:38px;padding:0 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">
-              <button type="button" class="tbl-btn tbl-btn-confirm" style="height:38px;padding:0 22px;min-width:110px;" onclick="OID.openNewModal()">＋ 新規作成</button>
+              <button type="button" class="tbl-btn tbl-btn-confirm btn-new" style="height:38px;padding:0 22px;min-width:110px;" onclick="OID.openNewModal()">新規作成</button>
             </div>
           </div>
           <div class="tbl-scroll" style="max-height:640px;">
@@ -93,7 +93,7 @@
         </div>
         <div class="modal-footer" style="background:#fafbfc;border-top:1px solid #f0f1f4;padding:16px 28px;justify-content:flex-end;gap:10px;">
           <button class="btn-cancel" onclick="OID.closeModal()" style="border-radius:8px;font-weight:500;">キャンセル</button>
-          <button class="btn-save" onclick="OID.save()" style="border-radius:8px;font-weight:600;">登録</button>
+          <button class="btn-save btn-regsave" onclick="OID.save()" style="border-radius:8px;font-weight:600;">登録・保存</button>
         </div>
       </div>
     </div>

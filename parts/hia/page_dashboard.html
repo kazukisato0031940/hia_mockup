@@ -1,0 +1,115 @@
+<div class="page" id="page-hia-dashboard">
+      <div style="display:flex;align-items:center;margin-bottom:20px;">
+        <h1 class="page-title" style="margin-bottom:0;">疾患予測</h1>
+        <button class="btn-back" onclick="selectCategory('hia')" style="margin-left:auto;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          戻る
+        </button>
+      </div>
+      <div class="main-wrapper">
+
+        <!-- KPI 年度比較（セレクター不要・常時表示） -->
+        <div class="block">
+          <h3>疾患別 受診勧奨対象者数</h3>
+          <!-- 列ヘッダー -->
+          <div class="yr-grid" style="margin-bottom:4px;">
+            <div></div>
+            <div class="yr-head" style="border-top:3px solid #e76f51;">糖尿病重症化</div>
+            <div class="yr-head" style="border-top:3px solid #3182ce;">腎疾患・透析</div>
+            <div class="yr-head" style="border-top:3px solid #d97706;">循環器・脳血管</div>
+            <div class="yr-head" style="border-top:3px solid #38a169;">合計（要勧奨）</div>
+          </div>
+          <!-- 2025年度 -->
+          <div class="yr-grid">
+            <div class="yr-l25">2025年度</div>
+            <div class="yr-cell yr-clickable" onclick="goToList('dm')" title="糖尿病重症化リスクで絞り込む" style="background:#fff5f0;border:1px solid #fbd5c5;">
+              <div class="yr-val" style="color:#e76f51;">32名</div>
+              <div class="yr-sub">HbA1c 7.0以上 / 空腹時血糖 126mg/dL以上 / BMI 25.0以上</div>
+              <div class="yr-link">一覧を見る →</div>
+            </div>
+            <div class="yr-cell yr-clickable" onclick="goToList('ckd')" title="腎疾患リスクで絞り込む" style="background:#ebf8ff;border:1px solid #bee3f8;">
+              <div class="yr-val" style="color:#3182ce;">12名</div>
+              <div class="yr-sub">eGFR 45以下 / 尿たんぱく（1+）以上</div>
+              <div class="yr-link">一覧を見る →</div>
+            </div>
+            <div class="yr-cell yr-clickable" onclick="goToList('cv')" title="循環器リスクで絞り込む" style="background:#fffbeb;border:1px solid #fde68a;">
+              <div class="yr-val" style="color:#d97706;">14名</div>
+              <div class="yr-sub">血圧 140/90mmHg以上 / LDL 140mg/dL以上</div>
+              <div class="yr-link">一覧を見る →</div>
+            </div>
+            <div class="yr-cell yr-clickable" onclick="goToList('all')" title="全対象者を表示" style="background:#f0fff4;border:1px solid #9ae6b4;">
+              <div class="yr-val" style="color:#38a169;">58名</div>
+              <div id="kpiStatus" class="yr-sub">未勧奨: 58名 ／ 勧奨済: 0名</div>
+              <div class="yr-link">一覧を見る →</div>
+            </div>
+          </div>
+          <!-- 2024年度 -->
+          <div class="yr-grid">
+            <div class="yr-l24">2024年度</div>
+            <div class="yr-cell-d"><div class="yr-val" style="color:#a0aec0;">24名</div><div class="yr-sub">HbA1c 7.0以上 / 空腹時血糖 126mg/dL以上 / BMI 25.0以上</div></div>
+            <div class="yr-cell-d"><div class="yr-val" style="color:#a0aec0;">9名</div><div class="yr-sub">eGFR 45以下 / 尿たんぱく（1+）以上</div></div>
+            <div class="yr-cell-d"><div class="yr-val" style="color:#a0aec0;">16名</div><div class="yr-sub">血圧 140/90mmHg以上 / LDL 140mg/dL以上</div></div>
+            <div class="yr-cell-d"><div class="yr-val" style="color:#a0aec0;">49名</div><div class="yr-sub">E判定 9名 / D 22名 / C 18名</div></div>
+          </div>
+          <!-- 前年比 -->
+          <div class="yr-grid" style="border-top:1px solid var(--border);padding-top:8px;">
+            <div class="yr-ldf">前年比</div>
+            <div class="yr-diff" style="color:#e53e3e;">▲ +8名</div>
+            <div class="yr-diff" style="color:#e53e3e;">▲ +3名</div>
+            <div class="yr-diff" style="color:#38a169;">▼ −2名</div>
+            <div class="yr-diff" style="color:#e53e3e;">▲ +9名</div>
+          </div>
+        </div>
+
+        <!-- グラフ2列 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- レーダー -->
+          <div class="block" style="gap:10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <h3 style="margin:0;">疾患別リスク分布（全国平均比較）</h3>
+              <select id="radarFilter" onchange="updateRadar()" style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:#fff;color:var(--txt);">
+                <option value="all">全疾患プロファイル</option>
+                <option value="dm">糖尿病系</option>
+                <option value="cv">循環器系</option>
+                <option value="ckd">腎疾患系</option>
+              </select>
+            </div>
+            <div style="position:relative;height:260px;"><canvas id="radarChart" role="img" aria-label="疾患別リスク分布レーダーチャート（2024・2025年度・全国平均比較）"></canvas></div>
+            <div style="display:flex;gap:14px;justify-content:center;font-size:12px;color:var(--txt2);flex-wrap:wrap;">
+              <span style="display:flex;align-items:center;gap:5px;"><span style="width:22px;height:3px;background:#3182ce;display:inline-block;border-radius:2px;"></span>当健保 2025年度</span>
+              <span style="display:flex;align-items:center;gap:5px;"><span style="width:22px;height:3px;background:#f6ad55;display:inline-block;border-radius:2px;"></span>当健保 2024年度</span>
+              <span style="display:flex;align-items:center;gap:5px;"><span style="width:22px;height:3px;background:#b0b8c1;display:inline-block;border-radius:2px;"></span>全国平均</span>
+            </div>
+          </div>
+          <!-- 棒グラフ（年度推移）2分割 -->
+          <div class="block" style="gap:10px;">
+            <h3>介入によるイベント発症抑制予測（年度推移）</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              <div>
+                <div style="font-size:12px;font-weight:bold;color:#718096;text-align:center;margin-bottom:6px;">対策なし（予測件数）</div>
+                <div style="position:relative;height:200px;"><canvas id="barChartNone" role="img" aria-label="対策なし年度推移"></canvas></div>
+                <div style="display:flex;gap:12px;justify-content:center;margin-top:8px;font-size:11px;color:var(--txt2);">
+                  <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:#a0aec0;display:inline-block;border-radius:2px;"></span>2024年度</span>
+                  <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:#718096;display:inline-block;border-radius:2px;"></span>2025年度</span>
+                </div>
+              </div>
+              <div>
+                <div style="font-size:12px;font-weight:bold;color:#276749;text-align:center;margin-bottom:6px;">早期介入あり（予測件数）</div>
+                <div style="position:relative;height:200px;"><canvas id="barChartInter" role="img" aria-label="早期介入あり年度推移"></canvas></div>
+                <div style="display:flex;gap:12px;justify-content:center;margin-top:8px;font-size:11px;color:var(--txt2);">
+                  <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:#68d391;display:inline-block;border-radius:2px;"></span>2024年度</span>
+                  <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;background:#276749;display:inline-block;border-radius:2px;"></span>2025年度</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /#page-hia-dashboard -->
+
+
+
+    <!-- ===========================
+         PAGE: パスワード変更
+         =========================== -->

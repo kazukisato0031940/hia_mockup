@@ -25,7 +25,7 @@
     <div class="actions">
       <form method="post" action="{{ url_for('risk_nsips_sync') }}"
             style="display:flex;gap:10px;align-items:center;margin:0">
-        <label class="fld-label" style="margin:0">連携方式</label>
+        <label class="fld-label" style="margin:0;">連携方式</label>
         <select name="mode" class="w-s" style="width:150px">
           <option value="batch" {{ 'selected' if mode == 'batch' }}>日次バッチ</option>
           <option value="realtime" {{ 'selected' if mode == 'realtime' }}>リアルタイム</option>
@@ -34,7 +34,7 @@
       </form>
     </div>
   </div>
-  <p class="note" style="margin:0">
+  <p class="note" style="margin:0;">
     {% if endpoint %}接続先：<b>{{ endpoint }}</b>
     {% else %}接続先が未設定のため、<b>加入者の属性から連携内容を再現</b>して動作を確認できます。
     接続先は<b>サーバー側（run.bat）</b>で設定します。{% endif %}

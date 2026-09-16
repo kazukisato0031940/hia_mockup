@@ -1,0 +1,152 @@
+{% extends LAYOUT %}
+{% block body %}
+{# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
+{% if not EMBED %}
+<h1 class="page-title">ストレスチェック設問マスタ</h1>
+<p class="page-lead">ストレスチェックの設問（カテゴリ・番号・設問内容）を登録・削除します。
+  登録した設問は産業医面談管理のストレスチェック受検案内で使います。</p>
+{% endif %}
+
+{# ================= 検索条件 ================= #}
+<div class="block">
+  <div class="blk-head"><div class="blk-head-left"><h2>検索条件</h2></div></div>
+  <div class="search-row" style="margin:0">
+    <div class="search-group"><label for="q-cat">カテゴリ</label>
+      <select id="q-cat" onchange="scFilter()" style="width:220px">
+        <option value="">すべて</option>
+        {% for c in questions | map(attribute='category') | unique | list %}
+        <option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select></div>
+    <div class="search-group"><label for="q-no">番号</label>
+      <input type="number" id="q-no" oninput="scFilter()" style="width:100px"
+             placeholder="例：1"></div>
+    <div class="search-group" style="flex:1;min-width:240px"><label for="q-body">設問内容</label>
+      <input type="text" id="q-body" oninput="scFilter()" style="width:100%"
+             placeholder="内容の一部で検索"></div>
+    <button type="button" class="btn-sm" onclick="scClear()">条件をクリア</button>
+  </div>
+</div>
+
+{# ================= 設問一覧 ================= #}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>設問一覧</h2>
+      <span class="count" id="sc-count">{{ questions|length }}問</span></div>
+    <div class="actions">
+      <button type="button" class="btn-sm primary btn-newitem" onclick="scOpen()">新規作成</button>
+    </div>
+  </div>
+  {% if questions %}
+  <div class="table-scroll">
+  <table class="result-table" style="min-width:900px">
+    <colgroup><col class="col-flag"><col class="col-long">
+      <col class="col-long"><col class="col-ops"></colgroup>
+    <thead><tr><th>番号</th><th class="tl">カテゴリ</th>
+      <th class="tl">設問内容</th><th class="ops">操作</th></tr></thead>
+    <tbody id="sc-tbody">
+    {% for q in questions %}
+    <tr class="ls-row" data-cat="{{ q.category }}" data-no="{{ q.no }}"
+        data-body="{{ q.body }}">
+      <td class="num">{{ q.no }}</td>
+      <td class="tl">{{ q.category }}</td>
+      <td class="tl">{{ q.body }}</td>
+      <td>
+        <form method="post" action="{{ url_for('oh.oh_question') }}" style="margin:0"
+              onsubmit="return confirm('この設問を削除します。よろしいですか？')">
+          <input type="hidden" name="fy" value="{{ fy }}">
+          <button class="btn-sm btn-del" type="submit" name="delete" value="{{ q.id }}">削除</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="empty-box" id="sc-empty" hidden>条件に一致する設問がありません。</div>
+  {% else %}<div class="empty-box">設問がまだ登録されていません。</div>{% endif %}
+</div>
+
+{# ================= 新規作成（モーダル） ================= #}
+<div class="modal-back" id="scModal">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-label="設問の新規作成">
+    <div class="modal-head">
+      <h2>設問の新規作成</h2>
+      <button type="button" class="modal-x" onclick="scClose()" aria-label="閉じる">&times;</button>
+    </div>
+    <form method="post" action="{{ url_for('oh.oh_question') }}">
+      <input type="hidden" name="fy" value="{{ fy }}">
+      <div class="modal-body">
+        <div class="mf-grid" style="grid-template-columns:1.6fr .7fr">
+          <div class="fld">
+            <label for="m-cat" class="fld-label">カテゴリ<span class="req">必須</span></label>
+            <input type="text" id="m-cat" name="category" required list="sc-cats"
+                   placeholder="例）仕事のストレス要因">
+            <datalist id="sc-cats">
+              {% for c in questions | map(attribute='category') | unique | list %}
+              <option value="{{ c }}"></option>{% endfor %}
+            </datalist>
+          </div>
+          <div class="fld">
+            <label for="m-no" class="fld-label">番号</label>
+            <input type="number" id="m-no" name="no" placeholder="例：1">
+          </div>
+        </div>
+        <div class="fld" style="margin-top:14px">
+          <label for="m-body" class="fld-label">設問内容<span class="req">必須</span></label>
+          <input type="text" id="m-body" name="body" required style="width:100%"
+                 placeholder="例）非常にたくさんの仕事をしなければならない">
+          <p class="fld-help">同じカテゴリの中で番号の小さい順に並びます。</p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-cancel" onclick="scClose()">キャンセル</button>
+        <button type="submit" class="btn-submit btn-regsave">登録</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+/* 設問一覧の絞り込み（入力したその場で絞り込む） */
+function scFilter(){
+  var cat = (document.getElementById('q-cat') || {}).value || '';
+  var no = (document.getElementById('q-no') || {}).value || '';
+  var body = ((document.getElementById('q-body') || {}).value || '').trim();
+  var rows = document.querySelectorAll('#sc-tbody tr');
+  var n = 0;
+  rows.forEach(function(tr){
+    var ok = (!cat || tr.dataset.cat === cat)
+      && (!no || String(tr.dataset.no) === String(parseInt(no, 10)))
+      && (!body || (tr.dataset.body || '').indexOf(body) >= 0);
+    tr.hidden = !ok;
+    if(ok) n++;
+  });
+  var c = document.getElementById('sc-count');
+  if(c) c.textContent = n + '問';
+  var e = document.getElementById('sc-empty');
+  if(e) e.hidden = !(rows.length && n === 0);
+}
+function scClear(){
+  var ids = ['q-cat', 'q-no', 'q-body'];
+  ids.forEach(function(id){ var el = document.getElementById(id); if(el) el.value = ''; });
+  scFilter();
+}
+/* 新規作成のモーダル */
+function scOpen(){
+  document.getElementById('scModal').classList.add('open');
+  var el = document.getElementById('m-cat');
+  if(el) el.focus();
+}
+function scClose(){
+  document.getElementById('scModal').classList.remove('open');
+}
+(function(){
+  var back = document.getElementById('scModal');
+  if(!back) return;
+  back.addEventListener('click', function(e){ if(e.target === back) scClose(); });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape') scClose();
+  });
+})();
+</script>
+{% endblock %}

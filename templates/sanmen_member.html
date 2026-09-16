@@ -3,6 +3,7 @@
 {% block body %}
 {% if not EMBED %}
 <h1 class="page-title">{{ m.name }} さんの健診・面談情報</h1>
+<p class="page-lead">健診結果・労働時間・ストレスチェックと、面談の記録をまとめて表示します。</p>
 {% endif %}
 
 <div class="block" style="margin-bottom:14px">
@@ -28,11 +29,11 @@
         ／{{ (cand.hr_class if cand else '未判定') }}</div></div>
   </div>
   {% if reasons %}
-  <p class="note" style="margin:12px 0 0"><b>抽出理由</b><br>
+  <p class="note" style="margin:12px 0 0;"><b>抽出理由</b><br>
     {% for r in reasons %}・{{ r }}<br>{% endfor %}</p>
   {% endif %}
   {% if cand and cand.exclude_reason %}
-  <p class="note" style="margin:10px 0 0">
+  <p class="note" style="margin:10px 0 0;">
     <b>面談不要（対象外）の理由</b><br>{{ cand.exclude_reason }}</p>
   {% endif %}
 </div>
@@ -85,7 +86,7 @@
     {% endif %}
     {{ legend(JUDGE_LABEL) }}
     {% if ken.findings %}
-    <p class="note" style="margin-top:12px"><b>産業医所見・特記事項</b><br>{{ ken.findings }}</p>
+    <p class="note" style="margin-top:12px;"><b>産業医所見・特記事項</b><br>{{ ken.findings }}</p>
     {% endif %}
   {% else %}
   <div class="empty-box">{{ fy }}年度の健康診断は<b>未受診</b>です（結果の登録がありません）。</div>
@@ -147,9 +148,9 @@
     <div><span class="fld-label">就業区分</span><div>{{ iv.work_class or '—' }}</div></div>
     <div><span class="fld-label">記録した産業医</span><div>{{ iv.doctor or '—' }}</div></div>
   </div>
-  {% if iv.findings %}<p class="note" style="margin-top:12px"><b>産業医所見</b><br>{{ iv.findings }}</p>{% endif %}
-  {% if iv.measure %}<p class="note" style="margin-top:8px"><b>事後措置</b><br>{{ iv.measure }}</p>{% endif %}
-  {% if iv.next_plan %}<p class="note" style="margin-top:8px"><b>次回予定</b><br>{{ iv.next_plan }}</p>{% endif %}
+  {% if iv.findings %}<p class="note" style="margin-top:12px;"><b>産業医所見</b><br>{{ iv.findings }}</p>{% endif %}
+  {% if iv.measure %}<p class="note" style="margin-top:8px;"><b>事後措置</b><br>{{ iv.measure }}</p>{% endif %}
+  {% if iv.next_plan %}<p class="note" style="margin-top:8px;"><b>次回予定</b><br>{{ iv.next_plan }}</p>{% endif %}
 </div>
 {% endif %}
 

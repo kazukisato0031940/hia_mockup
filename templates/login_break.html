@@ -1,0 +1,28 @@
+{# 枠（iframe）の中でログインが必要になったとき、外側の画面をログインに切り替える #}
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<title>ログインが必要です</title>
+<style>
+  body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh;
+    font-family:'Zen Kaku Gothic New','Noto Sans JP','Hiragino Sans','Yu Gothic UI',
+    Meiryo,system-ui,sans-serif;background:#f7fafc;color:#333333}
+  .box{text-align:center;padding:28px 32px;background:#fff;border:1px solid #e2e8f0;
+    border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+  p{font-size:14px;line-height:1.6;margin:0 0 14px}
+  a{display:inline-block;padding:10px 22px;border-radius:8px;background:#1a365d;
+    color:#fff;text-decoration:none;font-size:14px;font-weight:700}
+</style></head>
+<body>
+  <div class="box">
+    <p>ログインの有効期限が切れました。<br>ログイン画面に戻ってやり直してください。</p>
+    <a id="go" href="{{ url_for('login', next=next) }}" target="_top">ログイン画面へ</a>
+  </div>
+  <script>
+    /* 枠の中ではなく、いちばん外側の画面をログイン画面にする */
+    try {
+      var url = document.getElementById('go').getAttribute('href');
+      if (window.top && window.top !== window.self) { window.top.location.href = url; }
+      else { location.href = url; }
+    } catch (e) { /* 外側の画面を触れないときはボタンから移動してもらう */ }
+  </script>
+</body></html>

@@ -71,7 +71,8 @@
 {# 長い文の冒頭表示＋マウスオーバーで全文（B-06・B-07） #}
 {% macro clip(text, title, width=170) %}
 {% if text %}
-<span class="oh-clip" tabindex="0" style="max-width:{{ width }}px">{{ text }}
+{# 幅は列幅の標準に合わせる（列に収まらない分は「…」で省略し、全文はマウスオーバーで表示） #}
+<span class="oh-clip" tabindex="0" title="{{ text }}"><span class="oh-text">{{ text }}</span>
   <span class="oh-full"><b>{{ title }}</b>{{ text }}</span></span>
 {% else %}<span class="hint">—</span>{% endif %}
 {% endmacro %}

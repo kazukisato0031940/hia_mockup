@@ -41,25 +41,33 @@
     </div>
     <div class="actions">
       {% if CAN_MASTER %}
-      <a class="btn-sm primary" href="{{ url_for('member_new') }}" style="text-decoration:none">加入者を登録する</a>
+      <a class="btn-sm primary" href="{{ url_for('member_new') }}" style="text-decoration:none">加入者情報を登録する</a>
       {% endif %}
     </div>
   </div>
   {% if rows %}
   <div class="table-scroll paged grow" data-rows-url="{{ url_for('members_rows') }}"
        data-loaded="{{ rows|length }}" data-total="{{ total }}">
-  <table class="result-table" style="table-layout:auto">
-    <thead><tr>
-      <th style="width:44px">{% if CAN_MASTER %}<input type="checkbox" id="mk-all"
+  <table class="result-table" style="width:100%">
+        <!-- 列幅は「列幅の標準」（.col-*）に合わせています。
+             企業名・事業所名・部署名が残り幅を分け合い、操作列まで画面に収めます -->
+    <colgroup>
+      <col class="col-chk"><col class="col-num"><col class="col-name"><col class="col-kana">
+      <col class="col-date"><col class="col-flag"><col><col>
+      <col><col class="col-status"><col class="col-ops">
+    </colgroup>
+<thead><tr>
+      <th>{% if CAN_MASTER %}<input type="checkbox" id="mk-all"
             title="表示中をすべて選択" onchange="mkAll(this.checked)">{% endif %}</th>
-      <th style="width:130px">被保険者証番号</th>
-      <th class="tl" style="width:160px">氏名</th>
-      <th class="tl" style="width:160px">カナ</th>
-      <th style="width:110px">生年月日</th>
-      <th style="width:60px">性別</th>
-      <th class="tl" style="width:180px">企業名</th>
-      <th class="tl" style="width:160px">事業所名</th>
-      <th class="tl" style="width:150px">部署名</th>
+      <th>被保険者<br>証番号</th>
+      <th class="tl">氏名</th>
+      <th class="tl">カナ</th>
+      <th>生年月日</th>
+      <th>性別</th>
+      <th class="tl">企業名</th>
+      <th class="tl">事業所名</th>
+      <th class="tl">部署名</th>
+      <th>健診対象</th>
       <th class="ops">操作</th>
     </tr></thead>
     <tbody>
@@ -82,7 +90,7 @@
       <button type="button" class="modal-x" onclick="mkClose()" aria-label="閉じる">&times;</button>
     </div>
     <div class="modal-body">
-      <p class="note" id="mk-target" style="margin-bottom:14px"></p>
+      <p class="note" id="mk-target" style="margin-bottom:14px;"></p>
 
       <div class="fld">
         <label for="mk-company" class="fld-label">企業<span class="req">必須</span></label>
@@ -107,7 +115,7 @@
         <p class="fld-help">企業を選ぶとその企業の事業所、事業所を選ぶとその部署だけが候補になります。</p>
       </div>
 
-      <p class="hint" id="mk-msg" style="margin-top:12px"></p>
+      <p class="hint" id="mk-msg" style="margin-top:12px;"></p>
       <p class="hint">
         ・既に紐づいている加入者を選んだ場合は、紐づけ先が置き換わります。<br>
         ・紐づけの内容は操作ログに記録されます。</p>

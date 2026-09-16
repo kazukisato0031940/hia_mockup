@@ -67,6 +67,18 @@ def worst(js):
     return max(js, key=lambda x: order.index(x)) if js else "A"
 
 
+def age_ok(birth, today):
+    """18歳以上かどうか（学生・子どもの被扶養者に健診データを作らないため）"""
+    if not birth:
+        return True
+    try:
+        y, mo, d = (int(x) for x in str(birth)[:10].split("-"))
+    except ValueError:
+        return True
+    age = today.year - y - ((today.month, today.day) < (mo, d))
+    return age >= 18
+
+
 def fiscal_year(d):
     return d.year - 1 if d.month <= 3 else d.year
 
@@ -122,15 +134,62 @@ def main():
                         " VALUES (?,?)", (aid, c["id"]))
     con.commit()
 
-    # ---------- 2. 加入者の社員コード・深夜業従事区分 ----------
-    members = con.execute(
-        "SELECT * FROM member WHERE kenpo_id=? ORDER BY id", (kenpo["id"],)).fetchall()
+    # ---------- 2-1. 健診・労働時間・ストレスチェックを見るための人数を確保する ----------
+    # 健保ごとに従業員（本人）が少ないと、集計（受診率・判定の内訳・時間外の該当者・
+    # 高ストレス者）がほとんど出ません。20名に足りない健保には架空の従業員を足します。
+    n_add = 0
+    for kp in con.execute("SELECT * FROM kenpo ORDER BY id").fetchall():
+        n_own = con.execute(
+            "SELECT COUNT(*) c FROM member WHERE kenpo_id=?"
+            " AND (relation IS NULL OR relation='本人')", (kp["id"],)).fetchone()["c"]
+        if n_own >= 20:
+            continue
+        places = con.execute(
+            "SELECT c.id company_id, o.id office_id, d.id dept_id FROM company c"
+            " LEFT JOIN office o ON o.company_id=c.id"
+            " LEFT JOIN department d ON d.office_id=o.id"
+            " WHERE c.kenpo_id=? ORDER BY c.id, o.id, d.id", (kp["id"],)).fetchall()
+        if not places:
+            continue
+        seq = con.execute("SELECT COUNT(*) c FROM member WHERE kenpo_id=?",
+                          (kp["id"],)).fetchone()["c"]
+        for j in range(20 - n_own):
+            seq += 1
+            pl = places[j % len(places)]
+            code = f"S{j + 101:04d}"
+            # 氏名は架空であることが分かる形にします（実在の個人情報は入れません）
+            name = f"見本 {j + 101:03d}"
+            birth = date(1962 + (j * 17) % 36, 1 + (j * 5) % 12, 1 + (j * 7) % 27)
+            # 加入者ID は本システムの採番と同じ形（8桁）で入れる
+            sk = f"seq:member:{kp['id']}"
+            row = con.execute("SELECT value FROM setting WHERE key=?", (sk,)).fetchone()
+            n_seq = (int(row["value"]) if row else 0) + 1
+            con.execute("INSERT INTO setting (key, value) VALUES (?,?)"
+                        " ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                        (sk, str(n_seq)))
+            con.execute(
+                "INSERT INTO member (kenpo_id, company_id, office_id, dept_id, member_no,"
+                " attr, relation, name, kana, sex, birth, qualified_at, email,"
+                " employee_code, subscriber_id, night_work, excluded)"
+                " VALUES (?,?,?,?,?, '一般', '本人', ?,?,?,?,?,?,?,?,?,0)",
+                (kp["id"], pl["company_id"], pl["office_id"], pl["dept_id"],
+                 f"{9000 + seq}", name, f"ミホン{j + 101:03d}",
+                 "1" if j % 2 else "2", birth.isoformat(),
+                 date(fiscal_year(date.today()) - 3, 4, 1).isoformat(),
+                 f"sample+{kp['id']}{code}@example.local", code,
+                 str(n_seq).zfill(8), 1 if j % 7 == 0 else 0))
+            n_add += 1
+    con.commit()
+
+    # ---------- 2-2. 加入者の社員コード・深夜業従事区分 ----------
+    # 健診・労働時間・ストレスチェックは「従業員（本人）」に対して登録します。
+    members = con.execute("SELECT * FROM member ORDER BY kenpo_id, id").fetchall()
     if not members:
         print("加入者が登録されていません。python seed.py を実行してください。")
         return
     for i, m in enumerate(members, start=1):
         code = m["employee_code"] or f"E{i:04d}"
-        night = 1 if i % 7 == 0 else 0
+        night = m["night_work"] or (1 if i % 7 == 0 else 0)
         # 架空の連絡先（example.local は試験用ドメインで実際には届きません）
         email = m["email"] or f"sample+{code}@example.local"
         con.execute("UPDATE member SET employee_code=?, night_work=?, email=? WHERE id=?",
@@ -141,6 +200,10 @@ def main():
     fy = fiscal_year(today)
     n_ken = n_ot = n_st = 0
 
+    # 被扶養者（家族）は労働安全衛生法の健診・面談の対象ではないため除きます
+    members = [m for m in members
+               if (m["relation"] or "本人") == "本人" and age_ok(m["birth"], today)]
+
     for i, m in enumerate(members, start=1):
         # ---------- 3-1. 健診結果（今年度・前年度） ----------
         cur_values = {}
@@ -149,7 +212,8 @@ def main():
             # 8割の方が受診済み（未受診の方も残して受診管理の確認ができるようにする）
             if (i + y_off) % 5 == 0:
                 continue
-            exam = date(y, 6, 1) + timedelta(days=(i * 3) % 90)
+            # 受診日は年度内（4月〜翌1月）にばらして、月次推移が見えるようにする
+            exam = date(y, 4, 15) + timedelta(days=(i * 37) % 285)
             vals, judges = [], []
             if y_off and cur_values:
                 # 前年は今年の値を少し動かして作る（前年比較が自然になる）
@@ -271,6 +335,102 @@ def main():
         for cat, no, body in qs:
             con.execute("INSERT INTO oh_sc_question (category, no, body) VALUES (?,?,?)",
                         (cat, no, body))
+
+    # ---------- 5. 配信ログのサンプル（操作ログ管理の「配信ログ」に出ます） ----------
+    if not con.execute("SELECT COUNT(*) c FROM oh_mail_log").fetchone()["c"]:
+        tpl = {r["kind"]: r for r in con.execute(
+            "SELECT * FROM oh_mail_template ORDER BY kind, id")}
+        mem = [r["id"] for r in con.execute(
+            "SELECT id FROM member ORDER BY id LIMIT 12")]
+        # 1回の配信＝同じ日時・種別・テンプレートで複数名ぶんの記録が残ります
+        plan = [("面談受診勧奨", f"{fy}-08-20 09:15", 8, 1, 0),
+                ("ストレスチェック案内", f"{fy}-09-01 09:20", 10, 0, 2)]
+        for kind, sent_at, n_ok, n_ng, n_skip in plan:
+            t = tpl.get(kind)
+            rows = []
+            for i in range(n_ok + n_ng + n_skip):
+                result = "success" if i < n_ok else \
+                    ("failure" if i < n_ok + n_ng else "skipped")
+                detail = {"success": "メールで送付",
+                          "failure": "宛先不明で戻ってきました",
+                          "skipped": "対象外のため送信しません"}[result]
+                rows.append((kind, t["id"] if t else None,
+                             mem[i % len(mem)] if mem else None,
+                             t["subject"] if t else kind, sent_at,
+                             "hr@example.local", result, detail))
+            con.executemany(
+                "INSERT INTO oh_mail_log (kind, template_id, member_id, subject,"
+                " sent_at, actor, result, detail) VALUES (?,?,?,?,?,?,?,?)", rows)
+    con.commit()
+
+    # ---------- 6. 面談ワークフローの進み具合のサンプル ----------
+    # ダッシュボードの月次推移・ステータス内訳が確認できるように、
+    # 面談候補のうち何名かを「承認済」「勧奨メール送信済」「面談完了」まで進めておきます。
+    # （面談候補の抽出そのものは画面表示時に自動で作られます）
+    n_iv = 0
+    prev_fy_str = str(fy - 1)
+    if not con.execute("SELECT COUNT(*) c FROM oh_candidate").fetchone()["c"]:
+        # 面談候補になる人（健診C以上・時間外80時間超・高ストレスのいずれか）
+        cand_ids = [r["id"] for r in con.execute(
+            "SELECT DISTINCT m.id FROM member m"
+            " LEFT JOIN oh_kenshin k ON k.member_id=m.id AND k.fiscal_year=?"
+            " LEFT JOIN oh_stress s  ON s.member_id=m.id AND s.fiscal_year=?"
+            " WHERE k.judge IN ('C','D','E') OR s.high=1"
+            "    OR EXISTS (SELECT 1 FROM oh_overtime o WHERE o.member_id=m.id"
+            "               AND o.ym LIKE ? AND o.hours > 80)"
+            " ORDER BY m.id", (str(fy), str(fy), f"{fy}-%"))]
+        # 面談完了（実施月をばらして月次推移が見えるようにします）
+        done_plan = [(5, "対面"), (6, "オンライン"), (7, "対面"), (9, "対面"),
+                     (10, "オンライン"), (11, "対面"), (12, "電話")]
+        # 「産業医確認待ち」を挟み、どの担当範囲で見ても各ステータスが並ぶようにします。
+        # None は画面表示時に「産業医確認待ち」で自動作成させます。
+        cycle = ["面談完了", None, "面談対象（承認済）", "面談完了", None,
+                 "勧奨メール送信済", "面談予約済", None, "面談完了",
+                 "面談対象（承認済）", None]
+        n_done = 0
+        for pos, mid in enumerate(cand_ids):
+            status = cycle[pos % len(cycle)]
+            if not status:
+                continue
+            di = None
+            if status == "面談完了":
+                di = (n_done + pos) % len(done_plan)
+                n_done += 1
+            wc = "就業制限" if status == "面談完了" and pos % 3 == 0 else "通常勤務"
+            mailed = status in ("勧奨メール送信済", "面談予約済", "面談完了")
+            con.execute(
+                "INSERT INTO oh_candidate (member_id, fiscal_year, reasons, status,"
+                " work_class, hr_class, approved_by, approved_at, mail_count,"
+                " last_mail_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (mid, str(fy), "", status, wc,
+                 "経過観察" if status == "面談完了" else "未判定",
+                 "山田 一郎", f"{fy}-07-01 10:00", 1 if mailed else 0,
+                 f"{fy}-08-20 09:15" if mailed else None, f"{fy}-08-20 09:15"))
+            if status == "面談完了" and di is not None:
+                mo, method = done_plan[di]
+                y = fy if mo >= 4 else fy + 1
+                con.execute(
+                    "INSERT INTO oh_interview (member_id, fiscal_year, met_on, method,"
+                    " purpose, work_class, measure, findings, next_plan, overtime,"
+                    " doctor) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    (mid, str(fy), date(y, mo, 10 + (di % 15)).isoformat(), method,
+                     "健診有所見", wc,
+                     "時間外労働を月45時間以内に制限" if wc == "就業制限"
+                     else "生活習慣の改善を指導",
+                     "所見にもとづき経過を確認します。", date(y, mo, 20).isoformat(),
+                     float(60 + di * 5), "山田 一郎"))
+                n_iv += 1
+                # 前年度の記録も入れて、月次推移の「前年度比較」が見えるようにする
+                if di % 2 == 0:
+                    pmo = 5 + (di % 6)
+                    con.execute(
+                        "INSERT OR IGNORE INTO oh_interview (member_id, fiscal_year,"
+                        " met_on, method, purpose, work_class, measure, findings,"
+                        " overtime, doctor) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                        (mid, prev_fy_str, date(fy - 1, pmo, 12).isoformat(), method,
+                         "健診有所見", "通常勤務", "生活習慣の改善を指導",
+                         "前年度の面談記録です。", float(55 + di * 4), "山田 一郎"))
+                    n_iv += 1
     con.commit()
     con.close()
 
@@ -282,6 +442,7 @@ def main():
     print(f"  健診結果      : {n_ken}件（前年分も投入）")
     print(f"  労働時間      : {n_ot}件")
     print(f"  ストレスチェック: {n_st}件")
+    print(f"  面談記録      : {n_iv}件（ダッシュボードの月次推移の確認用）")
     print("  ログイン用アカウント（いずれも 企業担当者＋サブロール）")
     print(f"    産業医 : {DOCTOR_EMAIL} / {SAMPLE_PW}")
     print(f"    人事   : {HR_EMAIL} / {SAMPLE_PW}")

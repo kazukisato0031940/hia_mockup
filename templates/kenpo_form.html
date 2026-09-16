@@ -35,6 +35,30 @@
            placeholder="例：ひかり健康保険組合">
     <p class="fld-help">正式名称で入力します。他の組合と同じ名称は登録できません。</p>
   </div>
+
+  {# 加入者向けサイトの本人確認で使う項目のパターン（健保ごとに登録します） #}
+  {% set cur_auth = (form.auth_pattern if form else none)
+       or (row.auth_pattern if row and row.auth_pattern else 'A') %}
+  <div class="fld">
+    <label class="fld-label">認証方式<span class="req">必須</span></label>
+    <div class="auth-pick">
+      {% for key, items in AUTH_PATTERNS.items() %}
+      <label class="auth-opt {{ 'is-on' if cur_auth == key }}">
+        <input type="radio" name="auth_pattern" value="{{ key }}"
+               {{ 'checked' if cur_auth == key }}>
+        <span class="auth-box">
+          <b>認証方式{{ key }}</b>
+          <span class="auth-items">
+            {% for it in items %}<span class="auth-item">{{ it }}</span>{% endfor %}
+          </span>
+          <em>{{ AUTH_PATTERN_NOTE[key] }}</em>
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+    <p class="fld-help">加入者向けサイトで本人確認に使う項目の組み合わせです。
+      被保険者証の記号を使う組合は<b>認証方式A</b>、記号を使わない組合は<b>認証方式B</b>を選びます。</p>
+  </div>
 </div>
 
 {% if not row %}
@@ -52,8 +76,27 @@
 {% endif %}
 
 <div class="actions" style="justify-content:flex-end">
-  <a class="btn-back" href="{{ url_for('kenpos') }}" style="text-decoration:none">中止する</a>
-  <button class="btn-submit">{{ '保存する' if row else 'この内容で登録する' }}</button>
+  <a class="btn-back" href="{{ url_for('kenpos') }}" style="text-decoration:none">キャンセル</a>
+  <button class="btn-submit btn-regsave">{{ '更新' if row else '登録' }}</button>
 </div>
 </form>
+
+<script>
+/* 認証方式を選び直したときに、選択中の見た目を切り替える */
+(function(){
+  var opts = [].slice.call(document.querySelectorAll('.auth-opt'));
+  if(!opts.length) return;
+  function sync(){
+    opts.forEach(function(o){
+      var r = o.querySelector('input[type=radio]');
+      o.classList.toggle('is-on', !!(r && r.checked));
+    });
+  }
+  opts.forEach(function(o){
+    var r = o.querySelector('input[type=radio]');
+    if(r) r.addEventListener('change', sync);
+  });
+  sync();
+})();
+</script>
 {% endblock %}

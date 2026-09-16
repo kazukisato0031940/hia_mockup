@@ -21,9 +21,9 @@
         <span>健保・企業の代表者として登録します。一覧の先頭に表示されます。</span></span>
     </label>
     <div class="search-group" style="margin-top:12px"><label>登録日時 ／ 登録者</label>
-      <p class="mono" style="font-size:12px">{{ row.created_at or '—' }} ／ {{ row.created_by or '—' }}</p></div>
+      <p class="mono">{{ row.created_at or '—' }} ／ {{ row.created_by or '—' }}</p></div>
     <div class="search-group"><label>最終ログイン</label>
-      <p class="mono" style="font-size:12px">{{ row.last_login_at or '—' }}</p></div>
+      <p class="mono">{{ row.last_login_at or '—' }}</p></div>
   </div>
 
   <div class="block">
@@ -82,7 +82,7 @@
         <button type="button" class="btn-sm primary" onclick="openInvite()">案内メールを送信する</button>
         {% endif %}
         <button type="submit" form="state-form" class="btn-sm"
-                {% if row.status != 'disabled' %}style="color:var(--error);border-color:#fed7d7"{% endif %}>
+                {% if row.status != 'disabled' %}style="color:var(--error);border-color:#fed7d7;"{% endif %}>
           {{ '有効化する' if row.status == 'disabled' else '無効化する' }}</button>
       </div>
     </div>
@@ -151,11 +151,124 @@
 
 {% include "_scope_cascade.html" %}
 
+{# ============ パスワードの設定（案内リンク／その場で設定）============
+   以前は一覧の「リンク」「PW」ボタンから別画面に移っていたものを、
+   この編集画面にまとめている。 #}
+{% if row.status in ('invited', 'active') %}
+<div class="block" id="card-password">
+  <h2>ログイン用パスワードの設定</h2>
+  <p class="note" style="margin-bottom:14px;">
+    メールが使えない場合の手段です。<b>ご本人が案内リンクから設定する</b>方法が安全なので、
+    まずは案内リンクをお試しください。</p>
+
+  {% if generated %}
+  <div class="pw-done">
+    <h3>パスワードを設定しました</h3>
+    <p class="note" style="margin:6px 0 12px;">
+      このアカウントで<b>すぐにログインできます</b>。下のパスワードをご本人へお伝えください。</p>
+    <div class="pw-box" id="pw-val">{{ generated }}</div>
+    <div class="actions" style="margin-top:12px">
+      <button type="button" class="btn-sm primary" id="pw-copy" onclick="accCopy('pw-val','pw-copy')">
+        パスワードをコピー</button>
+    </div>
+    <p class="fld-help" style="margin-top:10px;">
+      <b>この画面を離れると再表示できません。</b>今のうちに控えてください。
+      ご本人には、ログイン後すぐに「マイアカウント」からパスワードを変更するようお伝えください。</p>
+  </div>
+  {% endif %}
+
+  <div class="pw-cols">
+    {# ---- 1. 案内リンク ---- #}
+    <div class="pw-col">
+      <div class="pw-col-head"><span class="pw-no">1</span>
+        <div><b>案内リンクを本人に渡す</b>
+          <span class="hint">ご本人が開いて自分でパスワードを設定します（1回だけ有効）</span></div>
+      </div>
+      {% if link %}
+      {% if link_renewed %}
+      <p class="hint" style="color:var(--warn, #b45309);margin-bottom:8px;">
+        以前のリンクは期限切れ（または未発行）だったため、新しく発行しました。古いリンクは使えません。</p>
+      {% endif %}
+      <div class="link-box" id="lk-url">{{ link }}</div>
+      <p class="hint" style="margin-top:6px;">有効期限 {{ link_expire }}（{{ hours }}時間）</p>
+      <div class="actions" style="margin-top:10px">
+        <button type="button" class="btn-sm primary" id="lk-copy" onclick="accCopy('lk-url','lk-copy')">
+          リンクをコピー</button>
+        <button type="button" class="btn-sm" id="lk-tcopy" onclick="accCopy('lk-text','lk-tcopy')">
+          文例をコピー</button>
+      </div>
+      <div class="mail-prev" style="margin-top:12px">
+        <div class="mail-prev-head">そのままコピーして使えます</div>
+        <div class="mail-prev-body keep" id="lk-text">{{ row.name }} 様
+
+HIAシステムのアカウントを発行しました。
+下記のリンクを開いて、パスワードを設定してください。
+
+{{ link }}
+
+有効期限：{{ link_expire }}（{{ hours }}時間）
+リンクは1回だけ使用できます。</div>
+      </div>
+      <p class="fld-help" style="margin-top:10px;">
+        リンクを知っている人は誰でもパスワードを設定できます。<b>ご本人にだけ</b>お伝えください。
+        発行と表示は操作ログに記録されます。</p>
+      {% else %}
+      <p class="fld-help" style="margin-bottom:10px;">
+        社内チャットや口頭で伝えるためのリンクを画面に表示します。
+        期限が切れている場合は、新しいリンクを発行し直します。</p>
+      <a class="btn-sm primary" href="{{ url_for('accounts_edit', aid=row.id, link=1) }}#card-password"
+         style="text-decoration:none">案内リンクを表示する</a>
+      {% endif %}
+    </div>
+
+    {# ---- 2. その場で設定 ---- #}
+    <div class="pw-col">
+      <div class="pw-col-head"><span class="pw-no">2</span>
+        <div><b>管理者がその場で設定する</b>
+          <span class="hint">設定後は管理者もパスワードを知っている状態になります</span></div>
+      </div>
+      <div style="margin-bottom:14px">
+        <button type="submit" form="pw-auto-form" class="btn-sm primary">
+          パスワードを自動で作って設定する</button>
+        <p class="fld-help" style="margin-top:6px;">
+          読み間違えにくい文字で、条件を満たすパスワードを作ります。作成後に1度だけ表示します。</p>
+      </div>
+      <div class="fld">
+        <label for="pw1" class="fld-label">自分で決める（新しいパスワード）</label>
+        <input type="password" id="pw1" name="pw1" class="w-m" form="pw-manual-form"
+               autocomplete="new-password">
+        <p class="fld-help">12文字以上で、英字と数字をそれぞれ1文字以上含めてください。</p>
+      </div>
+      <div class="fld">
+        <label for="pw2" class="fld-label">確認のためもう一度</label>
+        <input type="password" id="pw2" name="pw2" class="w-m" form="pw-manual-form"
+               autocomplete="new-password">
+      </div>
+      <button type="submit" form="pw-manual-form" class="btn-sm">この内容で設定する</button>
+      <p class="fld-help" style="margin-top:10px;">
+        設定するとアカウントは「有効」になり、未使用の案内リンクは無効になります。
+        設定した記録は操作ログに残ります（パスワードそのものは記録しません）。</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="actions" style="justify-content:flex-end">
-  <a class="btn-back" href="{{ url_for('accounts') }}" style="text-decoration:none">中止する</a>
+  <a class="btn-back" href="{{ url_for('accounts') }}" style="text-decoration:none">キャンセル</a>
   <button class="btn-submit">変更内容を確認する</button>
 </div>
 </form>
+
+{# パスワード設定用（本フォームの入れ子を避けるため外に置き form 属性で送信する） #}
+{% if row.status in ('invited', 'active') %}
+<form id="pw-auto-form" method="post"
+      action="{{ url_for('accounts_set_password', aid=row.id) }}"
+      onsubmit="return confirm('{{ row.email }} のパスワードを自動で作って設定します。よろしいですか？')">
+  <input type="hidden" name="mode" value="auto"></form>
+<form id="pw-manual-form" method="post"
+      action="{{ url_for('accounts_set_password', aid=row.id) }}">
+  <input type="hidden" name="mode" value="manual"></form>
+{% endif %}
 
 {# 状態変更用（本フォームの入れ子を避けるため外に置き form 属性で送信する） #}
 <form id="state-form" method="post" action="{{ url_for('accounts_toggle', aid=row.id) }}"
@@ -172,7 +285,7 @@
       <button type="button" class="modal-x" onclick="closeInvite()" aria-label="閉じる">&times;</button>
     </div>
     <div class="modal-body">
-      <p class="note" style="margin-bottom:14px">
+      <p class="note" style="margin-bottom:14px;">
         <b>{{ row.name }}</b> 様（<span class="mono">{{ row.email }}</span>）宛に、
         パスワード設定用の案内メールを送信します。</p>
 
@@ -192,7 +305,7 @@
         <div class="mail-prev-body">有効期限：{% if inv_expired %}送信から72時間{% else %}{{ row.invite_expire }}（72時間）{% endif %}</div>
       </div>
 
-      <p class="hint" style="margin-top:12px">
+      <p class="hint" style="margin-top:12px;">
         ・リンクは1回だけ使用できます。ご本人がパスワードを設定すると有効になります。<br>
         ・メールにパスワードは含まれません。<br>
         ・送信は操作ログに記録されます。
@@ -225,8 +338,23 @@ function closeInvite(){
 </script>
 {% endif %}
 
-
 <script>
+/* 指定した要素の文字をクリップボードへ写す（ボタンの表示も切り替える） */
+function accCopy(srcId, btnId){
+  var el = document.getElementById(srcId), b = document.getElementById(btnId);
+  if(!el) return;
+  var t = (el.textContent || '').trim();
+  var done = function(){ if(b){ var o=b.textContent; b.textContent='コピーしました';
+    setTimeout(function(){ b.textContent=o; }, 1600); } };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done, done);
+  } else {
+    var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
+    ta.select(); try{ document.execCommand('copy'); }catch(e){}
+    document.body.removeChild(ta); done();
+  }
+}
+
 /* 権限ロールに応じて、選択が必要なカードだけ表示する */
 (function(){
   var radios=[].slice.call(document.querySelectorAll('input[name="role"]'));

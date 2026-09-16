@@ -86,9 +86,10 @@
   color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;}
 .fsx-save:hover{background:#264040;}
 .fsx-save:disabled{background:#cfd8d8;color:#eef2f2;cursor:default;}
-.fsx-reset{height:38px;padding:0 16px;border:1px solid #e3c9c9;background:#fff;
-  border-radius:8px;font-size:12.5px;font-weight:600;color:#a13b3b;cursor:pointer;}
-.fsx-reset:hover{background:#fdf4f4;}
+/* 「初期値に戻す」は削除ボタンと同じ配色（背景#ffffff／文字#e53e3e／枠#fed7d7） */
+.fsx-reset{height:38px;padding:0 16px;border:1px solid #fed7d7;background:#ffffff;
+  border-radius:8px;font-size:12.5px;font-weight:600;color:#e53e3e;cursor:pointer;}
+.fsx-reset:hover{background:#fff5f5;color:#c53030;border-color:#feb2b2;}
 
 .fsx-note{margin-top:16px;background:#fbfcfd;border:1px solid var(--fsx-line);
   border-radius:12px;padding:16px 18px;}
@@ -160,8 +161,12 @@
               <div class="d">{{ it.desc }}</div>
             </td>
             {% for rk in role_keys %}
-            <td class="fsx-cell{{ ' na' if rk == all_role_key and not it.fixed }}">
-              {% if it.fixed or rk == all_role_key %}
+            {% set is_na = rk in it.na %}
+            <td class="fsx-cell{{ ' na' if is_na or (rk == all_role_key and not it.fixed) }}">
+              {% if is_na %}
+                {# 役割上の対象外（産業医は設定・サポートの管理を行いません） #}
+                <span class="fsx-fx n" title="このロールでは使いません（切り替えできません）">対象外</span>
+              {% elif it.fixed or rk == all_role_key %}
                 {% if matrix[rk][it.key] %}
                   <span class="fsx-fx y"><i class="fsx-dot"></i>利用可</span>
                 {% else %}
@@ -188,32 +193,14 @@
   <div class="fsx-foot">
     <div class="fsx-foot-l" id="ft-status">変更はありません</div>
     <div class="fsx-foot-r">
-      <button class="fsx-reset" type="submit" name="reset" value="1"
+      <button class="fsx-reset btn-del" type="submit" name="reset" value="1"
               onclick="return confirm('機能制御を初期値に戻します。よろしいですか？')">
         初期値に戻す</button>
-      <button class="fsx-save" type="submit" id="ft-save" disabled>この内容で保存する</button>
+      <button class="fsx-save btn-regsave" type="submit" id="ft-save" disabled>更新</button>
     </div>
   </div>
 </form>
 
-  <div class="fsx-note">
-    <h3>設定の考え方</h3>
-    <ul>
-      <li>オフにした機能は、その<b>画面・ボタンを表示せず</b>、URLを直接呼び出した場合も
-        <b>403で拒否して操作ログに記録</b>します。</li>
-      <li><b>{{ all_role or '当社スタッフ' }}は機能制御の対象外です。</b>
-        システムの管理者なので、設定に関係なく<b>すべての機能を利用できます</b>
-        （この列は切り替えられません）。ただし下の「固定」の機能は除きます。</li>
-      <li><b>「固定」の機能は変更できません。</b>面談対象の承認・就業区分の判定・面談結果の記録・
-        報告書への記名は<b>医学的判断</b>であり、労働安全衛生法の考え方にもとづき
-        <b>{{ fixed_role or '産業医' }}のみ</b>が行います。</li>
-      <li>CSVのダウンロードは、ここでの設定と<b>アカウントごとのダウンロード権限</b>の
-        両方が「可」の場合だけ行えます。</li>
-      <li>この設定はロール単位です。特定の人だけ範囲を変えたい場合は、
-        アカウント管理で<b>担当する範囲</b>を調整してください。</li>
-      <li>変更内容は操作ログに記録され、<b>各アカウントの次のアクセスから</b>適用されます。</li>
-    </ul>
-  </div>
 </div>
 
 <script>

@@ -11,10 +11,12 @@
   <td class="num">{{ counts.get(r.id, 0) }}</td>
   <td class="ops">
     {% if not CAN_MASTER %}<span class="hint">閲覧のみ</span>{% else %}
-    <a class="btn-sm primary" href="{{ url_for('office_edit', oid=r.id) }}" style="text-decoration:none">編集</a>
+    <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}"
+       href="{{ url_for('office_edit', oid=r.id) }}"
+       style="text-decoration:none">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
     <form method="post" action="{{ url_for('office_delete', oid=r.id) }}" style="display:inline"
           onsubmit="return confirm('「{{ r.name }}」を削除します。よろしいですか？\n\n加入者が紐づいている場合は削除できません。')">
-      <button class="btn-sm" style="color:var(--error);border-color:#fed7d7">削除</button></form>
+      <button class="btn-sm btn-del">削除</button></form>
     {% endif %}
   </td>
 </tr>

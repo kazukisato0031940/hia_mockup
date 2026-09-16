@@ -147,10 +147,8 @@
   box.appendChild(end);
 
   function tell(){
-    if(done && total){
-      end.textContent = '全 ' + total.toLocaleString() + ' 件を表示しました';
-      end.style.display = '';
-    }
+    /* 全件を読み終わったことの表示はしません（件数は検索欄の上に出ています） */
+    end.style.display = 'none';
   }
 
   function load(){
