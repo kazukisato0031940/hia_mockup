@@ -20,7 +20,7 @@
     {% if kenpos %}
     <form method="get" style="display:flex;gap:8px;align-items:center;margin:0">
       <input type="hidden" name="view" value="{{ view }}">
-      <label class="fld-label" style="margin:0">健康保険組合</label>
+      <label class="fld-label" style="margin:0;">健康保険組合</label>
       <select name="kenpo_id" class="w-m" onchange="this.form.submit()">
         {% for k in kenpos %}
         <option value="{{ k.id }}" {{ 'selected' if k.id == kid }}>{{ k.code }}　{{ k.name }}</option>
@@ -39,7 +39,7 @@
     <div class="actions">
       <form method="post" action="{{ url_for('risk_run_exec') }}"
             style="display:flex;gap:10px;align-items:center;margin:0">
-        <label class="fld-label" style="margin:0">予測する年数</label>
+        <label class="fld-label" style="margin:0;">予測する年数</label>
         <select name="horizon" class="w-s" style="width:110px">
           {% for y in [1, 3, 5, 10] %}
           <option value="{{ y }}" {{ 'selected' if y == 3 }}>{{ y }}年後</option>
@@ -49,7 +49,7 @@
       </form>
     </div>
   </div>
-  <p class="note" style="margin:0">
+  <p class="note" style="margin:0;">
     {% if engine == 'hitachi' %}
     日立APIの接続設定があるため、契約している予測モデルを使用します。
     {% else %}
@@ -113,19 +113,19 @@
 <div class="chart-row">
   <div class="block chart-card">
     <h2>リスク区分の内訳</h2>
-    <p class="hint" style="margin:6px 0 10px">加入者{{ rows|length }}名を、いちばん高い疾病のリスクで分けています。</p>
+    <p class="hint" style="margin:6px 0 10px;">加入者{{ rows|length }}名を、いちばん高い疾病のリスクで分けています。</p>
     {{ stack(summary) }}
   </div>
   <div class="block chart-card">
     <h2>リスクスコアの分布</h2>
-    <p class="hint" style="margin:6px 0 10px">10点刻みの人数です。60以上が高リスクです。</p>
+    <p class="hint" style="margin:6px 0 10px;">10点刻みの人数です。60以上が高リスクです。</p>
     {{ histchart(hist) }}
   </div>
 </div>
 {% endif %}
 
 <div class="block">
-  <h2>絞り込み</h2>
+  <h2>検索条件</h2>
   <form method="get" class="search-row" style="margin-top:10px">
     <div class="search-group"><label for="name">氏名・カナ</label>
       <input type="text" id="name" name="name" value="{{ f.name }}" style="width:180px"></div>
@@ -150,12 +150,12 @@
 <div class="chart-row">
   <div class="block chart-card">
     <h2>年代・性別ごとの高リスク者数</h2>
-    <p class="hint" style="margin:6px 0 10px">{{ run.horizon }}年後にリスク「高」と判定された人数です。</p>
+    <p class="hint" style="margin:6px 0 10px;">{{ run.horizon }}年後にリスク「高」と判定された人数です。</p>
     {{ vbar(g.chart_band_high) }}
   </div>
   <div class="block chart-card">
     <h2>疾病ごとの高リスク者数</h2>
-    <p class="hint" style="margin:6px 0 10px">8つの生活習慣病それぞれで、リスク「高」の人数です。</p>
+    <p class="hint" style="margin:6px 0 10px;">8つの生活習慣病それぞれで、リスク「高」の人数です。</p>
     {{ hbar(g.chart_disease, color='#E53E3E') }}
   </div>
 </div>
@@ -163,12 +163,12 @@
 <div class="chart-row">
   <div class="block chart-card">
     <h2>年代ごとの平均リスクスコア</h2>
-    <p class="hint" style="margin:6px 0 10px">その人でいちばん高い疾病のスコアを平均しています。</p>
+    <p class="hint" style="margin:6px 0 10px;">その人でいちばん高い疾病のスコアを平均しています。</p>
     {{ hbar(g.chart_band_avg, unit='点', color='#3182CE', label_w=110) }}
   </div>
   <div class="block chart-card">
     <h2>企業ごとの高リスク者数</h2>
-    <p class="hint" style="margin:6px 0 10px">保健事業の重点先を決めるときの目安になります。</p>
+    <p class="hint" style="margin:6px 0 10px;">保健事業の重点先を決めるときの目安になります。</p>
     {{ hbar(g.chart_company, color='#DD6B20', label_w=190) }}
   </div>
 </div>
@@ -242,17 +242,18 @@
   {% if rows %}
   <div class="table-scroll" style="max-height:520px;overflow-y:auto">
   <table class="result-table">
+    <!-- 列幅は「列幅の標準」（.col-*）に合わせています -->
     <colgroup>
-      <col style="width:112px"><col style="width:13%"><col style="width:14%">
-      <col style="width:12%"><col style="width:70px"><col style="width:60px">
-      <col style="width:14%"><col style="width:150px"><col style="width:96px">
-      <col style="width:82px">
+      <col class="col-num"><col class="col-name"><col class="col-long">
+      <col class="col-long"><col class="col-flag"><col class="col-flag">
+      <col class="col-long"><col class="col-status"><col class="col-status">
+      <col class="col-ops">
     </colgroup>
     <thead><tr>
-      <th>被保険者証番号</th><th class="tl">氏名</th><th class="tl">企業名</th>
+      <th>被保険者<br>証番号</th><th class="tl">氏名</th><th class="tl">企業名</th>
       <th class="tl">事業所名</th><th>年代</th><th>性別</th>
       <th class="tl">{{ f.disease or '最もリスクの高い疾病' }}</th>
-      <th>リスクスコア</th><th>リスク区分</th><th>操作</th>
+      <th>リスクスコア</th><th>リスク区分</th><th class="ops">操作</th>
     </tr></thead>
     <tbody>
     {% for r in rows %}

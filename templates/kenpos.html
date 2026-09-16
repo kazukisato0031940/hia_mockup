@@ -15,11 +15,12 @@
   <div class="table-scroll">
   <table class="result-table" style="table-layout:auto">
     <thead><tr>
-      <th style="width:130px">保険者番号</th>
+      <th>保険者番号</th>
       <th class="tl">健康保険組合名</th>
       <th style="width:100px">企業数</th>
       <th style="width:110px">加入者数</th>
       <th style="width:120px">アカウント数</th>
+      <th style="width:130px">認証方式</th>
       <th style="width:110px">登録日</th>
       <th class="ops">操作</th>
     </tr></thead>
@@ -31,13 +32,16 @@
       <td class="num">{{ '{:,}'.format(r.n_company) }}</td>
       <td class="num">{{ '{:,}'.format(r.n_member) }}</td>
       <td class="num">{{ '{:,}'.format(r.n_account) }}</td>
+      <td>{% set ap = r.auth_pattern or 'A' %}
+        <span class="st-label info"
+              title="{{ AUTH_PATTERNS[ap] | join('・') }}">認証方式{{ ap }}</span></td>
       <td class="ts">{{ r.created_at[:10] if r.created_at else '—' }}</td>
       <td class="ops">
-        <a class="btn-sm primary" href="{{ url_for('kenpo_edit', kid=r.id) }}"
+        <a class="btn-sm primary btn-edit" href="{{ url_for('kenpo_edit', kid=r.id) }}"
            style="text-decoration:none">編集</a>
         <form method="post" action="{{ url_for('kenpo_delete', kid=r.id) }}" style="display:inline"
               onsubmit="return confirm('{{ r.name }} を削除します。\n\n企業・加入者・アカウントが紐づいている場合は削除できません。\n\nよろしいですか？')">
-          <button class="btn-sm" style="color:var(--error);border-color:#fed7d7">削除</button></form>
+          <button class="btn-sm btn-del">削除</button></form>
       </td>
     </tr>
     {% endfor %}

@@ -5,6 +5,7 @@
 <p class="page-lead">健診結果・労働時間・ストレスチェックのデータを取込み、面談候補の抽出に使います。</p>
 {% endif %}
 
+{% if not only %}
 <div class="link-bar">
   <div class="link-bar-info">
     <span class="st st-role">{{ fy }}年度</span>
@@ -13,7 +14,7 @@
   </div>
   <div class="actions">
     <form method="get" style="display:flex;gap:8px;align-items:center;margin:0">
-      <label class="fld-label" style="margin:0">対象年度</label>
+      <label class="fld-label" style="margin:0;">対象年度</label>
       <select name="fy" class="w-s" style="width:120px" onchange="this.form.submit()">
         {% for y in fys %}<option value="{{ y }}" {{ 'selected' if y == fy }}>{{ y }}年度</option>{% endfor %}
       </select>
@@ -23,6 +24,9 @@
   </div>
 </div>
 
+{% endif %}
+
+{% if not only %}
 <div class="rk-row">
   <div class="rk-box"><span class="rk-label">健診結果（総合判定）</span>
     <span class="rk-value">{{ n_ken }}</span><span class="rk-unit">件</span></div>
@@ -33,29 +37,37 @@
   <div class="rk-box"><span class="rk-label">本システムの健診結果連携</span>
     <span class="rk-value">{{ n_link }}</span><span class="rk-unit">件</span></div>
 </div>
+{% endif %}
 
 {% if CAN_UPLOAD %}
+{% if only in ('', 'kenshin') %}
 <div class="block">
   <div class="blk-head">
-    <div class="blk-head-left"><h2>① 健診結果の取込（総合判定）</h2></div>
+    <div class="blk-head-left"><h2>{{ '' if only else '① ' }}健診結果の取込（総合判定）</h2></div>
     <div class="actions">
       <a class="btn-sm" href="{{ url_for('oh.oh_template', kind='kenshin') }}"
          style="text-decoration:none">テンプレートCSV</a>
     </div>
   </div>
-  <p class="note" style="margin-bottom:14px">
+  <p class="note" style="margin-bottom:14px;">
     社員コードで加入者と突合し、受診日・総合判定（A〜E）を登録します。
     旧表記（異常なし・要注意・要医療など）は<b>学会区分へ自動でマッピング</b>します。</p>
   <form method="post" action="{{ url_for('oh.oh_upload_do', kind='kenshin') }}"
-        enctype="multipart/form-data" class="search-row" style="margin:0">
+        enctype="multipart/form-data" style="margin:0">
     <input type="hidden" name="fy" value="{{ fy }}">
-    <div class="search-group" style="flex:1;min-width:280px">
-      <label for="fk">健診結果CSV</label>
-      <input type="file" id="fk" name="file" accept=".csv,.tsv,.txt" style="width:100%"></div>
-    <button class="btn-sm primary">取込む</button>
+    <div class="up-drop" id="fk-drop"
+         onclick="document.getElementById('fk').click()">
+      <div class="up-drop-text">ファイルをドラッグ＆ドロップするか、
+        <strong>ここをクリック</strong>してファイルを選択してください</div>
+      <div class="up-drop-file" id="fk-name"></div>
+      <input type="file" id="fk" name="file" accept=".csv,.tsv,.txt" hidden
+             onchange="upDropShow('fk')">
+    </div>
+    <div class="up-drop-foot"><span class="hint">健診結果CSV（UTF-8 または Shift_JIS）</span>
+      <button class="btn-sm primary">取込む</button></div>
   </form>
   <hr style="border:0;border-top:1px solid #e2e8f0;margin:16px 0">
-  <p class="note" style="margin-bottom:12px">
+  <p class="note" style="margin-bottom:12px;">
     本システムの<b>健診結果の連携（疾患予測）</b>で取込んだ個人の判定から、総合判定を作ることもできます。
     検査項目ごとの判定のうち、いちばん重いものを総合判定として登録します。</p>
   <form method="post" action="{{ url_for('oh.oh_upload_link') }}" style="margin:0">
@@ -63,103 +75,103 @@
     <button class="btn-sm">連携済みの健診結果から総合判定を作成する（{{ n_link }}件）</button>
   </form>
 </div>
+{% endif %}
 
+{% if only in ('', 'overtime') %}
 <div class="block">
   <div class="blk-head">
-    <div class="blk-head-left"><h2>② 労働時間（時間外労働）の取込</h2></div>
+    <div class="blk-head-left"><h2>{{ '' if only else '② ' }}労働時間（時間外労働）の取込</h2>
+      <span class="count">取込済 {{ n_ot }}件（{{ fy }}年度）</span></div>
     <div class="actions">
       <a class="btn-sm" href="{{ url_for('oh.oh_template', kind='overtime') }}"
          style="text-decoration:none">テンプレートCSV</a>
     </div>
   </div>
-  <p class="note" style="margin-bottom:14px">
+  <p class="note" style="margin-bottom:14px;">
     月次の時間外労働を取込みます。<b>月{{ OT_LIMIT }}時間超</b>で面談候補として抽出し、
     <b>月{{ OT_LIMIT2 }}時間超</b>は抽出理由に水準を明記します。</p>
   <form method="post" action="{{ url_for('oh.oh_upload_do', kind='overtime') }}"
-        enctype="multipart/form-data" class="search-row" style="margin:0">
+        enctype="multipart/form-data" style="margin:0">
     <input type="hidden" name="fy" value="{{ fy }}">
-    <div class="search-group" style="flex:1;min-width:280px">
-      <label for="fo">労働時間CSV</label>
-      <input type="file" id="fo" name="file" accept=".csv,.tsv,.txt" style="width:100%"></div>
-    <button class="btn-sm primary">取込む</button>
+    <div class="up-drop" id="fo-drop"
+         onclick="document.getElementById('fo').click()">
+      <div class="up-drop-text">ファイルをドラッグ＆ドロップするか、
+        <strong>ここをクリック</strong>してファイルを選択してください</div>
+      <div class="up-drop-file" id="fo-name"></div>
+      <input type="file" id="fo" name="file" accept=".csv,.tsv,.txt" hidden
+             onchange="upDropShow('fo')">
+    </div>
+    <div class="up-drop-foot"><span class="hint">労働時間CSV（UTF-8 または Shift_JIS）</span>
+      <button class="btn-sm primary">取込む</button></div>
   </form>
 </div>
+{% endif %}
 
+{% if only in ('', 'stress') %}
 <div class="block">
   <div class="blk-head">
-    <div class="blk-head-left"><h2>③ ストレスチェックの取込</h2></div>
+    <div class="blk-head-left"><h2>{{ '' if only else '③ ' }}ストレスチェック回答の取込</h2>
+      <span class="count">取込済 {{ n_st }}件（{{ fy }}年度）</span></div>
     <div class="actions">
       <a class="btn-sm" href="{{ url_for('oh.oh_template', kind='stress') }}"
          style="text-decoration:none">テンプレートCSV</a>
     </div>
   </div>
-  <p class="note" style="margin-bottom:14px">
+  <p class="note" style="margin-bottom:14px;">
     高ストレス者判定・点数・面接指導の申出を取込みます。高ストレス者は面談候補として抽出します。
     回答内容そのものは保持せず、判定と点数のみを扱います。</p>
   <form method="post" action="{{ url_for('oh.oh_upload_do', kind='stress') }}"
-        enctype="multipart/form-data" class="search-row" style="margin:0">
+        enctype="multipart/form-data" style="margin:0">
     <input type="hidden" name="fy" value="{{ fy }}">
-    <div class="search-group" style="flex:1;min-width:280px">
-      <label for="fs">ストレスチェックCSV</label>
-      <input type="file" id="fs" name="file" accept=".csv,.tsv,.txt" style="width:100%"></div>
-    <button class="btn-sm primary">取込む</button>
+    <div class="up-drop" id="fs-drop"
+         onclick="document.getElementById('fs').click()">
+      <div class="up-drop-text">ファイルをドラッグ＆ドロップするか、
+        <strong>ここをクリック</strong>してファイルを選択してください</div>
+      <div class="up-drop-file" id="fs-name"></div>
+      <input type="file" id="fs" name="file" accept=".csv,.tsv,.txt" hidden
+             onchange="upDropShow('fs')">
+    </div>
+    <div class="up-drop-foot"><span class="hint">ストレスチェックCSV（UTF-8 または Shift_JIS）</span>
+      <button class="btn-sm primary">取込む</button></div>
   </form>
 </div>
+{% endif %}
 
-<div class="block">
-  <div class="blk-head">
-    <div class="blk-head-left"><h2>ストレスチェック設問マスタ</h2>
-      <span class="count">{{ questions|length }}問</span></div>
-  </div>
-  <form method="post" action="{{ url_for('oh.oh_question') }}" class="search-row"
-        style="margin:0 0 14px">
-    <input type="hidden" name="fy" value="{{ fy }}">
-    <div class="search-group"><label for="qc">カテゴリ</label>
-      <input type="text" id="qc" name="category" style="width:180px"
-             placeholder="例）仕事のストレス要因"></div>
-    <div class="search-group"><label for="qn">番号</label>
-      <input type="number" id="qn" name="no" style="width:90px"></div>
-    <div class="search-group" style="flex:1;min-width:240px"><label for="qb">設問内容</label>
-      <input type="text" id="qb" name="body" style="width:100%"
-             placeholder="例）非常にたくさんの仕事をしなければならない"></div>
-    <button class="btn-sm primary">追加</button>
-  </form>
-  {% if questions %}
-  <div class="table-scroll" style="max-height:320px;overflow-y:auto">
-  <table class="result-table" style="table-layout:auto">
-    <thead><tr><th class="tl" style="width:200px">カテゴリ</th><th style="width:70px">番号</th>
-      <th class="tl">設問内容</th><th style="width:90px">操作</th></tr></thead>
-    <tbody>
-    {% for q in questions %}
-    <tr class="ls-row">
-      <td class="tl">{{ q.category }}</td>
-      <td class="num">{{ q.no }}</td>
-      <td class="tl">{{ q.body }}</td>
-      <td>
-        <form method="post" action="{{ url_for('oh.oh_question') }}" style="margin:0">
-          <input type="hidden" name="fy" value="{{ fy }}">
-          <button class="btn-sm" type="submit" name="delete" value="{{ q.id }}">削除</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {% else %}<div class="empty-box">設問がまだ登録されていません。</div>{% endif %}
-</div>
 {% else %}
 <div class="empty-box">データ取込は人事（運用事務）が行います。産業医の権限では取込めません。</div>
 {% endif %}
 
-<div class="block note-card">
-  <h2>取込の考え方</h2>
-  <ul class="note-list">
-    <li>加入者との突合は<b>社員コード → 被保険者証番号 → 氏名 → 加入者ID</b>の順に行います。
-      一致しない行・複数該当する行は取込まず、<b>要確認として画面に表示</b>します。</li>
-    <li>同じ加入者・同じ対象年月（年度）のデータは<b>上書き</b>されます。何度取込んでも重複しません。</li>
-    <li>CSVは<b>UTF-8 または Shift_JIS</b>で保存してください。テンプレートをそのままお使いいただけます。</li>
-    <li>加入者マスタ（企業・事業所・部署・加入者）の登録は、サイドバーの「マスタ」から行います。</li>
-  </ul>
-</div>
+<script>
+/* インポートのドラッグ＆ドロップ（他のインポート画面と同じ操作にそろえています） */
+function upDropShow(id){
+  var input = document.getElementById(id);
+  var box = document.getElementById(id + '-name');
+  if(!input || !box) return;
+  var f = input.files && input.files[0];
+  box.textContent = f ? ('選択中：' + f.name) : '';
+}
+(function(){
+  ['fk', 'fo', 'fs'].forEach(function(id){
+    var drop = document.getElementById(id + '-drop');
+    var input = document.getElementById(id);
+    if(!drop || !input) return;
+    ['dragenter', 'dragover'].forEach(function(ev){
+      drop.addEventListener(ev, function(e){
+        e.preventDefault(); drop.classList.add('is-over');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function(ev){
+      drop.addEventListener(ev, function(e){
+        e.preventDefault(); drop.classList.remove('is-over');
+      });
+    });
+    drop.addEventListener('drop', function(e){
+      if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length){
+        input.files = e.dataTransfer.files;
+        upDropShow(id);
+      }
+    });
+  });
+})();
+</script>
 {% endblock %}

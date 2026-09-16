@@ -55,7 +55,7 @@
     <p class="hint">色の付いた列が変更される項目です。</p>
     <div class="actions">
       <a class="btn-back" href="{{ url_for('accounts_edit', aid=row.id) }}" style="text-decoration:none">修正する</a>
-      <button type="button" class="btn-submit" onclick="openSave()">この内容で保存する</button>
+      <button type="button" class="btn-submit btn-regsave" onclick="openSave()">更新</button>
     </div>
   </div>
 </div>
@@ -69,7 +69,7 @@
       <button type="button" class="modal-x" onclick="closeSave()" aria-label="閉じる">&times;</button>
     </div>
     <div class="modal-body">
-      <p class="note" style="margin-bottom:14px">
+      <p class="note" style="margin-bottom:14px;">
         保存すると <b class="mono">{{ row.email }}</b> 宛に、
         設定変更のお知らせメールを自動送信します。</p>
 
@@ -85,7 +85,7 @@
         <div class="mail-prev-body">　{{ '{:,}'.format(vis.total) }}件（{{ vis.companies }}社・{{ vis.offices }}事業所）</div>
       </div>
 
-      <p class="hint" style="margin-top:12px">
+      <p class="hint" style="margin-top:12px;">
         ・メールにパスワードは含まれません。<br>
         ・変更は本人の次のアクセスから適用されます。<br>
         ・変更前後の内容と閲覧対象件数は操作ログに記録されます。

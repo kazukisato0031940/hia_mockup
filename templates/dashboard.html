@@ -26,7 +26,7 @@
     <a class="btn-sm" href="{{ url_for('logs') }}" style="text-decoration:none">すべて見る</a></div>
   <div class="table-scroll">
   <table class="result-table" style="table-layout:auto">
-    <thead><tr><th style="width:145px">日時</th><th style="width:90px">画面</th><th style="width:80px">区分</th>
+    <thead><tr><th>日時</th><th style="width:90px">画面</th><th style="width:80px">区分</th>
       <th class="tl">操作</th><th style="width:75px">結果</th><th class="tl">実行者</th><th class="tl">対象</th></tr></thead>
     <tbody>
     {% for r in recent %}

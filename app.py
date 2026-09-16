@@ -30,7 +30,7 @@ import secrets
 import smtplib
 import sqlite3
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from functools import wraps
 
@@ -124,17 +124,35 @@ FEATURES = [
      "アカウントの一覧・発行・編集・削除", False),
     ("download", "そのほか", "CSVのダウンロード",
      "アカウントごとのダウンロード権限とあわせて判定します", False),
+    # ---- 設定・サポート。カテゴリ（サイドバー）と各カードの出し分け ----
+    ("settings.view", "設定・サポート", "設定・サポートを表示",
+     "サイドバーの「設定・サポート」とそのカード一覧を出すかどうか", False),
+    ("settings.contact", "設定・サポート", "お問い合わせ先",
+     "サポート窓口の連絡先の画面", False),
+    ("settings.log", "設定・サポート", "操作ログ管理",
+     "操作ログの閲覧・絞り込み・CSV出力（配信ログを含む）", False),
+    ("settings.mail", "設定・サポート", "メール設定",
+     "送信元・SMTPなどメール送信の設定", False),
 ]
 FEATURE_KEYS = [f[0] for f in FEATURES]
+# 一部の機能はロールの役割上「対象外」にする（切り替えず、常に利用不可）。
+#   設定・サポートの管理は事務の仕事なので、産業医は対象外。
+_SETTINGS = {"settings.view", "settings.contact", "settings.log", "settings.mail"}
+FEATURE_NA_ROLES = {k: {"company_user/doctor"} for k in _SETTINGS}
+
+
+def feature_na(key, role_key):
+    # そのロールにとって対象外の機能か（画面では「対象外」と表示して切り替えません）
+    return role_key in FEATURE_NA_ROLES.get(key, ())
 FIXED_FEATURES = {f[0] for f in FEATURES if f[4]}
 # 固定の機能を使えるロール（医学的判断は産業医のみ）
 FIXED_FEATURE_ROLE = "company_user/doctor"
 
 _KENPO = {"kenpo.kenshin", "kenpo.hoken", "kenpo.influenza", "kenpo.receipt",
           "kenpo.member_edit", "kenpo.mail"}
-_OPS = {"master.view", "master.write", "master.import", "oh.list", "oh.kenshin",
-        "oh.hr_class", "oh.report", "oh.mail", "oh.upload", "risk", "accounts",
-        "download"} | _KENPO
+_OPS = ({"master.view", "master.write", "master.import", "oh.list", "oh.kenshin",
+         "oh.hr_class", "oh.report", "oh.mail", "oh.upload", "risk", "accounts",
+         "download"} | _KENPO | _SETTINGS)
 # 産業医は医学的判断が中心。業務事務（取込・配信・健保側の各業務）は既定で持たない
 _DOCTOR = {"master.view", "oh.list", "oh.kenshin", "oh.report", "oh.approve",
            "oh.interview", "oh.sign", "risk", "accounts", "download"}
@@ -150,6 +168,21 @@ SCOPE_LABELS = {"all": "全健保", "kenpo_all": "自組合全体",
                 "own_company": "担当する範囲"}
 STATUS_LABELS = {"active": "有効", "invited": "PW未設定", "disabled": "無効",
                  "deleted": "削除済み"}
+# 加入者向けサイトの本人確認（認証）で使う項目のパターン。健保ごとに登録する。
+AUTH_PATTERNS = {
+    "A": ["被保険者記号", "被保険者番号", "カナ", "生年月日", "性別"],
+    "B": ["被保険者番号", "カナ", "生年月日", "性別"],
+}
+AUTH_PATTERN_NOTE = {
+    "A": "被保険者証に記号がある組合はこちら（記号と番号で本人を特定します）",
+    "B": "記号を使わない組合はこちら（番号のみで本人を特定します）",
+}
+
+
+def clean_auth_pattern(v, default="A"):
+    # 認証方式の値をそろえる（A か B のどちらか）
+    v = (v or "").strip().upper()
+    return v if v in AUTH_PATTERNS else default
 # 各ロールが発行・変更できるロール（自分より広い権限は付与できない）
 ISSUABLE_ROLES = {
     "system_admin": ["system_admin", "kenpo_user", "company_user"],
@@ -161,7 +194,39 @@ SHELL_OF_ROLE = {"system_admin": "km", "kenpo_user": "kenpo", "company_user": "k
 SCOPED_ROLES = ("company_user",)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("HIA_SECRET_KEY") or secrets.token_hex(32)
+
+
+def _secret_key():
+    """署名用のキー。毎回作り直すと再起動でログインが切れてしまうため、
+    環境変数がなければ secret.key に保存して使い回します。"""
+    env = os.environ.get("HIA_SECRET_KEY")
+    if env:
+        return env
+    path = os.path.join(BASE_DIR, "secret.key")
+    try:
+        with open(path, encoding="utf-8") as fp:
+            key = fp.read().strip()
+        if key:
+            return key
+    except OSError:
+        pass
+    key = secrets.token_hex(32)
+    try:
+        with open(path, "w", encoding="utf-8") as fp:
+            fp.write(key)
+        os.chmod(path, 0o600)
+    except OSError:
+        pass          # 書けない環境ではその場かぎりのキーで動かす
+    return key
+
+
+app.secret_key = _secret_key()
+# ログインを保つ期間（この間はブラウザを閉じても入り直さずに使えます）
+app.permanent_session_lifetime = timedelta(days=14)
+app.config.update(SESSION_COOKIE_SAMESITE="Lax", SESSION_COOKIE_HTTPONLY=True,
+                  SESSION_REFRESH_EACH_REQUEST=True,
+                  # CSSや画面（static）を更新したらすぐ反映されるようにする
+                  SEND_FILE_MAX_AGE_DEFAULT=0)
 
 STAGING = {}
 ALLOW_IPS = [x.strip() for x in os.environ.get("HIA_ALLOW_IPS", "").split(",") if x.strip()]
@@ -243,6 +308,26 @@ def init_db():
 
 def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def no_store(resp):
+    """ブラウザに画面をためこませない（更新がすぐ反映されるように）"""
+    resp.headers["Cache-Control"] = "no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
+def asset_ver(name="app.css"):
+    """スタイルの更新時刻。リンクに付けて、古いCSSが使われるのを防ぎます。"""
+    try:
+        return str(int(os.path.getmtime(os.path.join(BASE_DIR, "static", name))))
+    except OSError:
+        return "0"
+
+
+@app.context_processor
+def inject_asset_ver():
+    return {"ASSET_V": asset_ver()}
 
 
 # ---------------------------------------------------------------- ログ
@@ -381,6 +466,8 @@ def feature_allowed(key, acc=None):
     if not acc:
         return False
     rk = role_key(acc)
+    if feature_na(key, rk):
+        return False            # 役割上の対象外（設定に関係なく使えません）
     if key in FIXED_FEATURES:
         return rk == FIXED_FEATURE_ROLE
     if rk == ALL_FEATURE_ROLE:
@@ -473,6 +560,9 @@ ENDPOINT_FEATURES = {
     "risk_export": "risk", "risk_groups": "risk", "risk_kenshin": "risk",
     "risk_kenshin_sync": "risk", "risk_kenshin_xml": "risk",
     "risk_nsips": "risk", "risk_nsips_sync": "risk",
+    # 設定・サポート
+    "logs": "settings.log", "logs_export": "settings.log",
+    "logs_mail_export": "settings.log",
     # アカウント管理
     "accounts": "accounts", "accounts_export": "accounts",
     "accounts_new": "accounts", "accounts_create": "accounts",
@@ -481,6 +571,14 @@ ENDPOINT_FEATURES = {
     "accounts_send_invite": "accounts", "accounts_toggle": "accounts",
     "accounts_delete": "accounts", "accounts_purge": "accounts",
 }
+
+
+@app.before_request
+def keep_session():
+    """ログイン状態を保ち続ける（画面の中の枠からの移動でログイン画面に戻らないように）。
+    アクセスするたびに有効期限を先へ延ばします。"""
+    if session.get("account_id") and not session.permanent:
+        session.permanent = True
 
 
 @app.before_request
@@ -535,6 +633,8 @@ def inject_globals():
         "can_feature": feature_allowed,
         "SCOPE_LABELS": SCOPE_LABELS,
         "STATUS_LABELS": STATUS_LABELS,
+        "AUTH_PATTERNS": AUTH_PATTERNS,
+        "AUTH_PATTERN_NOTE": AUTH_PATTERN_NOTE,
         "BUILD": BUILD,
         "MAX_EXPORT_ROWS": MAX_EXPORT_ROWS,
         "MAIL_ENABLED": mail_enabled(),
@@ -777,6 +877,127 @@ def scoped_offices(acc):
         " WHERE " + " OR ".join(conds) + " ORDER BY c.code, o.code", params).fetchall()
 
 
+def _age_of(birth):
+    """生年月日（YYYY-MM-DD／YYYY/MM/DD）から満年齢を求める。分からなければ None"""
+    m = re.match(r"(\d{4})[-/](\d{1,2})[-/](\d{1,2})", (birth or "").strip())
+    if not m:
+        return None
+    y, mo, d = (int(x) for x in m.groups())
+    t = date.today()
+    return t.year - y - ((t.month, t.day) < (mo, d))
+
+
+def _fmt_date(v):
+    """20260601／2026-06-01 などを 2026/06/01 の形にそろえる"""
+    t = (v or "").strip().replace("-", "/")
+    m = re.fullmatch(r"(\d{4})(\d{2})(\d{2})", t)
+    if m:
+        return "/".join(m.groups())
+    return t
+
+
+def _current_fy():
+    """いまの年度（4月〜翌3月）"""
+    t = date.today()
+    return str(t.year - 1 if t.month <= 3 else t.year)
+
+
+def member_services(db, row):
+    """加入者ごとの「対象状況」（マイページに出す内容と同じもの）。
+
+    健診・特定保健指導・産業医面談・インフルエンザ予防接種補助について、
+    登録済みのデータから対象かどうかを組み立てて返します。
+    ここに出る判定区分・リスク区分は参考情報で、受診の必要性や就業上の措置の
+    最終判断は産業医・医師が行います。
+    """
+    mid, fy = row["id"], _current_fy()
+    age = _age_of(row["birth"])
+    lost = (row["lost_at"] or "").strip()
+    out = []
+
+    # ---- 健診（定期健診・深夜健診） ----
+    kk = db.execute("SELECT fiscal_year, kind, exam_date, judge FROM oh_kenshin"
+                    " WHERE member_id=? ORDER BY fiscal_year DESC, exam_date DESC"
+                    " LIMIT 1", [mid]).fetchone()
+    if not kk:
+        kk = db.execute("SELECT MAX(exam_date) AS exam_date FROM kenshin_result"
+                        " WHERE member_id=?", [mid]).fetchone()
+    last = _fmt_date(kk["exam_date"] if kk and kk["exam_date"] else "")
+    judge = kk["judge"] if (kk and "judge" in kk.keys()) else None
+    judge_txt = f"　最終判定 {judge}" if judge else ""
+    kinds = ["定期健診（年1回）"]
+    if row["night_work"]:
+        kinds.append("深夜健診（6か月ごと）")
+    # 加入者情報で「健診の対象から除外する」にしている場合は対象外として表示する
+    excluded = ("excluded" in row.keys() and row["excluded"])
+    out.append({
+        "name": "健診", "target": (not lost) and not excluded,
+        "label": ("対象外（除外の設定あり）" if excluded
+                  else ("対象" if not lost else "対象外（資格喪失）")),
+        "detail": "／".join(kinds)
+                  + (f"　最終受診 {last}" if last else "　受診記録なし")
+                  + judge_txt,
+    })
+
+    # ---- 特定健診・特定保健指導（40〜74歳） ----
+    med = db.execute("SELECT COUNT(*) AS n FROM kenshin_result"
+                     " WHERE member_id=? AND judge IN ('caution','medical')",
+                     [mid]).fetchone()["n"]
+    tokutei = age is not None and 40 <= age <= 74 and not lost
+    if tokutei:
+        lab = "対象（保健指導の候補）" if med else "対象"
+        det = ("特定健診の対象年齢です。"
+               + ("直近の健診に要注意・要医療の項目があるため、階層化の結果により"
+                  "保健指導の案内対象になります。" if med
+                  else "健診結果の階層化で支援区分が決まります。"))
+    else:
+        lab = "対象外"
+        det = ("資格喪失のため対象外です。" if lost
+               else "特定健診・特定保健指導は40〜74歳が対象です。"
+               if age is not None else "生年月日が未登録のため判定できません。")
+    out.append({"name": "特定保健指導", "target": tokutei, "label": lab, "detail": det})
+
+    # ---- 産業医面談（面談候補） ----
+    cand = db.execute("SELECT fiscal_year, reasons, status FROM oh_candidate"
+                      " WHERE member_id=? ORDER BY fiscal_year DESC LIMIT 1",
+                      [mid]).fetchone()
+    ot = db.execute("SELECT MAX(hours) AS h FROM oh_overtime WHERE member_id=?",
+                    [mid]).fetchone()["h"]
+    st = db.execute("SELECT high, applied FROM oh_stress WHERE member_id=?"
+                    " ORDER BY fiscal_year DESC LIMIT 1", [mid]).fetchone()
+    if cand:
+        out.append({"name": "産業医面談", "target": True,
+                    "label": f"対象（{cand['status']}）",
+                    "detail": f"{cand['fiscal_year']}年度の面談候補　"
+                              f"抽出理由：{cand['reasons'] or '—'}"})
+    else:
+        marks = []
+        if ot:
+            marks.append(f"時間外（最大）{ot:.0f}時間／月")
+        if st and st["high"]:
+            marks.append("高ストレス")
+        if st and st["applied"]:
+            marks.append("本人からの申出あり")
+        out.append({"name": "産業医面談", "target": False, "label": "候補なし",
+                    "detail": (f"{fy}年度の面談候補には入っていません。"
+                               + ("　参考：" + "／".join(marks) if marks else ""))})
+
+    # ---- インフルエンザ予防接種補助 ----
+    out.append({
+        "name": "インフルエンザ補助", "target": not lost,
+        "label": "対象" if not lost else "対象外（資格喪失）",
+        "detail": ("本人・家族ともに年度内1回まで補助の対象です"
+                   "（申請受付期間内に申請が必要）。" if not lost
+                   else "資格喪失のため対象外です。"),
+    })
+
+    # ---- 参考：疾病リスクの予測区分 ----
+    rk = db.execute("SELECT disease, level, score FROM risk_score WHERE member_id=?"
+                    " ORDER BY score DESC LIMIT 3", [mid]).fetchall()
+    risks = [f"{r['disease']}（{r['level']}／{r['score']:.1f}点）" for r in rk]
+    return {"age": age, "fy": fy, "services": out, "risks": risks}
+
+
 def member_where(acc):
     """加入者の閲覧範囲。担当範囲（企業・事業所・部署）のどれかに当てはまれば見える。"""
     if acc["role"] == "system_admin":
@@ -970,6 +1191,7 @@ def login():
             flash(bad, "error")
         else:
             session.clear()
+            session.permanent = True      # 再起動やブラウザを閉じてもログインを保つ
             session["account_id"] = row["id"]
             session["shell"] = SHELL_OF_ROLE.get(row["role"], "kenpo")
             session["embed"] = True
@@ -981,6 +1203,11 @@ def login():
             if not nxt:
                 nxt = url_for("spa_km") if SHELL_OF_ROLE.get(row["role"], "kenpo") == "km" else url_for("spa")
             return redirect(nxt)
+    # 画面の中に埋め込まれた枠（iframe）でログイン画面を出すと、枠の中だけに
+    # ログインフォームが出てしまうため、いちばん外側の画面をログイン画面に切り替えます。
+    if request.headers.get("Sec-Fetch-Dest") == "iframe":
+        return render_template("login_break.html",
+                               next=request.args.get("next") or "")
     return render_template("login.html")
 
 
@@ -1113,7 +1340,7 @@ def spa_km():
         return redirect(url_for("support_end"))
     session["embed"] = True
     session["shell"] = "km"
-    return send_from_directory(os.path.join(BASE_DIR, "static"), "km_app.html")
+    return no_store(send_from_directory(os.path.join(BASE_DIR, "static"), "km_app.html"))
 
 
 @app.route("/app")
@@ -1125,7 +1352,7 @@ def spa():
         return redirect(url_for("spa_km"))
     session["embed"] = True
     session["shell"] = "kenpo"
-    return send_from_directory(os.path.join(BASE_DIR, "static"), "hia_app.html")
+    return no_store(send_from_directory(os.path.join(BASE_DIR, "static"), "hia_app.html"))
 
 
 @app.route("/standalone")
@@ -1226,11 +1453,15 @@ def api_kenpos():
         return {"ok": False, "message": "この保険者番号は既に登録されています。"}
     if db.execute("SELECT 1 FROM kenpo WHERE name=?", (name,)).fetchone():
         return {"ok": False, "message": "この名称は既に登録されています。"}
-    db.execute("INSERT INTO kenpo (code, name) VALUES (?,?)", (code, name))
+    auth = clean_auth_pattern(data.get("auth_pattern"))
+    db.execute("INSERT INTO kenpo (code, name, auth_pattern) VALUES (?,?,?)",
+               (code, name, auth))
     db.commit()
-    log("master", "健康保険組合を登録", "success", target=name, detail=f"保険者番号={code}")
-    return {"ok": True,
-            "message": f"{name}（保険者番号 {code}）を登録しました。"}
+    log("master", "健康保険組合を登録", "success", target=name,
+        detail=f"保険者番号={code}／認証方式={auth}（{'・'.join(AUTH_PATTERNS[auth])}）")
+    return {"ok": True, "auth_pattern": auth,
+            "message": f"{name}（保険者番号 {code}）を登録しました。"
+                       f"認証方式{auth}（{'・'.join(AUTH_PATTERNS[auth])}）"}
 
 
 @app.route("/kenpos/new", methods=["GET", "POST"])
@@ -1256,10 +1487,13 @@ def kenpo_new():
         for e in errs:
             flash(e, "error")
         return render_template("kenpo_form.html", row=None, form=request.form)
-    db.execute("INSERT INTO kenpo (code, name) VALUES (?,?)", (code, name))
+    auth = clean_auth_pattern(request.form.get("auth_pattern"))
+    db.execute("INSERT INTO kenpo (code, name, auth_pattern) VALUES (?,?,?)",
+               (code, name, auth))
     db.commit()
     log("master", "健康保険組合を登録", "success", target=name,
-        detail=f"保険者番号={code}")
+        detail=f"保険者番号={code}／認証方式={auth}"
+               f"（{'・'.join(AUTH_PATTERNS[auth])}）")
     flash(f"{name}（保険者番号 {code}）を登録しました。", "ok")
     return redirect(url_for("kenpos"))
 
@@ -1291,10 +1525,15 @@ def kenpo_edit(kid):
         for e in errs:
             flash(e, "error")
         return render_template("kenpo_form.html", row=row, form=request.form)
-    db.execute("UPDATE kenpo SET code=?, name=? WHERE id=?", (code, name, kid))
+    cur_auth = (row["auth_pattern"] if "auth_pattern" in row.keys() else "A") or "A"
+    auth = clean_auth_pattern(request.form.get("auth_pattern"), cur_auth)
+    db.execute("UPDATE kenpo SET code=?, name=?, auth_pattern=? WHERE id=?",
+               (code, name, auth, kid))
     db.commit()
     log("master", "健康保険組合を更新", "success", target=name,
-        detail=f"保険者番号 {row['code']} → {code}／名称 {row['name']} → {name}")
+        detail=f"保険者番号 {row['code']} → {code}／名称 {row['name']} → {name}"
+               + (f"／認証方式 {cur_auth} → {auth}" if cur_auth != auth
+                  else f"／認証方式={auth}"))
     flash(f"{name} を更新しました。", "ok")
     return redirect(url_for("kenpos"))
 
@@ -1347,8 +1586,7 @@ def support_start():
     g.pop("sup_kenpo", None)
     log("account", "サポートログインを開始", "success", target=kenpo["name"],
         detail=f"保険者番号={kenpo['code']}")
-    flash(f"{kenpo['name']} のサポートログインを開始しました。"
-          f"操作はすべて記録されます。", "ok")
+    # 画面上のお知らせは出しません（操作ログへの記録はこれまでどおり残ります）
     return redirect(url_for("spa"))
 
 
@@ -3353,6 +3591,9 @@ def _member_form_values(form):
             vals["birth"] = v
         else:
             vals[k] = v
+    # 切り替え（トグル）は 0／1 で持ちます
+    for k in ("night_work", "excluded"):
+        vals[k] = 1 if form.get(k) else 0
     return vals, errs
 
 
@@ -3432,7 +3673,7 @@ def member_edit(mid):
     depts = scoped_departments(acc)
     if request.method == "GET":
         return render_template("member_form.html", row=row, comps=comps, offs=offs,
-                               depts=depts)
+                               depts=depts, mypage=member_services(db, row))
     cid = request.form.get("company_id", type=int)
     oid = request.form.get("office_id", type=int)
     did = request.form.get("dept_id", type=int)
@@ -3461,7 +3702,8 @@ def member_edit(mid):
         for e in errs:
             flash(e, "error")
         return render_template("member_form.html", row=row, comps=comps, offs=offs,
-                               depts=depts, form=request.form)
+                               depts=depts, form=request.form,
+                               mypage=member_services(db, row))
     before = (f"{row['name']}／{row['company_name'] or '企業未紐づけ'}"
               f"／{row['office_name'] or '部署未設定'}")
     keys = list(vals.keys())
@@ -4100,7 +4342,9 @@ def feature_settings():
     for rk in ROLE_KEYS:
         matrix[rk] = {}
         for key, _grp, _label, _desc, fixed in FEATURES:
-            if fixed:
+            if feature_na(key, rk):
+                matrix[rk][key] = False     # 役割上の対象外（切り替えません）
+            elif fixed:
                 matrix[rk][key] = (rk == FIXED_FEATURE_ROLE)
             elif rk == ALL_FEATURE_ROLE:
                 matrix[rk][key] = True      # 当社スタッフは常に利用可（切替不可）
@@ -4113,7 +4357,8 @@ def feature_settings():
     for key, grp, label, desc, fixed in FEATURES:
         if not groups or groups[-1][0] != grp:
             groups.append((grp, []))
-        groups[-1][1].append({"key": key, "label": label, "desc": desc, "fixed": fixed})
+        groups[-1][1].append({"key": key, "label": label, "desc": desc, "fixed": fixed,
+                              "na": sorted(FEATURE_NA_ROLES.get(key, ()))})
     # 見出しに使う列の情報（ロール名とサブロール名を分けて渡す）
     role_cols = []
     for rk in ROLE_KEYS:
@@ -4122,8 +4367,8 @@ def feature_settings():
         role_cols.append({"key": rk, "full": full, "base": base,
                           "sub": sub[:-1] if paren else "",
                           "settable": rk != ALL_FEATURE_ROLE})
-    n_cells = (sum(1 for _k, _g, _l, _d, fx in FEATURES if not fx)
-               * sum(1 for c in role_cols if c["settable"]))
+    n_cells = sum(1 for k, _g, _l, _d, fx in FEATURES if not fx
+                  for c in role_cols if c["settable"] and not feature_na(k, c["key"]))
     return render_template("feature_settings.html", groups=groups, matrix=matrix,
                            role_keys=ROLE_KEYS, role_labels=ROLE_KEY_LABELS,
                            role_cols=role_cols, n_over=n_over, n_cells=n_cells,
@@ -4152,6 +4397,8 @@ def feature_settings_save():
         if rk == ALL_FEATURE_ROLE:
             continue            # 当社スタッフは機能制御の対象外（常に全機能）
         for key, _grp, label, _desc, fixed in FEATURES:
+            if feature_na(key, rk):
+                continue        # 役割上の対象外は設定しない
             if fixed:
                 continue        # 固定の機能は保存しない（産業医のみ・変更不可）
             allowed = f"{rk}|{key}" in on
@@ -4251,6 +4498,9 @@ def me_account():
         log("account", "ログインIDの変更を通知", "success", target=email,
             detail="変更前・変更後の両方へ送信")
     flash("アカウント情報を変更しました。", "ok")
+    # 変更後はアカウント一覧へ戻す（アカウント管理を使えない場合はマイアカウントに残る）
+    if feature_allowed("accounts", current_account()):
+        return redirect(url_for("accounts"))
     return redirect(url_for("me_account"))
 
 
@@ -4604,13 +4854,48 @@ def accounts_edit(aid):
         if row["status"] == "invited" and row["invite_token"] else None
     inv_expired = bool(row["status"] == "invited"
                        and (row["invite_expire"] or "") < now())
-    if request.method == "GET":
+    def edit_page(**extra):
+        # 直前に設定したパスワードがあれば1度だけ表示する
+        once = session.pop("setpw_once", None)
+        if once and once.get("aid") == aid:
+            extra.setdefault("generated", once.get("pw"))
         return render_template("accounts_edit.html", row=row, comps=comps, roles=roles,
                                kenpos=kenpos, selected=cur_ids,
                                inv_url=inv_url, inv_expired=inv_expired,
                                offs=scoped_offices(acc), depts=scoped_departments(acc),
                                sel_offices=set(account_scope_ids(aid)["office"]),
-                               sel_depts=set(account_scope_ids(aid)["dept"]))
+                               sel_depts=set(account_scope_ids(aid)["dept"]),
+                               hours=INVITE_HOURS, **extra)
+
+    if request.method == "GET":
+        # 「案内リンクを表示する」を押したとき（?link=1）。
+        # 期限が切れている・未発行のときは、その場で新しいリンクを発行する。
+        if request.args.get("link"):
+            token, expire = row["invite_token"], row["invite_expire"]
+            renewed = False
+            if not token or (expire or "") < now():
+                token = secrets.token_urlsafe(32)
+                expire = (datetime.now()
+                          + timedelta(hours=INVITE_HOURS)).strftime("%Y-%m-%d %H:%M:%S")
+                # すでに使えているアカウント（有効）は状態を変えない。
+                # 状態を invited に戻すとログインできなくなってしまうため。
+                if row["status"] == "active":
+                    db.execute("UPDATE account SET invite_token=?, invite_expire=?,"
+                               " updated_at=? WHERE id=?",
+                               (token, expire, now(), aid))
+                else:
+                    db.execute("UPDATE account SET status='invited', invite_token=?,"
+                               " invite_expire=?, updated_at=? WHERE id=?",
+                               (token, expire, now(), aid))
+                db.commit()
+                renewed = True
+                row = _target_account(aid)
+            log("account", "案内リンクを画面に表示", "success", target=row["email"],
+                detail=("新しいリンクを発行" if renewed else "既存のリンクを表示")
+                       + f"／有効期限={expire}")
+            return edit_page(link=ext_url("invite", token=token), link_expire=expire,
+                             link_renewed=renewed)
+        return edit_page()
 
     name = (request.form.get("name") or "").strip()
     role = request.form.get("role") or row["role"]
@@ -4799,33 +5084,8 @@ def accounts_edit_apply(aid):
 @app.route("/accounts/<int:aid>/invite-link")
 @login_required
 def accounts_invite_link(aid):
-    """案内リンクを画面に表示する。メールが使えない環境で、口頭や社内チャットで
-    伝えるために使う。期限が切れていれば新しいリンクを発行する。"""
-    db, acc = get_db(), current_account()
-    row = _target_account(aid)
-    if not row:
-        log("account", "案内リンクの表示をブロック", "blocked", target=str(aid),
-            detail="対象アカウントへの権限がない")
-        flash("対象のアカウントを操作する権限がありません。", "error")
-        return redirect(url_for("accounts"))
-    if row["status"] == "deleted":
-        flash("削除済みのアカウントです。", "error")
-        return redirect(url_for("accounts"))
-
-    token, expire = row["invite_token"], row["invite_expire"]
-    renewed = False
-    if not token or (expire or "") < now():
-        token = secrets.token_urlsafe(32)
-        expire = (datetime.now() + timedelta(hours=INVITE_HOURS)).strftime("%Y-%m-%d %H:%M:%S")
-        db.execute("UPDATE account SET status='invited', invite_token=?, invite_expire=?,"
-                   " updated_at=? WHERE id=?", (token, expire, now(), aid))
-        db.commit()
-        renewed = True
-    log("account", "案内リンクを画面に表示", "success", target=row["email"],
-        detail=("新しいリンクを発行" if renewed else "既存のリンクを表示")
-               + f"／有効期限={expire}")
-    return render_template("account_link.html", row=row, link=ext_url("invite", token=token),
-                           expire=expire, renewed=renewed, hours=INVITE_HOURS)
+    """案内リンクは編集画面にまとめたので、そちらへ送る（古いURL・ブックマーク用）"""
+    return redirect(url_for("accounts_edit", aid=aid, link=1))
 
 
 @app.route("/accounts/<int:aid>/set-password", methods=["GET", "POST"])
@@ -4848,7 +5108,8 @@ def accounts_set_password(aid):
         return redirect(url_for("accounts"))
 
     if request.method == "GET":
-        return render_template("account_setpw.html", row=row, generated=None)
+        # 入力欄は編集画面にまとめたので、そちらへ送る
+        return redirect(url_for("accounts_edit", aid=aid))
 
     if request.form.get("mode") == "auto":
         pw = gen_password()
@@ -4859,7 +5120,7 @@ def accounts_set_password(aid):
     if errs:
         for e in errs:
             flash(e, "error")
-        return render_template("account_setpw.html", row=row, generated=None)
+        return redirect(url_for("accounts_edit", aid=aid))
 
     db.execute("UPDATE account SET password_hash=?, status='active', invite_token=NULL,"
                " invite_expire=NULL, reset_token=NULL, reset_expire=NULL, updated_at=?"
@@ -4869,7 +5130,9 @@ def accounts_set_password(aid):
         detail=("自動生成したパスワードを設定" if request.form.get("mode") == "auto"
                 else "管理者が入力したパスワードを設定")
                + "／メールは送信していない")
-    return render_template("account_setpw.html", row=row, generated=pw)
+    # 作ったパスワードは1度だけ表示する。編集画面にそのまま表示して控えてもらう
+    session["setpw_once"] = {"aid": aid, "pw": pw}
+    return redirect(url_for("accounts_edit", aid=aid))
 
 
 @app.route("/accounts/<int:aid>/send-invite", methods=["POST"])
@@ -5035,7 +5298,43 @@ def logs():
     total = db.execute("SELECT COUNT(*) c FROM (" + sql + ")", p).fetchone()["c"]
     rows = db.execute(sql + " ORDER BY id DESC LIMIT 300", p).fetchall()
     return render_template("logs.html", rows=rows, total=total, cat=cat, shell=shell,
-                           kw=kw, dfrom=dfrom, dto=dto)
+                           kw=kw, dfrom=dfrom, dto=dto, mails=mail_log_rows(db))
+
+
+def mail_log_rows(db, limit=100):
+    """配信ログ（メールの送信記録）を1回の配信ごとにまとめて返す。
+
+    受診勧奨・受検案内は同じ時刻にまとめて送るため、
+    「配信日時（分単位）×メール種別×テンプレート」で1行にし、
+    宛先数・成功・失敗・スキップの件数だけを出します（個人名は出しません）。
+    """
+    try:
+        return db.execute(
+            "SELECT substr(l.sent_at,1,16) sent_at, l.kind kind,"
+            "       COALESCE(t.name, l.subject, '—') tpl,"
+            "       COUNT(*) n,"
+            "       SUM(CASE WHEN l.result='success' THEN 1 ELSE 0 END) ok,"
+            "       SUM(CASE WHEN l.result='failure' THEN 1 ELSE 0 END) ng,"
+            "       SUM(CASE WHEN l.result='skipped' THEN 1 ELSE 0 END) sk,"
+            "       MAX(l.actor) actor"
+            "  FROM oh_mail_log l"
+            "  LEFT JOIN oh_mail_template t ON t.id = l.template_id"
+            " GROUP BY substr(l.sent_at,1,16), l.kind, l.template_id"
+            " ORDER BY sent_at DESC LIMIT ?", (limit,)).fetchall()
+    except sqlite3.Error:
+        return []                            # 産業医面談管理のテーブルが無い場合
+
+
+@app.route("/logs/mail/export")
+@login_required
+def logs_mail_export():
+    db = get_db()
+    rows = [(r["sent_at"], r["kind"], r["tpl"], r["n"], r["ok"], r["ng"], r["sk"],
+             r["actor"] or "") for r in mail_log_rows(db, limit=10000)]
+    return export_csv("mail_log.csv",
+                      ["配信日時", "メール種別", "テンプレート名", "宛先数", "成功",
+                       "失敗", "スキップ", "実行者"], rows, "配信ログ") \
+        or redirect(url_for("logs"))
 
 
 @app.route("/logs/export")

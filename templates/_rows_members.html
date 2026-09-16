@@ -12,19 +12,24 @@
   <td>{{ r.sex or '' }}</td>
   <td class="tl">{% if r.company_name %}
     <span class="ellip w190" title="{{ r.company_name }}（{{ r.company_code }}）">{{ r.company_name }}</span>
-    {% else %}<span class="st st-invited">未紐づけ</span>{% endif %}</td>
+    {% else %}<span class="st st-invited" title="企業が未紐づけです">未紐づけ</span>{% endif %}</td>
   <td class="tl">{% if r.office_name %}
     <span class="ellip w150" title="{{ r.office_name }}（{{ r.office_code }}）">{{ r.office_name }}</span>
     {% else %}<span class="hint">未設定</span>{% endif %}</td>
   <td class="tl">{% if r.dept_name %}
     <span class="ellip w150" title="{{ r.dept_name }}（{{ r.dept_code }}）">{{ r.dept_name }}</span>
     {% else %}<span class="hint">未設定</span>{% endif %}</td>
+  <td>{% if r.excluded %}<span class="st-label ng">除外</span>
+      {% else %}<span class="st-label ok">対象</span>{% endif %}
+    {% if r.night_work %}<span class="st-label info">深夜</span>{% endif %}</td>
   <td class="ops">
     {% if CAN_MASTER %}
-    <a class="btn-sm primary" href="{{ url_for('member_edit', mid=r.id) }}" style="text-decoration:none">編集</a>
+    <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}"
+       href="{{ url_for('member_edit', mid=r.id) }}"
+       style="text-decoration:none">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
     <form method="post" action="{{ url_for('member_delete', mid=r.id) }}" style="display:inline"
           onsubmit="return confirm('被保険者証番号 {{ r.member_no }}（{{ r.name }}）を削除します。よろしいですか？')">
-      <button class="btn-sm" style="color:var(--error);border-color:#fed7d7">削除</button></form>
+      <button class="btn-sm btn-del">削除</button></form>
     {% else %}<span class="hint">閲覧のみ</span>{% endif %}
   </td>
 </tr>

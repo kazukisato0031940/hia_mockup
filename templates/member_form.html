@@ -1,5 +1,5 @@
 {% extends LAYOUT %}{% block body %}
-<h1 class="page-title">{{ '加入者情報の編集' if row else '加入者の登録' }}</h1>
+<h1 class="page-title">{{ '加入者情報の編集' if row else '加入者情報の登録' }}</h1>
 <p class="page-lead">
   {% if row %}登録済みの加入者を編集します。
   {% else %}加入者を1件ずつ登録します。まとめて登録する場合は一覧の「一括インポート」をお使いください。{% endif %}</p>
@@ -19,196 +19,291 @@
 </div>
 {% endif %}
 
+<style>
+/* 登録・編集フォームの並びは app.css の共通レイアウト（.mf-*）を使います */
+/* ===== マイページ表示（対象状況） ===== */
+.mp-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:1180px){.mp-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){.mp-grid{grid-template-columns:1fr}}
+.mp-item{border:1px solid var(--border);border-radius:10px;padding:12px 14px;
+  background:#fff;display:flex;flex-direction:column;gap:6px}
+.mp-item.on{border-color:#c6f0dd;background:#f6fdfa}
+.mp-name{font-size:14px;font-weight:700;color:#333333}
+.mp-badge{align-self:flex-start;padding:3px 10px;border-radius:999px;font-size:12px;
+  font-weight:700;background:#edf2f7;color:#4a5568}
+.mp-item.on .mp-badge{background:#e8f4ec;color:#15803d}
+.mp-detail{font-size:12px;color:#666666;line-height:1.6}
+.mp-meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin:0 0 14px;font-size:12px;
+  color:#666666}
+.mp-meta b{color:#333333;font-weight:700}
+</style>
+
+{% if row and mypage %}
+{# 加入者本人のマイページと同じ内容（本人が見られる情報をここでも確認できます） #}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>この加入者の対象状況</h2></div>
+  </div>
+  <p class="mp-meta">
+    <span>加入者ID <b>{{ row.subscriber_id or '—' }}</b></span>
+    <span>被保険者証 <b>{{ row.cert_mark or '—' }} - {{ row.member_no }}{% if row.cert_branch %}-{{ row.cert_branch }}{% endif %}</b></span>
+    <span>続柄 <b>{{ row.relation or '—' }}</b></span>
+    <span>性別 <b>{{ row.sex or '—' }}</b></span>
+    <span>年齢 <b>{% if mypage.age is not none %}{{ mypage.age }}歳{% else %}—{% endif %}</b></span>
+    <span>所属 <b>{{ row.company_name or '未紐づけ' }}{% if row.office_name %}／{{ row.office_name }}{% endif %}{% if row.dept_name %}／{{ row.dept_name }}{% endif %}</b></span>
+    <span>資格 <b>{% if row.lost_at %}喪失（{{ row.lost_at.replace('-', '/') }}）{% else %}あり{% if row.qualified_at %}（{{ row.qualified_at.replace('-', '/') }}取得）{% endif %}{% endif %}</b></span>
+    <span>{{ mypage.fy }}年度</span>
+  </p>
+  <div class="mp-grid">
+    {% for sv in mypage.services %}
+    <div class="mp-item {{ 'on' if sv.target }}">
+      <h3 class="mp-name">{{ sv.name }}</h3>
+      <span class="mp-badge">{{ sv.label }}</span>
+      <p class="mp-detail">{{ sv.detail }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% elif not row %}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>登録後に見られる内容</h2>
+      <span class="hint">登録すると、この加入者が下の対象かどうかを自動で判定して表示します。</span></div>
+  </div>
+  <div class="mp-grid">
+    <div class="mp-item"><h3 class="mp-name">健診</h3>
+      <span class="mp-badge">登録後に判定</span>
+      <p class="mp-detail">定期健診（年1回）。深夜業に従事する場合は深夜健診（6か月ごと）も
+        対象になります。</p></div>
+    <div class="mp-item"><h3 class="mp-name">特定保健指導</h3>
+      <span class="mp-badge">登録後に判定</span>
+      <p class="mp-detail">40〜74歳が特定健診の対象です。健診結果の階層化で支援区分が
+        決まります。</p></div>
+    <div class="mp-item"><h3 class="mp-name">産業医面談</h3>
+      <span class="mp-badge">登録後に判定</span>
+      <p class="mp-detail">健診の有所見・時間外労働・高ストレスのいずれかに該当すると
+        面談候補になります。</p></div>
+    <div class="mp-item"><h3 class="mp-name">インフルエンザ補助</h3>
+      <span class="mp-badge">登録後に判定</span>
+      <p class="mp-detail">本人・家族ともに年度内1回まで補助の対象です
+        （申請受付期間内に申請が必要）。</p></div>
+  </div>
+</div>
+{% endif %}
+
 <form method="post">
 
-{# ================= 被保険者証 ================= #}
-<div class="block">
-  <h2>被保険者証</h2>
-  <div class="fld-row">
-    <div class="fld">
-      <label for="cert_mark" class="fld-label">被保険者証記号</label>
-      <input type="text" id="cert_mark" name="cert_mark" class="w-s"
-        value="{{ (form.cert_mark if form else (row.cert_mark if row else '')) or '' }}"
-        placeholder="例：1000">
-    </div>
-    <div class="fld">
-      <label for="member_no" class="fld-label">被保険者証番号<span class="req">必須</span></label>
-      <input type="text" id="member_no" name="member_no" required class="w-s"
-        value="{{ (form.member_no if form else (row.member_no if row else '')) or '' }}"
-        placeholder="例：9001">
-    </div>
-    <div class="fld">
-      <label for="cert_branch" class="fld-label">枝番</label>
-      <input type="text" id="cert_branch" name="cert_branch" class="w-s" maxlength="4"
-        value="{{ (form.cert_branch if form else (row.cert_branch if row else '')) or '' }}"
-        placeholder="例：0">
-    </div>
-  </div>
-  <p class="fld-help" style="margin-top:-6px">
-    <b>本人と家族は同じ番号で枝番が異なります。</b>
-    記号・番号・枝番の組み合わせが同じ加入者は登録できません（本人=0、家族=1、2…）。</p>
+<div class="block mf-card">
 
-  <div class="fld-row" style="margin-top:16px">
-    <div class="fld">
-      <label for="relation" class="fld-label">続柄名称</label>
-      <input type="text" id="relation" name="relation" class="w-s"
-        value="{{ (form.relation if form else (row.relation if row else '')) or '' }}"
-        placeholder="例：本人">
-      <p class="fld-help">本人・妻・子など。</p>
+  {# ================= 被保険者証 ================= #}
+  <div class="mf-sec">
+    <div class="mf-sec-head">
+      <h2>被保険者証</h2>
+      <span class="mf-sec-note"><b>本人と家族は同じ番号で枝番が異なります</b>（本人=0、家族=1、2…）。
+        記号・番号・枝番の組み合わせが同じ加入者は登録できません。</span>
     </div>
-    <div class="fld">
-      <label for="attr" class="fld-label">被保険者属性名</label>
-      <input type="text" id="attr" name="attr" class="w-s"
-        value="{{ (form.attr if form else (row.attr if row else '')) or '' }}"
-        placeholder="例：一般">
+    <div class="mf-grid mf-g-cert">
+      <div class="fld">
+        <label for="cert_mark" class="fld-label">被保険者証記号</label>
+        <input type="text" id="cert_mark" name="cert_mark"
+          value="{{ (form.cert_mark if form else (row.cert_mark if row else '')) or '' }}"
+          placeholder="例：1000">
+      </div>
+      <div class="fld">
+        <label for="member_no" class="fld-label">被保険者証番号<span class="req">必須</span></label>
+        <input type="text" id="member_no" name="member_no" required
+          value="{{ (form.member_no if form else (row.member_no if row else '')) or '' }}"
+          placeholder="例：9001">
+      </div>
+      <div class="fld">
+        <label for="cert_branch" class="fld-label">枝番</label>
+        <input type="text" id="cert_branch" name="cert_branch" maxlength="4"
+          value="{{ (form.cert_branch if form else (row.cert_branch if row else '')) or '' }}"
+          placeholder="例：0">
+      </div>
+      <div class="fld">
+        <label for="relation" class="fld-label">続柄名称</label>
+        <input type="text" id="relation" name="relation"
+          value="{{ (form.relation if form else (row.relation if row else '')) or '' }}"
+          placeholder="例：本人">
+      </div>
+      <div class="fld">
+        <label for="attr" class="fld-label">被保険者属性名</label>
+        <input type="text" id="attr" name="attr"
+          value="{{ (form.attr if form else (row.attr if row else '')) or '' }}"
+          placeholder="例：一般">
+      </div>
+    </div>
+    {% if not row %}
+    <div class="auto-note" style="margin-top:14px">
+      <span class="auto-ico" aria-hidden="true">＃</span>
+      <span>加入者IDは<b>システムが自動で採番</b>します。
+        この登録では <b class="mono" id="next-sid">{{ nexts.get('', '00000001') if nexts else '00000001' }}</b> が付きます。</span>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ================= 対象者 ================= #}
+  <div class="mf-sec">
+    <div class="mf-sec-head">
+      <h2>対象者</h2>
+      <span class="mf-sec-note">資格喪失日は、まだ資格がある場合は空欄にします。</span>
+    </div>
+    <div class="mf-grid mf-g-person">
+      <div class="fld">
+        <label for="name" class="fld-label">氏名（漢字）<span class="req">必須</span></label>
+        <input type="text" id="name" name="name" required
+          value="{{ (form.name if form else (row.name if row else '')) or '' }}"
+          placeholder="例：見本 一郎">
+      </div>
+      <div class="fld">
+        <label for="kana" class="fld-label">氏名（カナ）</label>
+        <input type="text" id="kana" name="kana"
+          value="{{ (form.kana if form else (row.kana if row else '')) or '' }}"
+          placeholder="例：ミホン イチロウ">
+      </div>
+      <div class="fld">
+        <label for="sex" class="fld-label">性別</label>
+        {% set cs = (form.sex if form else (row.sex if row else '')) or '' %}
+        <select id="sex" name="sex">
+          <option value="" {{ 'selected' if cs=='' }}>未設定</option>
+          <option value="男" {{ 'selected' if cs=='男' }}>男</option>
+          <option value="女" {{ 'selected' if cs=='女' }}>女</option>
+        </select>
+      </div>
+      <div class="fld">
+        <label for="birth" class="fld-label">生年月日</label>
+        <input type="date" id="birth" name="birth"
+          value="{{ (form.birth if form else (row.birth if row else '')) or '' }}">
+      </div>
+      <div class="fld">
+        <label for="qualified_at" class="fld-label" title="資格取得日（家族認定日）">資格取得日</label>
+        <input type="date" id="qualified_at" name="qualified_at"
+          value="{{ (form.qualified_at if form else (row.qualified_at if row else '')) or '' }}">
+      </div>
+      <div class="fld">
+        <label for="lost_at" class="fld-label" title="資格喪失日（家族削除日）">資格喪失日</label>
+        <input type="date" id="lost_at" name="lost_at"
+          value="{{ (form.lost_at if form else (row.lost_at if row else '')) or '' }}">
+      </div>
     </div>
   </div>
 
-  {% if not row %}
-  <div class="auto-note">
-    <span class="auto-ico" aria-hidden="true">＃</span>
-    <span>加入者IDは<b>システムが自動で採番</b>します。
-      この登録では <b class="mono" id="next-sid">{{ nexts.get('', '00000001') if nexts else '00000001' }}</b> が付きます。</span>
+  {# ================= 所属 ================= #}
+  <div class="mf-sec">
+    <div class="mf-sec-head">
+      <h2>所属</h2>
+      <span class="mf-sec-note">企業→事業所→部署の順に候補が絞られます。
+        空欄のまま登録し、あとで「企業・部署の紐づけ」からまとめて紐づけることもできます。</span>
+    </div>
+    <div class="mf-grid mf-g-belong">
+      <div class="fld">
+        <label for="company_id" class="fld-label">企業</label>
+        {% set cc = (form.company_id|int if form and form.company_id else (row.company_id if row else 0)) %}
+        <select id="company_id" name="company_id">
+          <option value="">未紐づけ（あとで紐づける）</option>
+          {% for c in comps %}<option value="{{ c.id }}" {{ 'selected' if cc==c.id }}>{{ c.ext_code or c.code }}　{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fld">
+        <label for="office_id" class="fld-label">事業所</label>
+        {% set co = (form.office_id|int if form and form.office_id else (row.office_id if row else 0)) %}
+        <select id="office_id" name="office_id">
+          <option value="">未設定</option>
+          {% for o in offs %}<option value="{{ o.id }}" data-company="{{ o.company_id }}"
+            {{ 'selected' if co==o.id }}>{{ o.ext_code or o.code }}　{{ o.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fld">
+        <label for="dept_id" class="fld-label">部署</label>
+        {% set cd = (form.dept_id|int if form and form.dept_id else (row.dept_id if row else 0)) %}
+        <select id="dept_id" name="dept_id">
+          <option value="">未設定</option>
+          {% for d in depts %}<option value="{{ d.id }}" data-office="{{ d.office_id }}"
+            {{ 'selected' if cd==d.id }}>{{ d.ext_code or d.code }}　{{ d.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fld">
+        <label for="employee_code" class="fld-label">社員コード</label>
+        <input type="text" id="employee_code" name="employee_code"
+          value="{{ (form.employee_code if form else (row.employee_code if row else '')) or '' }}"
+          placeholder="例：E0001">
+      </div>
+      <div class="fld">
+        <label for="delivery_code" class="fld-label">配付先コード</label>
+        <input type="text" id="delivery_code" name="delivery_code"
+          value="{{ (form.delivery_code if form else (row.delivery_code if row else '')) or '' }}">
+      </div>
+    </div>
   </div>
-  {% endif %}
-</div>
 
-{# ================= 対象者 ================= #}
-<div class="block">
-  <h2>対象者</h2>
-  <div class="fld">
-    <label for="name" class="fld-label">対象者氏名（漢字）<span class="req">必須</span></label>
-    <input type="text" id="name" name="name" required class="w-m"
-      value="{{ (form.name if form else (row.name if row else '')) or '' }}"
-      placeholder="例：見本 一郎">
-  </div>
-  <div class="fld">
-    <label for="kana" class="fld-label">対象者氏名（カナ）</label>
-    <input type="text" id="kana" name="kana" class="w-m"
-      value="{{ (form.kana if form else (row.kana if row else '')) or '' }}"
-      placeholder="例：ミホン イチロウ">
-  </div>
-  <div class="fld-row">
-    <div class="fld">
-      <label for="sex" class="fld-label">性別</label>
-      {% set cs = (form.sex if form else (row.sex if row else '')) or '' %}
-      <select id="sex" name="sex" class="w-s">
-        <option value="" {{ 'selected' if cs=='' }}>未設定</option>
-        <option value="男" {{ 'selected' if cs=='男' }}>男</option>
-        <option value="女" {{ 'selected' if cs=='女' }}>女</option>
-      </select>
+  {# ================= 連絡先 ================= #}
+  <div class="mf-sec">
+    <div class="mf-sec-head">
+      <h2>連絡先</h2>
     </div>
-    <div class="fld">
-      <label for="birth" class="fld-label">生年月日</label>
-      <input type="date" id="birth" name="birth" class="w-s"
-        value="{{ (form.birth if form else (row.birth if row else '')) or '' }}">
-    </div>
-  </div>
-  <div class="fld-row">
-    <div class="fld">
-      <label for="qualified_at" class="fld-label">資格取得日（家族認定日）</label>
-      <input type="date" id="qualified_at" name="qualified_at" class="w-s"
-        value="{{ (form.qualified_at if form else (row.qualified_at if row else '')) or '' }}">
-    </div>
-    <div class="fld">
-      <label for="lost_at" class="fld-label">資格喪失日（家族削除日）</label>
-      <input type="date" id="lost_at" name="lost_at" class="w-s"
-        value="{{ (form.lost_at if form else (row.lost_at if row else '')) or '' }}">
-      <p class="fld-help">まだ資格がある場合は空欄にします。</p>
+    <div class="mf-grid mf-g-contact">
+      <div class="fld">
+        <label for="zip" class="fld-label">郵便番号</label>
+        <input type="text" id="zip" name="zip" maxlength="8"
+          value="{{ (form.zip if form else (row.zip if row else '')) or '' }}"
+          placeholder="例：1710014">
+      </div>
+      <div class="fld">
+        <label for="address" class="fld-label">住所</label>
+        <input type="text" id="address" name="address"
+          value="{{ (form.address if form else (row.address if row else '')) or '' }}"
+          placeholder="例：東京都豊島区池袋2-43-1">
+      </div>
+      <div class="fld">
+        <label for="address2" class="fld-label">住所（建物名）</label>
+        <input type="text" id="address2" name="address2"
+          value="{{ (form.address2 if form else (row.address2 if row else '')) or '' }}"
+          placeholder="例：池袋青柳ビル7F">
+      </div>
+      <div class="fld">
+        <label for="tel" class="fld-label">電話番号</label>
+        <input type="text" id="tel" name="tel"
+          value="{{ (form.tel if form else (row.tel if row else '')) or '' }}"
+          placeholder="例：03-6416-3872">
+      </div>
+      <div class="fld">
+        <label for="email" class="fld-label">メールアドレス</label>
+        <input type="text" id="email" name="email"
+          value="{{ (form.email if form else (row.email if row else '')) or '' }}"
+          placeholder="例：taro@example.jp">
+      </div>
     </div>
   </div>
-</div>
 
-{# ================= 所属 ================= #}
-<div class="block">
-  <h2>所属</h2>
-  <div class="fld">
-    <label for="company_id" class="fld-label">企業</label>
-    {% set cc = (form.company_id|int if form and form.company_id else (row.company_id if row else 0)) %}
-    <select id="company_id" name="company_id" class="w-l">
-      <option value="">未紐づけ（あとで紐づける）</option>
-      {% for c in comps %}<option value="{{ c.id }}" {{ 'selected' if cc==c.id }}>{{ c.ext_code or c.code }}　{{ c.name }}</option>{% endfor %}
-    </select>
-    <p class="fld-help">
-      空欄のまま登録し、あとで「企業・部署の紐づけ」からまとめて紐づけることもできます。</p>
-  </div>
-  <div class="fld">
-    <label for="office_id" class="fld-label">事業所</label>
-    {% set co = (form.office_id|int if form and form.office_id else (row.office_id if row else 0)) %}
-    <select id="office_id" name="office_id" class="w-l">
-      <option value="">未設定</option>
-      {% for o in offs %}<option value="{{ o.id }}" data-company="{{ o.company_id }}"
-        {{ 'selected' if co==o.id }}>{{ o.ext_code or o.code }}　{{ o.name }}</option>{% endfor %}
-    </select>
-    <p class="fld-help">企業を選ぶと、その企業の事業所だけが候補になります。</p>
-  </div>
-  <div class="fld">
-    <label for="dept_id" class="fld-label">部署</label>
-    {% set cd = (form.dept_id|int if form and form.dept_id else (row.dept_id if row else 0)) %}
-    <select id="dept_id" name="dept_id" class="w-l">
-      <option value="">未設定</option>
-      {% for d in depts %}<option value="{{ d.id }}" data-office="{{ d.office_id }}"
-        {{ 'selected' if cd==d.id }}>{{ d.ext_code or d.code }}　{{ d.name }}</option>{% endfor %}
-    </select>
-    <p class="fld-help">事業所を選ぶと、その事業所の部署だけが候補になります。</p>
-  </div>
-  <div class="fld-row">
-    <div class="fld">
-      <label for="employee_code" class="fld-label">社員コード</label>
-      <input type="text" id="employee_code" name="employee_code" class="w-s"
-        value="{{ (form.employee_code if form else (row.employee_code if row else '')) or '' }}"
-        placeholder="例：E0001">
+  {# ================= 健診の設定 ================= #}
+  <div class="mf-sec">
+    <div class="mf-sec-head">
+      <h2>健診の設定</h2>
+      <span class="mf-sec-note">除外にすると、受診対象者一覧・受診勧奨の対象に入りません
+        （登録内容は残ります）。</span>
     </div>
-    <div class="fld">
-      <label for="delivery_code" class="fld-label">配付先コード</label>
-      <input type="text" id="delivery_code" name="delivery_code" class="w-s"
-        value="{{ (form.delivery_code if form else (row.delivery_code if row else '')) or '' }}">
+    <div class="mf-toggles">
+      <label class="mf-toggle">
+        <input type="checkbox" name="night_work" value="1"
+          {{ 'checked' if (form.night_work if form else (row.night_work if row else 0)) }}>
+        <span class="mf-toggle-sw"></span>
+        <span class="mf-toggle-text">深夜業に従事（深夜健診 6か月ごとの対象）</span>
+      </label>
+      <label class="mf-toggle">
+        <input type="checkbox" name="excluded" value="1"
+          {{ 'checked' if (form.excluded if form else (row.excluded if row else 0)) }}>
+        <span class="mf-toggle-sw"></span>
+        <span class="mf-toggle-text">健診の対象から除外する</span>
+      </label>
     </div>
   </div>
-</div>
 
-{# ================= 連絡先 ================= #}
-<div class="block">
-  <h2>連絡先</h2>
-  <div class="fld-row">
-    <div class="fld">
-      <label for="zip" class="fld-label">郵便番号</label>
-      <input type="text" id="zip" name="zip" class="w-s" maxlength="8"
-        value="{{ (form.zip if form else (row.zip if row else '')) or '' }}"
-        placeholder="例：1710014">
-    </div>
-    <div class="fld">
-      <label for="address" class="fld-label">住所</label>
-      <input type="text" id="address" name="address" class="w-xl"
-        value="{{ (form.address if form else (row.address if row else '')) or '' }}"
-        placeholder="例：東京都豊島区池袋2-43-1">
-    </div>
-  </div>
-  <div class="fld-row">
-    <div class="fld">
-      <label for="address2" class="fld-label">住所（建物名）</label>
-      <input type="text" id="address2" name="address2" class="w-m"
-        value="{{ (form.address2 if form else (row.address2 if row else '')) or '' }}"
-        placeholder="例：池袋青柳ビル7F">
-    </div>
-    <div class="fld">
-      <label for="tel" class="fld-label">電話番号</label>
-      <input type="text" id="tel" name="tel" class="w-s"
-        value="{{ (form.tel if form else (row.tel if row else '')) or '' }}"
-        placeholder="例：03-6416-3872">
-    </div>
-  </div>
-  <div class="fld">
-    <label for="email" class="fld-label">メールアドレス</label>
-    <input type="text" id="email" name="email" class="w-m"
-      value="{{ (form.email if form else (row.email if row else '')) or '' }}"
-      placeholder="例：taro@example.jp">
-  </div>
 </div>
 
 <div class="actions" style="justify-content:flex-end">
-  <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">中止する</a>
-  <button class="btn-submit">{{ '保存する' if row else 'この内容で登録する' }}</button>
+  <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">キャンセル</a>
+  <button class="btn-submit btn-regsave">{{ '更新' if row else '登録' }}</button>
 </div>
 </form>
 

@@ -4,19 +4,22 @@
     data-tel="{{ r.tel or '' }}">
   <td class="code">{{ r.ext_code or '—' }}</td>
   <td class="code"><span class="hint">{{ r.code }}</span></td>
-  <td class="tl"><span class="ellip w230" title="{{ r.name }}">{{ r.name }}</span>
-    {% if r.kana %}<br><span class="hint">{{ r.kana }}</span>{% endif %}</td>
+  <td class="tl"><span class="ellip wfull" title="{{ r.name }}">{{ r.name }}</span></td>
+  <td class="tl">{% if r.kana %}<span class="ellip wfull"
+      title="{{ r.kana }}">{{ r.kana }}</span>{% else %}—{% endif %}</td>
   <td class="code">{{ r.cert_mark or '—' }}</td>
   <td class="tl">{{ r.tel or '—' }}</td>
   <td class="num">{{ r.off_count }}</td>
   <td class="num">{{ r.mem_count }}</td>
-  <td class="ts">{{ r.updated_at or r.created_at }}</td>
+  <td class="ts" title="{{ r.updated_at or r.created_at }}">{{ r.updated_at or r.created_at }}</td>
   <td class="ops">
-    <a class="btn-sm primary" href="{{ url_for('company_edit', cid=r.id) }}" style="text-decoration:none">編集</a>
+    <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}"
+       href="{{ url_for('company_edit', cid=r.id) }}"
+       style="text-decoration:none">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
     {% if can_add %}
     <form method="post" action="{{ url_for('company_delete', cid=r.id) }}" style="display:inline"
           onsubmit="return confirm('「{{ r.name }}」を削除します。よろしいですか？\n\n事業所・加入者・アカウントが紐づいている場合は削除できません。')">
-      <button class="btn-sm" style="color:var(--error);border-color:#fed7d7">削除</button></form>
+      <button class="btn-sm btn-del">削除</button></form>
     {% endif %}
   </td>
 </tr>

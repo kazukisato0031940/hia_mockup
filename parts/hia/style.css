@@ -1,0 +1,82 @@
+/* ========================================
+   HIA 疾患予測・受診勧奨 追加スタイル
+   ======================================== */
+/* 年度比較グリッド */
+.yr-grid{display:grid;grid-template-columns:60px repeat(4,minmax(0,1fr));gap:10px;align-items:center;}
+.yr-l25{font-size:11px;font-weight:bold;color:#fff;background:var(--primary);text-align:center;padding:5px 6px;border-radius:6px;}
+.yr-l24{font-size:11px;font-weight:bold;color:#fff;background:#a0aec0;text-align:center;padding:5px 6px;border-radius:6px;}
+.yr-ldf{font-size:11px;color:#a0aec0;text-align:center;}
+.yr-cell{background:#f8fafc;border-radius:8px;padding:8px 6px;text-align:center;overflow:hidden;}
+.yr-cell-d{background:#f8fafc;border-radius:8px;padding:8px 6px;text-align:center;opacity:0.65;overflow:hidden;}
+.yr-clickable{cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;}
+.yr-clickable:hover{transform:translateY(-3px);box-shadow:0 6px 16px rgba(0,0,0,0.12);}
+.yr-link{font-size:11px;color:#fff;background:#3182ce;margin-top:8px;font-weight:500;padding:3px 10px;border-radius:20px;display:inline-block;}
+.yr-clickable:hover .yr-link{background:#2b6cb0;}
+.yr-val{font-size:22px;font-weight:500;line-height:1;}
+.yr-sub{font-size:9px;color:#a0aec0;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.yr-diff{font-size:13px;font-weight:bold;text-align:center;padding:4px 0;}
+.yr-head{font-size:11px;font-weight:bold;color:#4a5568;text-align:center;padding:5px 0;background:#f8fafc;border-radius:6px;}
+/* HIA ブロック */
+.block{background:#fff;border-radius:8px;padding:20px;box-shadow:0 2px 6px rgba(0,0,0,0.08);display:flex;flex-direction:column;gap:14px;}
+.block h2, .block-inner h2 { font-size:14px; font-weight:700; color:#2d3748; letter-spacing:0.02em; }
+.block h3, .block-inner h3 { font-size:13px; font-weight:600; color:#4a5568; letter-spacing:0.02em; }
+.main-wrapper{display:flex;flex-direction:column;gap:16px;}
+/* ボタン */
+.btn-submit{padding:8px 24px;border-radius:6px;background:#1a365d;border:none;color:#fff;cursor:pointer;font-size:13px;font-weight:bold;display:inline-flex;align-items:center;gap:8px;transition:opacity 0.2s;}
+.btn-submit:hover{opacity:0.9;}
+.btn-submit:disabled{opacity:0.6;cursor:not-allowed;}
+.btn-submit.accent{background:#3182ce;}
+.btn-ghost{padding:8px 18px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#2d3748;cursor:pointer;font-size:13px;transition:background 0.15s;}
+.btn-ghost:hover{background:#f7fafc;}
+.btn-sm{display:inline-flex;align-items:center;justify-content:center;padding:5px 12px;border-radius:6px;background:#fff;border:1px solid #e2e8f0;color:#4a5568;cursor:pointer;font-size:12px;transition:background 0.15s;}
+.btn-sm:hover{background:#f7fafc;}
+.btn-sm.primary{background:#3182ce;color:#fff;border-color:#3182ce;}
+/* テーブル */
+.rtable{width:100%;border-collapse:collapse;font-size:11px;}
+.rtable th{text-align:left;padding:6px 8px;background:#f0f0f0;color:#333;font-weight:bold;font-size:10px;border:1px solid #e2e8f0;white-space:nowrap;}
+.rtable td{padding:6px 8px;border:1px solid #e2e8f0;vertical-align:middle;white-space:nowrap;}
+.rtable tr:hover td{background:#f8fafc;}
+.rtable tr.selected td{background:#ebf8ff;}
+/* 判定バッジ */
+.prio-a{color:#38a169;font-weight:bold;}
+.prio-b{color:#68b5a0;font-weight:bold;}
+.prio-c{color:#d97706;font-weight:bold;}
+.prio-d{color:#e07b39;font-weight:bold;}
+.prio-e{color:#e53e3e;font-weight:bold;}
+/* スコアバー */
+.sbar-wrap{width:70px;height:6px;background:#e2e8f0;border-radius:3px;display:inline-block;vertical-align:middle;overflow:hidden;}
+.sbar{height:100%;border-radius:3px;}
+/* ステータス */
+.st-sent{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:bold;color:#22543d;background:#c6f6d5;padding:2px 8px;border-radius:12px;}
+.st-unsent{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:bold;color:#713f12;background:#fef9c3;padding:2px 8px;border-radius:12px;}
+.sdot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+/* チェックボックス */
+.chk{width:14px;height:14px;cursor:pointer;accent-color:#3182ce;}
+/* フィルター */
+.filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.filter-row select,.filter-row input{font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#2d3748;}
+.filter-row input{width:150px;}
+.cnt-tag{font-size:12px;color:#a0aec0;margin-left:auto;}
+/* バッジ */
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;}
+.b-red{background:#fed7d7;color:#822727;}
+.b-blue{background:#bee3f8;color:#2c5282;}
+.b-amber{background:#fef9c3;color:#713f12;}
+/* メールフォーム */
+.mail-field{margin-bottom:10px;}
+.mail-field label{font-size:12px;font-weight:bold;color:#2d3748;display:block;margin-bottom:4px;}
+.mail-field input,.mail-field select,.mail-field textarea{width:100%;font-size:13px;padding:8px 10px;border-radius:6px;border:1px solid #ccc;color:#2d3748;}
+.mail-field textarea{min-height:180px;line-height:1.7;resize:vertical;}
+/* モーダル */
+.modal-wrap{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:1000;}
+.modal{background:#fff;border-radius:8px;padding:24px;width:460px;max-width:92vw;box-shadow:0 8px 24px rgba(0,0,0,0.15);max-height:90vh;overflow-y:auto;}
+.modal-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+.hidden{display:none!important;}
+.fw{font-weight:bold;}
+/* フローティングページャー */
+.pager-float{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);width:fit-content;background:#fff;padding:8px 18px;border-radius:50px;box-shadow:0 4px 16px rgba(0,0,0,0.15);display:flex;align-items:center;gap:10px;border:1px solid var(--border);z-index:500;}
+.pager-float button{width:30px;height:30px;border-radius:50%;border:1px solid #e2e8f0;background:#fff;color:#626262;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:0.15s;padding:0;min-width:unset;}
+.pager-float button:hover:not(:disabled){background:#f8fafc;border-color:var(--accent);color:var(--accent);}
+.pager-float button:disabled{opacity:0.4;cursor:not-allowed;}
+.pager-float button.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+.pager-float .pager-info{font-size:13px;color:#626262;margin:0 6px;white-space:nowrap;}

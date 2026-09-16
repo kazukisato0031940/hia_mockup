@@ -32,16 +32,27 @@
   {% if rows %}
   <div class="table-scroll paged grow" data-rows-url="{{ url_for('companies_rows') }}"
        data-loaded="{{ rows|length }}" data-total="{{ total }}">
-  <table class="result-table" style="table-layout:auto">
+  <table class="result-table" style="width:100%">
+    <!-- 列幅は「列幅の標準」（.col-*）に合わせています。
+         企業名（漢字）とフリガナは列を分け、残り幅を等分します
+         （操作列が画面の外に出ないよう、横スクロールなしで収めます） -->
+    <colgroup>
+      <col class="col-num"><col class="col-num">
+      <col><col>
+      <col class="col-num"><col class="col-num">
+      <col class="col-flag"><col class="col-flag">
+      <col class="col-dt"><col class="col-ops">
+    </colgroup>
     <thead><tr>
-      <th style="width:120px">事業所（企業）コード</th>
-      <th style="width:95px">内部コード</th>
-      <th class="tl" style="width:250px">企業名</th>
-      <th style="width:110px">被保険者証記号</th>
-      <th class="tl" style="width:150px">電話番号</th>
-      <th style="width:90px">部署</th>
-      <th style="width:95px">加入者</th>
-      <th style="width:150px">更新日時</th>
+      <th>事業所（企業）<br>コード</th>
+      <th>内部コード</th>
+      <th>企業名</th>
+      <th>企業名<br>（フリガナ）</th>
+      <th>被保険者<br>証記号</th>
+      <th>電話番号</th>
+      <th>部署</th>
+      <th>加入者</th>
+      <th>更新日時</th>
       <th class="ops">操作</th>
     </tr></thead>
     <tbody>

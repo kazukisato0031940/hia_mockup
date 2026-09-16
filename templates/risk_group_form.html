@@ -37,7 +37,7 @@
       <span class="hint">このグループでまとめて判定する検査です</span>
     </div>
     <div class="actions">
-      <button type="button" class="btn-sm" onclick="jgAdd()">＋ 行を追加</button>
+      <button type="button" class="btn-sm btn-additem" onclick="jgAdd()">項目追加</button>
     </div>
   </div>
   <table class="result-table jg-table">
@@ -64,19 +64,19 @@
       <td><input type="number" step="0.01" name="i_med"
                  value="{{ '' if ln.med is none else ln.med }}" style="width:100%"></td>
       <td><input type="text" name="i_unit" value="{{ ln.unit }}" style="width:100%"></td>
-      <td><button type="button" class="btn-sm danger" onclick="jgDel(this)">削除</button></td>
+      <td><button type="button" class="btn-sm btn-del" onclick="jgDel(this)">削除</button></td>
     </tr>
     {% endfor %}
     </tbody>
   </table>
-  <p class="fld-help" style="margin-top:12px">
+  <p class="fld-help" style="margin-top:12px;">
     項目コードは健診XMLの検査項目コードです。空欄の場合は<b>検査項目名で照合</b>します。
     「記号」を選んだ項目は、しきい値は使いません（−＝基準内／±＝要注意／＋以上＝要医療）。</p>
 </div>
 
 <div class="actions" style="justify-content:flex-end">
-  <a class="btn-back" href="{{ url_for('risk_groups') }}" style="text-decoration:none">中止する</a>
-  <button class="btn-submit">この内容で保存する</button>
+  <a class="btn-back" href="{{ url_for('risk_groups') }}" style="text-decoration:none">キャンセル</a>
+  <button class="btn-submit btn-regsave">{{ '更新' if gid else '登録' }}</button>
 </div>
 </form>
 
@@ -94,7 +94,7 @@ function jgAdd(){
     '<td><input type="number" step="0.01" name="i_cau" style="width:100%"></td>' +
     '<td><input type="number" step="0.01" name="i_med" style="width:100%"></td>' +
     '<td><input type="text" name="i_unit" style="width:100%"></td>' +
-    '<td><button type="button" class="btn-sm danger" onclick="jgDel(this)">削除</button></td>';
+    '<td><button type="button" class="btn-sm btn-del" onclick="jgDel(this)">削除</button></td>';
   tb.appendChild(tr);
 }
 function jgDel(btn){

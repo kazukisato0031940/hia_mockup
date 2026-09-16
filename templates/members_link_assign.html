@@ -9,7 +9,7 @@
     <span class="hint" id="lk-msg"></span>
   </div>
   <div class="actions">
-    <label class="chk" style="margin:0">
+    <label class="chk" style="margin:0;">
       <input type="checkbox" id="lk-linked" {{ 'checked' if show_linked }}
              onchange="lkToggleLinked(this.checked)">
       <span>{% if dept %}他の部署{% else %}他の事業所{% endif %}に紐づけ済みも表示する</span></label>
@@ -59,7 +59,7 @@
         「他の部署に紐づけ済みも表示する」で紐づけ先の変更もできます。{% endif %}</div>
       {% endif %}
     </div>
-    <p class="hint" id="lk-none" style="display:none">条件に一致する加入者がありません。</p>
+    <p class="hint" id="lk-none" style="display:none;">条件に一致する加入者がありません。</p>
     <p class="hint">最大300件まで表示します。クリックで選択、Shiftで範囲選択。
       <b>ダブルクリックでその場で紐づけ</b>できます。</p>
   </div>
@@ -107,7 +107,7 @@
       紐づけ先：{{ comp.name }}／{{ off.name }}{% if dept %}／{{ dept.name }}{% endif %}　に加入者を移します。</span>
   </div>
   <div class="actions">
-    <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">中止して一覧へ</a>
+    <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">キャンセル</a>
     <button type="button" class="btn-submit" onclick="lkFinish()">紐づけを完了する</button>
   </div>
 </div>
