@@ -1372,7 +1372,7 @@ button.cancel:hover, a.btn-cancel:hover {
 <header>
   <h1>HIA健保管理</h1>
   <div style="display:flex;align-items:center;gap:16px;">
-    <!-- サポートログイン中の表示（当社スタッフが健保の画面に入っているとき） -->
+    <!-- サポートログイン中の表示（HIAスタッフが健保の画面に入っているとき） -->
     <div id="support-tag" style="display:none">
       <span class="sp-ico" aria-hidden="true">!</span>
       <span class="sp-body">
@@ -1380,7 +1380,7 @@ button.cancel:hover, a.btn-cancel:hover {
         <b class="sp-kenpo" id="support-kenpo"></b>
       </span>
       <form method="post" action="/support/end" style="margin:0">
-        <button class="sp-end" title="サポートを終了して当社の画面に戻ります">終了</button>
+        <button class="sp-end" title="サポートを終了してHIA総合管理の画面に戻ります">終了</button>
       </form>
     </div>
     <div class="header-user header-me" onclick="navigateTo('sys-me')" title="マイアカウント（利用者名・メールアドレス・パスワードの変更）">
@@ -3337,7 +3337,7 @@ button.cancel:hover, a.btn-cancel:hover {
           <h1 class="page-title">健診結果の連携</h1>
           <button class="btn-back" onclick="sysBack('risk')">戻る</button>
         </div>
-        <p class="sys-note">当社の予約管理システムから健診結果をバッチで取込みます。取込むのは判定区分の人数だけで、検査値そのものは保持しません。</p>
+        <p class="sys-note">予約管理システムから健診結果をバッチで取込みます。取込むのは判定区分の人数だけで、検査値そのものは保持しません。</p>
         <iframe class="sys-frame" data-src="/risk/kenshin" title="健診結果の連携"></iframe>
       </div>
 
@@ -3440,7 +3440,7 @@ button.cancel:hover, a.btn-cancel:hover {
           <h1 class="page-title">企業情報</h1>
           <button class="btn-back" onclick="sysBack('master')">戻る</button>
         </div>
-        <p class="sys-note">企業の登録・編集・削除を行います。事業所（企業）コードは健保が管理する番号を登録します。</p>
+        <p class="sys-note">企業の登録・編集・削除を行います。企業コードは健保が管理する番号です。</p>
         <iframe class="sys-frame" data-src="/companies" title="企業情報"></iframe>
       </div>
 
@@ -4051,7 +4051,7 @@ var CAT_FEATURE = { settings: 'settings.view' };
 function selectCategory(cat) {
   /* カテゴリ自体が使えない場合は開かない */
   if(CAT_FEATURE[cat] && window.FEATURES && window.FEATURES[CAT_FEATURE[cat]] === false){
-    alert('この機能は利用できません。\n必要な場合は当社スタッフにご連絡ください。');
+    alert('この機能は利用できません。\n必要な場合はHIAスタッフにご連絡ください。');
     return;
   }
   /* 機能制御でそのカテゴリのカードが全部使えない場合は開かない */
@@ -4061,7 +4061,7 @@ function selectCategory(cat) {
       return !c.feature || window.FEATURES[c.feature] !== false;
     });
     if(!usable.length){
-      alert('この機能は利用できません。\n必要な場合は当社スタッフにご連絡ください。');
+      alert('この機能は利用できません。\n必要な場合はHIAスタッフにご連絡ください。');
       return;
     }
   }
@@ -4169,7 +4169,7 @@ function navigateTo(pageId) {
   /* 機能制御で使えない画面は開かせない（カードを隠すだけでなく直接呼び出しも止める） */
   var need = PAGE_TO_FEATURE[pageId];
   if(need && window.FEATURES && window.FEATURES[need] === false){
-    alert('この機能は利用できません。\n必要な場合は当社スタッフにご連絡ください。');
+    alert('この機能は利用できません。\n必要な場合はHIAスタッフにご連絡ください。');
     return;
   }
 
@@ -7820,7 +7820,7 @@ function fluBillingDetailCSV(month){
   var prefix = fluBillingMonthPrefix(month);
   var targets = FLU_APPS.filter(function(a){ return prefix && String(a.date||'').indexOf(prefix)===0; });
   var lines = ['"対象月","受付番号","被保険者記号","被保険者番号","事業所名","被接種者氏名","加入者区分（本人/家族）","実施医療機関等名称","接種年月日","接種に要した額","補助金額","手数料(税込)","合計"'];
-  var FEE = 440; // 当社手数料（1名・税込）
+  var FEE = 440; // HIA手数料（1名・税込）
   targets.forEach(function(a){
     (a.patients||[]).forEach(function(p){
       var kubun = (p.rel==='本人') ? '本人' : '家族';
@@ -7862,7 +7862,7 @@ function fluInvoiceHTML(b, month){
   var tdl = 'padding:8px 8px;border:1px solid '+BORDER+';text-align:left;';
   var tdr = 'padding:8px 8px;border:1px solid '+BORDER+';text-align:right;';
   var emptyRow = '<tr><td style="'+td+'">&nbsp;</td><td style="'+tdl+'"></td><td style="'+td+'"></td><td style="'+tdr+'"></td><td style="'+tdr+'"></td><td style="'+tdr+'"></td></tr>';
-  var FEE = 440; // 当社手数料（1名・税込）
+  var FEE = 440; // HIA手数料（1名・税込）
   var persons = Number(b.persons||0);
   var feeTotal = FEE * persons;
   var taxIn = Math.round(feeTotal * 10 / 110); // 内税(10%)

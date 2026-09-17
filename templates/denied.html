@@ -6,7 +6,7 @@
   現在のロール「{{ role_full(acc) }}」では、この操作を行えません。操作の記録はログに残っています。
   {% if feature_key is defined and feature_key %}<br>
   <span class="hint">機能制御の設定で「{{ feature_key }}」が利用不可になっています。
-  必要な場合は当社スタッフへご依頼ください。</span>{% endif %}{% endif %}</p>
+  必要な場合はHIAスタッフへご依頼ください。</span>{% endif %}{% endif %}</p>
   <p class="mono hint">{{ path }}</p>
   <div class="actions">
     <a class="btn-back" href="{{ url_for('spa_km') if SHELL=='km' else url_for('spa') }}"

@@ -67,6 +67,12 @@
 .fld select:disabled{background-color:#f7fafc;color:#718096}
 .chk{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--text-main);line-height:1.6}
 .chk input{margin-top:2px;width:16px;height:16px;cursor:pointer}
+/* 択一の選択肢を横に並べる（部署の置き場所など）。選べないものは薄く出す */
+.radio-row{display:flex;gap:18px;align-items:center;min-height:34px}
+.radio-row .chk{align-items:center;white-space:nowrap}
+.radio-row .chk input{margin-top:0}
+.radio-row .chk input:disabled{cursor:not-allowed}
+.radio-row .chk input:disabled+span{color:#a0aec0}
 .hint{font-size:11.5px;color:#a0aec0;line-height:1.7}
 .note{font-size:12.5px;color:var(--gray-label);line-height:1.8}
 .count{font-size:12px;color:var(--gray-label);font-weight:600}
@@ -1469,3 +1475,33 @@ a.insured-card:hover{border-color:var(--accent);background:#f0f7ff}
   .summary-grid{grid-template-columns:repeat(2,1fr)}
   .charts-flex,.bottom-flex{grid-template-columns:1fr}
 }
+
+/* ================= CSV取込（アップロード → 確認 → 結果）================= */
+/* 取込先の健保。CSVに保険者番号の列を置かないため、画面で常に示す */
+.imp-dest{border-left:4px solid var(--accent)}
+.imp-dest-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.imp-dest-label{font-size:12px;font-weight:700;color:var(--gray-label)}
+.imp-dest-name{font-size:15px;font-weight:800;color:var(--text-main)}
+.imp-dest-form{display:flex;align-items:center;gap:12px;margin:0}
+
+/* 様式・見本のダウンロード */
+.imp-dl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;
+  border:1px solid var(--border);border-radius:8px;margin-top:10px;background:#fff}
+.imp-dl.on{border-color:var(--primary);background:#f7fbfa}
+.imp-dl-name{flex:1;min-width:230px;font-size:13px;font-weight:700;color:var(--text-main)}
+
+/* 確認・結果の見出し */
+.imp-head{padding:14px 18px;border-radius:8px;margin-bottom:16px;background:#fff;
+  border:1px solid var(--border);border-left:4px solid var(--primary)}
+.imp-head.ng{border-left-color:#d69e2e;background:#fffdf5}
+.imp-head.bad{border-left-color:var(--error);background:#fff7f7}
+.imp-head-main{font-size:14.5px;color:var(--text-main);line-height:1.8}
+.imp-head-sub{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+.imp-parent{border-left:4px solid var(--primary)}
+.imp-sum{margin-top:12px}
+.imp-filter{display:flex;align-items:center;gap:14px;margin:14px 0 8px}
+.imp-table th{white-space:nowrap}
+.errlist.warn li{color:#b45309}
+/* 取込先の選択（決まらない組み合わせごとに1行） */
+.imp-pick td{vertical-align:middle}
+.imp-pick tr.bad td{background:#fff7f7}

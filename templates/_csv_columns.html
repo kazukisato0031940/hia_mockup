@@ -1,0 +1,40 @@
+{#
+  CSVの様式ごとの列の一覧。「必要な列を確認する」で開く。
+  列の定義は app.py の CSV_FORMATS（CSVフォーマット再設計案 §5）から渡す。
+    spec … CSV_FORMATS の1件（label／columns／help／unit）
+#}
+{% macro csv_columns(spec, open=false) -%}
+<details class="col-help"{{ ' open' if open }}>
+  <summary>必要な列を確認する（{{ spec.label }}フォーマット・{{ spec.columns|length }}列）</summary>
+  <p class="hint" style="margin:8px 0 10px">
+    1行＝<b>{{ spec.unit }}</b>。<b>見出しの行は全ての列が必要です</b>（「必須」は値が要る列）。
+    列の順番は問いません。<br>
+    呼び名は <b>「ID」＝HIAの通し番号</b>（様式をダウンロードすると入って出てきます）／
+    <b>「コード」＝健保・企業が管理する番号</b>です。
+  </p>
+  <div class="table-scroll" style="max-height:340px;overflow-y:auto">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr>
+      <th style="width:46px">No</th>
+      <th style="width:210px">列名</th>
+      <th style="width:60px">必須</th>
+      <th style="width:150px">型・桁</th>
+      <th class="tl">説明</th>
+    </tr></thead>
+    <tbody>
+    {% for name, req, typ, desc in spec.help %}
+    <tr>
+      <td class="num">{{ loop.index }}</td>
+      <td class="code">{{ name }}</td>
+      <td>{% if req == '必須' %}<span class="st-label ng">必須</span>{% else %}任意{% endif %}</td>
+      <td class="wrap">{{ typ }}</td>
+      <td class="tl wrap">{{ desc | safe }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="hint" style="margin-top:8px">
+    この操作では登録されません。次の画面で行ごとの判定を確認したうえで確定します。</p>
+</details>
+{%- endmacro %}

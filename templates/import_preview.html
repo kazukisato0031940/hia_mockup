@@ -1,0 +1,179 @@
+{% extends LAYOUT %}{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">取り込む内容の確認</h1>
+{% endif %}
+
+{# ---- 見出し：どこへ何件入るか。上位が未選択なら、選ぶまで確定できないことを出す ---- #}
+<div class="imp-head {{ 'ng' if not ready else ('bad' if summary['エラー'] else 'ok') }}">
+  <div class="imp-head-main">
+    {% if not ready %}
+      <b>取り込む先を選んでください。</b>選ぶまで確定できません。
+    {% else %}
+      <b>{{ kenpo.name if kenpo else '—' }}</b>
+      {% if place %}　の　<b>{{ place }}</b>　の配下に
+      {% elif n_places > 1 %}　の　<b>{{ n_places }} か所</b>の配下に{% endif %}
+      <b>{{ '{:,}'.format(total) }} 件</b>を取り込みます。
+    {% endif %}
+  </div>
+  <div class="imp-head-sub">
+    <span class="st st-role">{{ spec.label }}フォーマット</span>
+    <span class="st st-own">{{ filename }}</span>
+    <span class="st st-own">{{ '{:,}'.format(total) }} 行</span>
+  </div>
+</div>
+
+{# ---- 上位（親）を選ぶ欄。
+     上位はまずCSVの列で指定する。列が空欄の行があるときだけ、この欄が出る。
+     選択欄は「決まらない組み合わせ」ごとに1つ（操作の回数は行数ではない）。---- #}
+{% if groups %}
+<div class="block imp-parent">
+  <h2>取り込む先を選んでください<span class="req">必須</span></h2>
+  <p class="note">
+    上位（企業・事業所）の列が<b>空欄の行</b>があります。ファイルに書かれていた行はそのまま、
+    空欄の行だけここで選びます。すべて選ぶまで確定できません。
+    候補に出るのは<b>担当範囲にあるものだけ</b>です。
+    {% if kind == 'dept' %}事業所は任意階層のため、空欄を「企業の直下」とは決めつけず、
+    <b>「（企業の直下）」も選択肢の1つ</b>として選んでいただきます。{% endif %}</p>
+
+  <form method="get" action="{{ url_for('import_preview') }}" id="pp-form">
+    <input type="hidden" name="token" value="{{ token }}">
+    {% for k, v in picks.items() %}
+    {% set key = 'pick_company' if k == 'company' else 'pick_under_' ~ k.split(':')[1] %}
+    {% if not groups|selectattr('key', 'equalto', k)|list %}
+    <input type="hidden" name="{{ key }}" value="{{ v }}">{% endif %}
+    {% endfor %}
+    <div class="table-scroll">
+    <table class="result-table imp-pick" style="table-layout:auto">
+      <thead><tr>
+        <th class="tl">ファイルに書かれていた状態</th>
+        <th style="width:90px">対象</th>
+        <th class="tl" style="width:360px">指定</th>
+      </tr></thead>
+      <tbody>
+      {% for g in groups %}
+      {% set key = 'pick_company' if g.key == 'company' else 'pick_under_' ~ g.key.split(':')[1] %}
+      <tr class="{{ '' if g.done else 'bad' }}">
+        <td class="tl">{{ g.label }}</td>
+        <td class="num">{{ '{:,}'.format(g.n) }}件</td>
+        <td class="tl">
+          <select name="{{ key }}" onchange="this.form.submit()" style="min-width:300px">
+            <option value="">選択してください</option>
+            {% for o in g.options %}<option value="{{ o.v }}"
+              {{ 'selected' if o.v == g.value }}>{{ o.t }}</option>{% endfor %}
+          </select>
+          {% if g.options|length == 1 %}
+          <span class="hint">（この企業には事業所がありません）</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </form>
+  <p class="hint" style="margin-top:8px">
+    {% set left = groups|rejectattr('done')|list|length %}
+    {% if left %}あと <b>{{ left }}</b> か所を選ぶと確定できます。
+    {% else %}すべて選べました。下の判定をご確認のうえ確定してください。{% endif %}</p>
+</div>
+{% endif %}
+
+{# ---- 件数の要約と明細。上位を選ぶ前から出し、列で指定済みの行とこれから選ぶ行が
+     混在するのを見せる（所属先が「（これから選びます）」の行が選ぶ対象）---- #}
+<div class="block">
+  <div class="blk-head"><h2>行ごとの判定</h2>
+    <span class="hint">「エラー」が1行でもあると確定できません。
+      「注意」は取り込めますが、内容をご確認ください。</span></div>
+  <div class="stat-row imp-sum">
+    <div class="stat-box"><div class="stat-l">新規</div>
+      <div class="stat-n">{{ summary['新規'] }}</div></div>
+    <div class="stat-box"><div class="stat-l">更新</div>
+      <div class="stat-n">{{ summary['更新'] }}</div></div>
+    <div class="stat-box {{ 'warn' if summary['注意'] }}"><div class="stat-l">注意</div>
+      <div class="stat-n">{{ summary['注意'] }}</div></div>
+    <div class="stat-box {{ 'warn' if summary['エラー'] }}"><div class="stat-l">エラー</div>
+      <div class="stat-n">{{ summary['エラー'] }}</div></div>
+  </div>
+
+  {% if summary['エラー'] %}
+  <div class="flash error" style="margin-top:14px">
+    エラーのある行が <b>{{ summary['エラー'] }} 件</b>あります。
+    <b>1行でもエラーがあると確定できません。</b>
+    ファイルを直して、もう一度アップロードしてください。</div>
+  {% endif %}
+
+  {# ---- 明細。判定・所属先・エラーの内容を左に固定し、ファイルの列は横スクロールで見る ---- #}
+  <div class="imp-filter">
+    <label class="chk"><input type="checkbox" id="pv-only" onchange="pvFilter()">
+      <span>エラー・注意のある行だけを表示する</span></label>
+    <span class="hint" id="pv-count"></span>
+  </div>
+  <div class="table-scroll" style="max-height:440px;overflow:auto">
+  <table class="result-table imp-table" style="table-layout:auto">
+    <thead><tr>
+      <th style="width:50px">行</th>
+      <th style="width:70px">判定</th>
+      <th class="tl" style="width:200px">所属先</th>
+      <th class="tl" style="width:280px">エラー・注意の内容</th>
+      {% for c in columns %}<th class="tl">{{ c }}</th>{% endfor %}
+    </tr></thead>
+    <tbody>
+    {% for r in rows[:500] %}
+    <tr class="pv-row {{ 'bad' if r.judge == 'エラー' }}"
+        data-flag="{{ 1 if r.judge in ('エラー', '注意') else 0 }}">
+      <td class="num">{{ r.line }}</td>
+      <td><span class="st-label {{ {'エラー':'ng', '注意':'warn', '更新':'ok'}.get(r.judge, '') }}">{{ r.judge }}</span></td>
+      <td class="tl"><span class="ellip w190" title="{{ r.place }}">{{ r.place }}</span></td>
+      <td class="tl wrap">
+        {% if r.errors %}<ul class="errlist">{% for m in r.errors %}<li>{{ m }}</li>{% endfor %}</ul>{% endif %}
+        {% if r.warnings %}<ul class="errlist warn">{% for m in r.warnings %}<li>{{ m }}</li>{% endfor %}</ul>{% endif %}
+        {% if not r.errors and not r.warnings %}<span class="hint">—</span>{% endif %}
+      </td>
+      {% for v in r.cells %}<td class="tl">{{ v or '—' }}</td>{% endfor %}
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if rows|length > 500 %}
+  <p class="note">先頭500行を表示しています（全 {{ '{:,}'.format(rows|length) }} 行）。
+    確定すると全行が登録されます。</p>
+  {% endif %}
+</div>
+
+<div class="actions" style="justify-content:flex-end">
+  <a class="btn-back" href="{{ url_for('import_upload_bulk') if kind == 'bulk'
+       else url_for('import_upload', kind=kind) }}"
+     style="text-decoration:none">ファイルを選び直す</a>
+  <form method="post" action="{{ url_for('import_commit') }}" style="display:inline">
+    <input type="hidden" name="token" value="{{ token }}">
+    {% for k, v in picks.items() %}
+    <input type="hidden" name="{{ 'pick_company' if k == 'company' else 'pick_under_' ~ k.split(':')[1] }}"
+           value="{{ v }}">
+    {% endfor %}
+    <button class="btn-submit btn-regsave" {{ 'disabled' if not can_commit }}>
+      {% if not ready %}取り込む先を選んでください
+      {% elif summary['エラー'] %}エラーがあるため確定できません
+      {% else %}この内容で確定する{% endif %}</button>
+  </form>
+</div>
+<p class="hint" style="text-align:right;margin-top:6px">
+  確認した内容は<b>この画面を離れると消えます</b>（上位の選択も同じです）。
+  確定できるのは、アップロードしたご本人・1回だけです。</p>
+
+<script>
+/* エラー・注意のある行だけに絞る */
+function pvFilter(){
+  var only = document.getElementById('pv-only').checked;
+  var n = 0, all = 0;
+  document.querySelectorAll('tr.pv-row').forEach(function(tr){
+    all++;
+    var hit = !only || tr.dataset.flag === '1';
+    tr.style.display = hit ? '' : 'none';
+    if(hit) n++;
+  });
+  document.getElementById('pv-count').textContent =
+    only ? (n + ' 行を表示（全 ' + all + ' 行）') : '';
+  if(window.reportHeight) window.reportHeight();
+}
+</script>
+{% endblock %}

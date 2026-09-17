@@ -1,8 +1,8 @@
 {% extends LAYOUT %}{% block body %}
 <h1 class="page-title">{{ '部署情報の編集' if row else '部署の登録' }}</h1>
 <p class="page-lead">
-  {% if row %}登録済みの部署を編集します。事業所は変更できません。
-  {% else %}事業所の下に置く部署を登録します。{% endif %}</p>
+  {% if row %}登録済みの部署を編集します。置き場所（企業・事業所）は変更できません。
+  {% else %}部署を登録します。<b>事業所の配下</b>にも<b>企業の直下</b>にも置けます。{% endif %}</p>
 
 {% if row %}
 <div class="rec-head">
@@ -11,9 +11,11 @@
     <span class="rec-name">{{ row.name }}</span>
   </div>
   <div class="rec-meta">
-    <span class="rec-tag">{{ row.company_ext or row.company_code }}　{{ row.company_name }}</span>
-    <span class="rec-tag">{{ row.office_ext or row.office_code }}　{{ row.office_name }}</span>
-    <span class="rec-tag">内部コード {{ row.code }}</span>
+    <span class="rec-tag">{{ row.company_ext or row.company_id }}　{{ row.company_name }}</span>
+    {% if row.office_id %}
+    <span class="rec-tag">{{ row.office_ext or row.office_id }}　{{ row.office_name }}</span>
+    {% else %}<span class="rec-tag">企業直下（事業所なし）</span>{% endif %}
+    <span class="rec-tag">部署ID {{ row.id }}</span>
     <span class="rec-tag">加入者 {{ '{:,}'.format(n_mem or 0) }}人</span>
   </div>
 </div>
@@ -23,27 +25,63 @@
 
 <div class="block mf-card">
 
+  {# ================= 置き場所（企業／事業所の直下） ================= #}
+  <div class="mf-sec">
+    <div class="mf-sec-head">
+      <h2>置き場所</h2>
+      <span class="mf-sec-note">事業所は<b>任意</b>です。事業所を使っていない企業では、
+        部署を<b>企業の直下</b>に置きます。</span>
+    </div>
+    {% if row %}
+    <div class="mf-grid mf-g-d-basic">
+      <div class="fld">
+        <label class="fld-label">企業</label>
+        <input type="text" disabled value="{{ row.company_name }}">
+      </div>
+      <div class="fld">
+        <label class="fld-label">配下</label>
+        <input type="text" disabled
+               value="{{ row.office_name if row.office_id else '企業の直下' }}">
+      </div>
+    </div>
+    {% else %}
+    {% set fcid = (form.company_id if form else '') or '' %}
+    {% set fp   = (form.parent if form else '') or '' %}
+    <div class="mf-grid mf-g-d-basic">
+      <div class="fld">
+        <label for="company_id" class="fld-label">企業<span class="req">必須</span></label>
+        <select id="company_id" name="company_id" required>
+          <option value="">選択してください</option>
+          {% for c in comps %}<option value="{{ c.id }}"
+            {{ 'selected' if fcid|string == c.id|string }}>{{ c.ext_code or c.id }}　{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      {# 事業所は任意階層のため、「（企業直下）」も選択肢の1つとして同じプルダウンに並べる
+         （CSV取込の確認画面と同じ作法にそろえている）#}
+      <div class="fld">
+        <label for="dp-under" class="fld-label">配下<span class="req">必須</span></label>
+        <select id="dp-under" name="parent" required>
+          <option value="">選択してください</option>
+          <option value="company" {{ 'selected' if fp == 'company' }}>（企業直下）</option>
+          {% for o in offs %}<option value="o{{ o.id }}" data-company="{{ o.company_id }}"
+            {{ 'selected' if fp == 'o' ~ o.id }}>{{ o.ext_code or o.id }}　{{ o.name }}</option>{% endfor %}
+        </select>
+        <p class="hint" id="dp-note"></p>
+      </div>
+      <div class="fld"></div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ================= 基本情報 ================= #}
   <div class="mf-sec">
     <div class="mf-sec-head">
       <h2>基本情報</h2>
       <span class="mf-sec-note"><b>部署コード</b>は企業が管理している番号があれば入れます（任意）。
-        <b>当社内部コード</b>は登録順に自動発番します{% if row %}：<b class="mono">{{ row.code }}</b>{% else %}
-        （この登録では <b class="mono" id="next-code">{{ nexts.values()|list|first if nexts else '001' }}</b>）{% endif %}。</span>
+        <b>部署ID</b>はHIAの通し番号で、登録時に自動で決まります{% if row %}：<b class="mono">{{ row.id }}</b>{% endif %}。
+        <b>部署名は同じ名前を登録できます</b>（同名があるときは登録後に注意を表示します）。</span>
     </div>
     <div class="mf-grid mf-g-d-basic">
-      <div class="fld">
-        <label {{ 'for="office_id"' if not row }} class="fld-label">
-          事業所{% if not row %}<span class="req">必須</span>{% endif %}</label>
-        {% if row %}
-        <input type="text" disabled
-               value="{{ row.company_name }}　／　{{ row.office_ext or row.office_code }}　{{ row.office_name }}">
-        {% else %}
-        <select id="office_id" name="office_id" required>
-          {% for o in offs %}<option value="{{ o.id }}"
-            {{ 'selected' if form and form.office_id|int == o.id }}>{{ o.company_name }}　／　{{ o.ext_code or o.code }}　{{ o.name }}</option>{% endfor %}
-        </select>
-        {% endif %}
-      </div>
       <div class="fld">
         <label for="ext_code" class="fld-label">部署コード</label>
         <input type="text" id="ext_code" name="ext_code" maxlength="20"
@@ -87,16 +125,33 @@
 </div>
 </form>
 
-{% if offs and offs|length > 1 %}
+{% if not row %}
 <script>
-/* 事業所を変えると、採番される部署コードの表示も切り替える */
+/* 配下のプルダウンを、選んだ企業の事業所だけに絞る。
+   事業所を1件も持たない企業では「（企業直下）」だけが残る（事業所は任意階層のため）。 */
 (function(){
-  var sel = document.getElementById('office_id');
-  var out = document.getElementById('next-code');
-  var map = {{ nexts | tojson }};
-  if(!sel || !out) return;
-  function upd(){ out.textContent = map[sel.value] || '001'; }
-  sel.addEventListener('change', upd);
+  var comp = document.getElementById('company_id');
+  var under = document.getElementById('dp-under');
+  var note = document.getElementById('dp-note');
+  if(!comp || !under) return;
+  var offs = [].slice.call(under.querySelectorAll('option[data-company]'));
+
+  function upd(){
+    var cid = comp.value;
+    var n = 0;
+    offs.forEach(function(o){
+      var hit = o.dataset.company === cid;
+      o.hidden = !hit;
+      o.disabled = !hit;
+      if(!hit && o.selected){ o.selected = false; under.value = ''; }
+      if(hit) n++;
+    });
+    under.disabled = !cid;
+    if(!cid){ note.textContent = '先に企業を選択してください。'; }
+    else if(!n){ note.textContent = 'この企業には事業所がないため、「（企業直下）」だけを選べます。'; }
+    else { note.textContent = '「（企業直下）」か、配下の事業所 ' + n + ' 件から選べます。'; }
+  }
+  comp.addEventListener('change', upd);
   upd();
 })();
 </script>

@@ -1,6 +1,5 @@
 {% set FIXED_HEIGHT = true %}
 {% extends LAYOUT %}
-{% from "_import_modal.html" import import_modal, import_script %}
 {% from "_listsearch.html" import search_card, search_script, rows_script %}
 {% block body %}
 {# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
@@ -34,7 +33,8 @@
            title="紐づけ先を選んでから、ドラッグで紐づける専用ページを開きます">紐づけページ</a>
         {% endif %}
         {% if CAN_MASTER %}
-        <button type="button" class="btn-sm" onclick="openImport('imp-member')">一括インポート</button>
+        <a class="btn-sm" href="{{ url_for('import_upload', kind='member') }}"
+           style="text-decoration:none">CSVで取り込む</a>
         {% endif %}
         <a class="btn-sm" href="{{ url_for('members_export') }}" style="text-decoration:none">CSVで出力</a>
       </div>
@@ -255,34 +255,4 @@
 {{ search_script([('no','no'), ('name','name'), ('cname','cname'), ('oname','oname'),
                   ('dname','dname')]) }}
 {{ rows_script() }}
-{% if CAN_MASTER %}
-{{ import_modal('imp-member', '加入者の一括インポート', url_for('members_import'),
-   url_for('members_template'),
-   [('加入者ID','任意','**当システムで採番**します。ファイルの値は使いません'),
-    ('被保険者証記号','任意','—'),
-    ('被保険者証番号','必須','健保内で一意。既にある場合は内容を更新します'),
-    ('被保険者証枝番','任意','—'),
-    ('被保険者属性名','任意','—'),
-    ('続柄名称','任意','本人・妻・子など'),
-    ('対象者氏名（漢字）','必須','—'),
-    ('対象者氏名（カナ）','任意','—'),
-    ('性別','任意','—'),
-    ('生年月日','任意','1961/10/16 のように年月日を区切って入力'),
-    ('資格取得日（家族認定日）','任意','同上'),
-    ('資格喪失日（家族削除日）','任意','同上'),
-    ('郵便番号','任意','—'),
-    ('住所','任意','—'),
-    ('住所（建物名）','任意','—'),
-    ('電話番号','任意','—'),
-    ('メールアドレス','任意','—'),
-    ('事業所（企業）コード','必須','健保が管理する番号（当社内部コードでも引けます）'),
-    ('所属コード','任意','企業が管理する番号（当社内部コードでも引けます）'),
-    ('配付先コード','任意','—'),
-    ('社員コード','任意','—'),
-    ('connectID','任意','—'),
-    ('個人ID','任意','—')],
-   kenpos if acc.role == 'system_admin' else None,
-   sample=url_for('sample_csv', name='subscriber')) }}
-{% endif %}
-{{ import_script() }}
 {% endblock %}

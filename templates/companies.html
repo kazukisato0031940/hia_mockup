@@ -1,15 +1,14 @@
 {% set FIXED_HEIGHT = true %}
 {% extends LAYOUT %}
-{% from "_import_modal.html" import import_modal, import_script %}
 {% from "_listsearch.html" import search_card, search_script, rows_script %}
 {% block body %}
 {# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
 {% if not EMBED %}
 <h1 class="page-title">企業情報</h1>
-<p class="page-lead">企業の登録・編集・削除を行います。事業所（企業）コードは健保が管理する番号を登録します（当社内部コードは自動で割り振ります）。</p>
+<p class="page-lead">企業の登録・編集・削除を行います。企業コードは健保が管理する番号です。企業IDはHIAの通し番号で、登録時に自動で決まります。</p>
 {% endif %}
 
-{{ search_card([('code', '事業所（企業）コード・内部コード', '200px'),
+{{ search_card([('code', '企業コード・企業ID', '200px'),
                 ('name', '企業名・フリガナ', '260px'),
                 ('tel', '電話番号', '170px')], f) }}
 
@@ -19,7 +18,11 @@
       <h2>登録済みの企業</h2>
       {% if can_add %}
       <div class="actions">
-        <button type="button" class="btn-sm" onclick="openImport('imp-company')">一括インポート</button>
+        <a class="btn-sm" href="{{ url_for('import_upload', kind='company') }}"
+           style="text-decoration:none">CSVで取り込む</a>
+        <a class="btn-sm" href="{{ url_for('import_upload_bulk') }}"
+           style="text-decoration:none"
+           title="企業・事業所・部署を1行にまとめた様式で、まとめて取り込みます">マスタ一括取込</a>
       </div>
       {% endif %}
     </div>
@@ -44,8 +47,8 @@
       <col class="col-dt"><col class="col-ops">
     </colgroup>
     <thead><tr>
-      <th>事業所（企業）<br>コード</th>
-      <th>内部コード</th>
+      <th>企業コード</th>
+      <th>企業ID</th>
       <th>企業名</th>
       <th>企業名<br>（フリガナ）</th>
       <th>被保険者<br>証記号</th>
@@ -67,22 +70,4 @@
 
 {{ search_script([('code','code'), ('name','name'), ('tel','tel')]) }}
 {{ rows_script() }}
-{% if can_add %}
-{{ import_modal('imp-company', '企業の一括インポート', url_for('companies_import'),
-   url_for('companies_template'),
-   [('事業所（企業）コード','必須','企業を識別するコード。健保内で一意'),
-    ('保険者番号','必須','登録済みの健康保険組合の番号'),
-    ('被保険者証記号','任意','—'),
-    ('企業名','必須','コードが空欄のときは名称で照合します'),
-    ('企業名（フリガナ）','任意','—'),
-    ('郵便番号','任意','—'),
-    ('住所','任意','—'),
-    ('電話番号','任意','—'),
-    ('担当メールアドレス','任意','—'),
-    ('所属コード','推奨','企業が管理する番号。**この番号で照合して更新**します'),
-    ('部署名','必須','事業所名として登録します。コードが空欄のときは名称で照合'),
-    ('部署名（フリガナ）','任意','—')],
-   sample=url_for('sample_csv', name='company')) }}
-{{ import_script() }}
-{% endif %}
 {% endblock %}

@@ -3959,7 +3959,7 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
         <h1>企業情報</h1>
         <button class="back-btn" onclick="sysBack('master')">戻る</button>
       </div>
-      <p class="sys-note">全健保の企業を登録・閲覧・編集・削除します。登録時に健康保険組合を選び、事業所（企業）コードは健保が管理する番号を入れます（当社内部コードは自動で割り振ります）。</p>
+      <p class="sys-note">全健保の企業を登録・閲覧・編集・削除します。登録時に健康保険組合を選び、企業コードは健保が管理する番号を入れます（企業IDはHIAの通し番号で、自動で決まります）。</p>
       <iframe class="sys-frame" data-src="/companies" title="企業情報"></iframe>
     </div>
 
@@ -4805,7 +4805,7 @@ function klSetFlag(id, key, el){
 window.klToggle = klToggle;
 window.klSetFlag = klSetFlag;
 
-/* 健康保険組合のサポートログイン（当社スタッフのみ）*/
+/* 健康保険組合のサポートログイン（HIAスタッフのみ）*/
 function supportLogin(kenpoId){
   const tr = [...document.querySelectorAll('#kl-table tbody tr')]
     .find(r => r.dataset.id === String(kenpoId));
@@ -4814,7 +4814,7 @@ function supportLogin(kenpoId){
     name ? ['対象：' + name] : [],
     ['・サポート対応のための機能です',
      '・操作はすべて記録されます',
-     '・終了するまで当社の画面には戻れません']).join(String.fromCharCode(10));
+     '・終了するまでHIA総合管理の画面には戻れません']).join(String.fromCharCode(10));
   if(!confirm(msg)) return;
   const f = document.createElement('form');
   f.method = 'post'; f.action = '/support/start';

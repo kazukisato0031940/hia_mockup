@@ -106,7 +106,8 @@
   <p class="note" style="margin-bottom:12px">
     上で選んだ企業の<b>すべての加入者</b>が担当対象です。
     特定の事業所・部署だけに絞りたい場合は、以下で選択してください
-    （<b>企業を選ぶと候補が表示されます</b>。企業を跨いだ指定はできません）。</p>
+    （<b>企業を選ぶと候補が表示されます</b>。部署は事業所を選ばなくても直接選べます。
+    事業所を選ぶと、部署の候補はその事業所の配下に絞られます）。</p>
   <div class="scope-cols">
     <div>
       <div class="scope-head">事業所
@@ -135,15 +136,15 @@
                autocomplete="off" style="width:100%"></div>
       <div class="pick-rows" id="sc-depts">
         {% for d in depts %}
-        <label class="pick-row chk-row" data-office="{{ d.office_id }}"
+        <label class="pick-row chk-row" data-company="{{ d.company_id }}" data-office="{{ d.office_id or '' }}"
                data-text="{{ d.company_name }} {{ d.office_name }} {{ d.name }} {{ d.ext_code or d.code }}">
           <input type="checkbox" name="dept_ids" value="{{ d.id }}"
                  {{ 'checked' if d.id in sel_depts }}>
           <span class="pr-code">{{ d.ext_code or d.code }}</span>
-          <span class="pr-name">{{ d.company_name }}　／　{{ d.office_name }}　／　{{ d.name }}</span>
+          <span class="pr-name">{{ d.company_name }}　／　{{ d.office_name or '（企業直下）' }}　／　{{ d.name }}</span>
         </label>
         {% endfor %}
-        <div class="ribbon-empty" id="sc-depts-empty">先に事業所を選択してください。</div>
+        <div class="ribbon-empty" id="sc-depts-empty">先に「対象の企業」で企業を選択してください。</div>
       </div>
     </div>
   </div>
