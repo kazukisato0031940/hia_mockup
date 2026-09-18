@@ -3285,7 +3285,7 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="8" y="14" width="8" height="7" rx="1"/><path d="M6.5 10v2h11v-2M12 12v2"/></svg>
           </div>
           <h3 class="top-card-title">部署情報</h3>
-          <h4 class="top-card-desc">部署の登録・閲覧・編集・削除。部署は事業所の下に置きます</h4>
+          <h4 class="top-card-desc">部署の登録・閲覧・編集・削除。事業所は任意です</h4>
         </div>
         <div class="top-card" onclick="navigate('sys-member')" data-feature="master.view">
           <div class="top-card-icon">
@@ -3969,7 +3969,7 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
         <h1>事業所情報</h1>
         <button class="back-btn" onclick="sysBack('master')">戻る</button>
       </div>
-      <p class="sys-note">事業所の登録・閲覧・編集・削除とCSVの一括取込を行います。事業所コードはシステムが自動採番します。</p>
+      <p class="sys-note">事業所の登録・閲覧・編集・削除とCSV取込を行います。事業所コードは企業が管理する番号、事業所IDはHIAの通し番号で自動で決まります。</p>
       <iframe class="sys-frame" data-src="/offices" title="事業所情報"></iframe>
     </div>
 
@@ -3979,7 +3979,7 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
         <h1>部署情報</h1>
         <button class="back-btn" onclick="sysBack('master')">戻る</button>
       </div>
-      <p class="sys-note">部署の登録・閲覧・編集・削除を行います。部署は事業所の下に置き、同じ事業所内で名称・コードは重複できません。</p>
+      <p class="sys-note">部署の登録・閲覧・編集・削除を行います。事業所は任意です。部署名・部署コードは重複できます（重複しているときは注意を表示します）。</p>
       <iframe class="sys-frame" data-src="/departments" title="部署情報"></iframe>
     </div>
 
@@ -3989,7 +3989,7 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
         <h1>加入者情報</h1>
         <button class="back-btn" onclick="sysBack('master')">戻る</button>
       </div>
-      <p class="sys-note">加入者の登録・閲覧・編集・削除、CSVの一括取込、企業・事業所・部署への紐づけを行います。</p>
+      <p class="sys-note">加入者の登録・閲覧・編集・削除、CSV取込、企業・事業所・部署への紐づけを行います。</p>
       <iframe class="sys-frame" data-src="/members" title="加入者情報"></iframe>
     </div>
 

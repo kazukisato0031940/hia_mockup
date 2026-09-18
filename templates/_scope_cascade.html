@@ -1,8 +1,8 @@
 <script>
 /* 健保 → 企業 → 事業所 → 部署 の連動選択。
-   事業所は「対象の企業」で選んだ企業の配下だけを表示する。
-   部署は選んだ企業の配下を表示する（事業所を選ばなくても直接選べる）。
-   ただし、その企業の事業所を1つでも選んでいるときは、その事業所の配下だけに絞る。
+   事業所は「対象の企業」で選んだ企業のものだけを表示する。
+   部署は選んだ企業のものを表示する（事業所を選ばなくても直接選べる）。
+   ただし、その企業の事業所を1つでも選んでいるときは、その事業所の部署だけに絞る。
    親の選択が外れた行はチェックも自動で外す。テキスト絞り込みとも併用する。 */
 (function(){
   var comp   = document.getElementById('compcard-list');
@@ -54,7 +54,7 @@
   function syncDepts(){
     var comps = checkedVals(comp, 'company_ids');
     var offs  = checkedVals(offBox, 'office_ids');
-    /* 事業所を選んでいる企業 → その企業の部署は選んだ事業所の配下だけ */
+    /* 事業所を選んでいる企業 → その企業の部署は選んだ事業所のものだけ */
     var narrowed = new Set(rows(offBox)
       .filter(function(r){ return offs.has(r.querySelector('input').value); })
       .map(function(r){ return r.dataset.company; }));

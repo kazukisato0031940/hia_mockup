@@ -734,8 +734,8 @@ def scope_summary(scopes):
         parts.append("事業所 " + "・".join(names))
     if scopes.get("dept"):
         q = ",".join("?" * len(scopes["dept"]))
-        # 企業直下の部署（office_id が NULL）は事業所名の代わりに「企業直下」と出す
-        names = [f"{r['cname']}／{r['oname'] or '（企業直下）'}／{r['name']}"
+        # 事業所のない部署（office_id が NULL）は事業所名の代わりに「事業所なし」と出す
+        names = [f"{r['cname']}／{r['oname'] or '（事業所なし）'}／{r['name']}"
                  for r in db.execute(
             "SELECT d.name, o.name AS oname, c.name AS cname FROM department d"
             " JOIN company c ON c.id=d.company_id LEFT JOIN office o ON o.id=d.office_id"
@@ -804,8 +804,8 @@ def scoped_companies(acc):
         ids).fetchall()
 
 
-# 部署は事業所の配下にも企業の直下にも置けるため、企業は部署から直接たどり、
-# 事業所は LEFT JOIN する（office_id が NULL の行＝企業直下の部署）。
+# 部署は事業所なしでも登録できるため、企業は部署から直接たどり、
+# 事業所は LEFT JOIN する（office_id が NULL の行＝事業所なしの部署）。
 DEPT_SELECT = ("SELECT d.*, o.name AS office_name, o.ext_code AS office_ext,"
                " c.name AS company_name, c.ext_code AS company_ext, c.kenpo_id"
                " FROM department d JOIN company c ON c.id=d.company_id"
@@ -814,7 +814,7 @@ DEPT_ORDER = " ORDER BY c.id, IFNULL(d.office_id, 0), d.id"
 
 
 def scoped_departments(acc):
-    """操作できる部署。企業・事業所を担当していればその配下すべて、
+    """操作できる部署。企業・事業所を担当していればその企業・事業所の部署すべて、
     部署だけを担当している場合はその部署に限る。"""
     db = get_db()
     if acc["role"] in ("system_admin", "kenpo_user"):
@@ -846,7 +846,7 @@ def owns_department(acc, did):
 
 
 def scoped_offices(acc):
-    """操作できる事業所。企業を担当していればその配下すべて、
+    """操作できる事業所。企業を担当していればその企業の事業所すべて、
     事業所・部署だけを担当している場合はその事業所に限る。"""
     db = get_db()
     if acc["role"] in ("system_admin", "kenpo_user"):
@@ -2910,7 +2910,7 @@ def _account_scope_count(kind, rid):
 @roles_required("system_admin", "kenpo_user")
 def company_delete(cid):
     """企業の削除。GET は確認画面、POST は実行。
-    配下（事業所・部署・加入者・アカウント）が1件でも残っていれば削除できない。"""
+    この企業の事業所・部署・加入者・アカウントが1件でも残っていれば削除できない。"""
     db, acc = get_db(), current_account()
     if not owns_company(acc, cid):
         flash("対象の企業を操作する権限がありません。", "error")
@@ -2921,11 +2921,11 @@ def company_delete(cid):
         return redirect(url_for("companies"))
     blockers = [
         ("事業所", _count("SELECT COUNT(*) FROM office WHERE company_id=?", cid),
-         "事業所を削除するか、別の企業へ移してください"),
+         "事業所を削除してください（事業所の企業は変更できません）"),
         ("部署", _count("SELECT COUNT(*) FROM department WHERE company_id=?", cid),
-         "部署を削除するか、別の企業へ移してください"),
+         "部署を削除してください（部署の企業は変更できません）"),
         ("加入者", _count("SELECT COUNT(*) FROM member WHERE company_id=?", cid),
-         "加入者一覧の「まとめて紐づける」で所属先を付け替えるか、未紐づけに戻してください"),
+         "加入者一覧の「選択したN件を紐づける」または「企業・部署の紐づけ」で所属先を付け替えるか、未紐づけに戻してください"),
         ("担当するアカウント",
          _count("SELECT COUNT(*) FROM account WHERE company_id=? AND status<>'deleted'", cid)
          + _account_scope_count("company", cid),
@@ -3084,7 +3084,7 @@ def office_edit(oid):
 @login_required
 def office_delete(oid):
     """事業所の削除。GET は確認画面、POST は実行。
-    配下の部署・加入者は自動では企業直下へ戻さない（黙って付け替わるのを防ぐ）。
+    この事業所の部署・加入者は自動では「事業所なし」に付け替えない（黙って付け替わるのを防ぐ）。
     残っている間は削除できず、付け替えてから削除する。"""
     db, acc = get_db(), current_account()
     if not owns_office(acc, oid):
@@ -3098,10 +3098,9 @@ def office_delete(oid):
         return redirect(url_for("offices"))
     blockers = [
         ("部署", _count("SELECT COUNT(*) FROM department WHERE office_id=?", oid),
-         "部署を削除するか、企業の直下や別の事業所へ移してください"
-         "（事業所は任意階層なので、企業の直下にも置けます）"),
+         "部署を削除してください（部署の事業所は変更できません）"),
         ("加入者", _count("SELECT COUNT(*) FROM member WHERE office_id=?", oid),
-         "加入者一覧の「まとめて紐づける」で所属先を付け替えてください"),
+         "加入者一覧の「選択したN件を紐づける」または「企業・部署の紐づけ」で所属先を付け替えてください"),
         ("担当するアカウント", _account_scope_count("office", oid),
          "アカウント管理で担当範囲からこの事業所を外してください"),
     ]
@@ -3111,7 +3110,7 @@ def office_delete(oid):
             "delete_confirm.html", what="事業所", blockers=blockers,
             subject={"name": row["name"], "sub": row["company_name"],
                      "id_label": "事業所ID", "id": oid},
-            notes=["配下の部署・加入者を<b>自動で企業の直下へ戻すことはしません</b>。"
+            notes=["この事業所の部署・加入者を<b>自動で「事業所なし」に付け替えることはしません</b>。"
                    "黙って付け替わるのを防ぐため、先に付け替えてから削除してください。"],
             alt=None, back_url=url_for("offices"))
     if blocked:
@@ -3136,9 +3135,9 @@ def _departments_page(acc, offset, limit):
 
     def hit(r):
         # 部署コード（健保・企業が管理する番号）と部署ID（HIAの通し番号）のどちらでも引ける。
-        # 事業所名は、企業直下の部署では「企業直下」でも引けるようにする
+        # 事業所名は、事業所のない部署では「事業所なし」でも引けるようにする
         code = f"{r['ext_code'] or ''} {r['id']}"
-        oname = r["office_name"] or "企業直下"
+        oname = r["office_name"] or "事業所なし"
         return ((not f["cname"] or f["cname"] in (r["company_name"] or ""))
                 and (not f["oname"] or f["oname"] in oname)
                 and (not f["code"] or f["code"] in code)
@@ -3172,13 +3171,25 @@ def departments_rows():
                            more=1 if offset + len(rows) < total else 0)
 
 
+def _dept_under(did, dept, cid, oid):
+    """加入者の所属に選んだ部署を検証する。部署は事業所を選ばなくても選べる。
+    事業所を選んでいなければ、その部署の事業所を所属にする。戻り値は (事業所ID, エラー文)"""
+    if not did:
+        return oid, None
+    if not dept or dept["company_id"] != cid:
+        return oid, "選択された部署は、その企業のものではありません。"
+    if oid and dept["office_id"] != oid:
+        return oid, "選択された部署は、その事業所のものではありません。"
+    return (oid or dept["office_id"]), None
+
+
 def _dept_place(cid, oid):
-    """部署がどこに置かれているかを「企業名／事業所名」または「企業名（直下）」で返す"""
+    """部署の企業・事業所を「企業名／事業所名」または「企業名（事業所なし）」で返す"""
     db = get_db()
     c = db.execute("SELECT name FROM company WHERE id=?", (cid,)).fetchone()
     cn = c["name"] if c else "—"
     if not oid:
-        return f"{cn}（企業直下）"
+        return f"{cn}（事業所なし）"
     o = db.execute("SELECT name FROM office WHERE id=?", (oid,)).fetchone()
     return f"{cn}／{o['name'] if o else '—'}"
 
@@ -3186,8 +3197,8 @@ def _dept_place(cid, oid):
 def _dept_parent(acc, form):
     """部署の親を入力から決める。戻り値は (企業ID, 事業所IDまたはNone, エラーの一覧)。
 
-    事業所は任意階層のため、親は「企業の直下」と「配下の事業所」のどちらでもよい。
-    画面は2つのプルダウンで選ばせる。「配下」の値は `company`（企業の直下）か
+    事業所は任意のため、「（事業所なし）」と「事業所」のどちらでもよい。
+    画面は2つのプルダウンで選ばせる。「事業所」の値は `company`（事業所なし）か
     `o<事業所ID>`（CSV取込の確認画面と同じ形にそろえている）。"""
     cid = form.get("company_id", type=int)
     sel = (form.get("parent") or "").strip()
@@ -3198,7 +3209,7 @@ def _dept_parent(acc, form):
     if sel == "company":
         return cid, None, errs
     if not (sel.startswith("o") and sel[1:].isdigit()):
-        errs.append("配下（企業の直下、または事業所）を選択してください。")
+        errs.append("事業所を選択してください（事業所を使わない場合は「（事業所なし）」を選びます）。")
         return cid, None, errs
     oid = int(sel[1:])
     if not owns_office(acc, oid):
@@ -3206,7 +3217,7 @@ def _dept_parent(acc, form):
         return cid, None, errs
     row = get_db().execute("SELECT company_id FROM office WHERE id=?", (oid,)).fetchone()
     if not row or row["company_id"] != cid:
-        errs.append("選択された事業所は、その企業の配下にありません。")
+        errs.append("選択された事業所は、その企業のものではありません。")
         return cid, None, errs
     return cid, oid, errs
 
@@ -3300,7 +3311,7 @@ def department_edit(did):
                + (f"／同名の部署が既に{dup}件あります" if dup else ""))
     flash(f"「{name}」を更新しました。", "ok")
     if dup:
-        flash(f"同じ親に同じ名前の部署が {dup} 件あります。取り違えにご注意ください。", "error")
+        flash(f"同じ企業・事業所に同じ名前の部署が {dup} 件あります。取り違えにご注意ください。", "error")
     if dup_code:
         flash(f"部署コード {ext} は、この企業の別の部署でも使われています。"
               f"取込のときに照合できず、その行はエラーになります。", "error")
@@ -3322,7 +3333,7 @@ def department_delete(did):
     place = _dept_place(row["company_id"], row["office_id"])
     blockers = [
         ("加入者", _count("SELECT COUNT(*) FROM member WHERE dept_id=?", did),
-         "加入者一覧の「まとめて紐づける」で所属先を付け替えてください"),
+         "加入者一覧の「選択したN件を紐づける」または「企業・部署の紐づけ」で所属先を付け替えてください"),
         ("担当するアカウント", _account_scope_count("dept", did),
          "アカウント管理で担当範囲からこの部署を外してください"),
     ]
@@ -3595,11 +3606,11 @@ def api_members_link_filtered():
         return {"ok": False, "message": "企業を選択してください。"}
     if oid and (not off or off["company_id"] != cid):
         return {"ok": False, "message": "選択された事業所は、その企業のものではありません。"}
-    dept = None
-    if did:
-        dept = next((d for d in scoped_departments(acc) if d["id"] == did), None)
-        if not dept or dept["office_id"] != oid:
-            return {"ok": False, "message": "選択された部署は、その事業所のものではありません。"}
+    dept = next((d for d in scoped_departments(acc) if d["id"] == did), None) if did else None
+    oid, derr = _dept_under(did, dept, cid, oid)
+    if derr:
+        return {"ok": False, "message": derr}
+    off = next((o for o in offs if o["id"] == oid), None) if oid else None
 
     # 一覧と同じ絞り込みでSQLを組み立てる
     f = {k: (data.get(k) or "").strip()
@@ -3665,15 +3676,13 @@ def api_members_link():
         log("master", "加入者の紐づけをブロック", "blocked", target=str(cid),
             detail="スコープ外の企業")
         return {"ok": False, "message": "企業を選択してください。"}
-    if not oid:
-        return {"ok": False, "message": "部署を選択してください。"}
-    if not off or off["company_id"] != cid:
+    if oid and (not off or off["company_id"] != cid):
         return {"ok": False, "message": "選択された事業所は、その企業のものではありません。"}
-    dept = None
-    if did:
-        dept = next((d for d in scoped_departments(acc) if d["id"] == did), None)
-        if not dept or dept["office_id"] != oid:
-            return {"ok": False, "message": "選択された部署は、その事業所のものではありません。"}
+    dept = next((d for d in scoped_departments(acc) if d["id"] == did), None) if did else None
+    oid, derr = _dept_under(did, dept, cid, oid)
+    if derr:
+        return {"ok": False, "message": derr}
+    off = next((o for o in offs if o["id"] == oid), None) if oid else None
     where, params = member_where(acc)
     q = ",".join("?" * len(ids))
     targets = db.execute(f"SELECT m.id, m.member_no FROM member m WHERE m.id IN ({q}) AND "
@@ -3687,9 +3696,11 @@ def api_members_link():
                    " updated_at=? WHERE id=?",
                    (cid, oid, did, comp["kenpo_id"], now(), t["id"]))
     db.commit()
-    place = f"{comp['name']}／{off['name']}" + (f"／{dept['name']}" if dept else "")
+    place = (comp['name'] + (f"／{off['name']}" if off else "")
+             + (f"／{dept['name']}" if dept else ""))
     log("master", "加入者に企業・事業所・部署を紐づけ", "success", target=f"{len(targets)}件",
-        detail=f"{comp['code']} {comp['name']}／{off['code']} {off['name']}"
+        detail=f"{comp['code']} {comp['name']}"
+               + (f"／{off['code']} {off['name']}" if off else "／事業所なし")
                + (f"／{dept['code']} {dept['name']}" if dept else "／部署なし")
                + f"／対象={','.join(t['member_no'] for t in targets[:20])}"
                + ("…" if len(targets) > 20 else ""))
@@ -3745,13 +3756,15 @@ def member_new():
     comp = next((c for c in comps if c["id"] == cid), None) if cid else None
     off = next((o for o in offs if o["id"] == oid), None) if oid else None
     dept = next((d for d in depts if d["id"] == did), None) if did else None
-    if did and (not dept or dept["office_id"] != oid):
-        errs.append("選択された部署は、その事業所のものではありません。")
+    oid, derr = _dept_under(did, dept, cid, oid)
+    if derr:
+        errs.append(derr)
+    off = next((o for o in offs if o["id"] == oid), None) if oid else None
     if cid and not comp:
         log("master", "加入者登録をブロック", "blocked", target=no, detail="スコープ外の企業")
         errs.append("選択された企業を操作する権限がありません。")
     if oid and (not off or off["company_id"] != cid):
-        errs.append("選択された部署は、その企業のものではありません。")
+        errs.append("選択された事業所は、その企業のものではありません。")
     if not no:
         errs.append("被保険者証番号を入力してください。")
     if not name:
@@ -3810,12 +3823,14 @@ def member_edit(mid):
     comp = next((c for c in comps if c["id"] == cid), None) if cid else None
     off = next((o for o in offs if o["id"] == oid), None) if oid else None
     dept = next((d for d in depts if d["id"] == did), None) if did else None
-    if did and (not dept or dept["office_id"] != oid):
-        errs.append("選択された部署は、その事業所のものではありません。")
+    oid, derr = _dept_under(did, dept, cid, oid)
+    if derr:
+        errs.append(derr)
+    off = next((o for o in offs if o["id"] == oid), None) if oid else None
     if cid and not comp:
         errs.append("選択された企業を操作する権限がありません。")
     if oid and (not off or off["company_id"] != cid):
-        errs.append("選択された部署は、その企業のものではありません。")
+        errs.append("選択された事業所は、その企業のものではありません。")
     if not name:
         errs.append("対象者氏名（漢字）を入力してください。")
     if not no:
@@ -3984,11 +3999,11 @@ DEPT_HELP = [
     ("企業ID", "任意", "数字", _UP),
     ("企業コード", "任意", "文字 100", _UP),
     ("事業所ID", "任意", "数字",
-     _UP + "。両方とも空欄の行は「その企業の直下」か「配下の事業所」を確認画面で選んでいただきます"
-           "（空欄を企業直下とは判断しません）"),
+     _UP + "。両方とも空欄の行は「（事業所なし）」か「事業所」を確認画面で選んでいただきます"
+           "（空欄を事業所なしとは判断しません）"),
     ("事業所コード", "任意", "文字 100",
-     _UP + "。両方とも空欄の行は「その企業の直下」か「配下の事業所」を確認画面で選んでいただきます"
-           "（空欄を企業直下とは判断しません）"),
+     _UP + "。両方とも空欄の行は「（事業所なし）」か「事業所」を確認画面で選んでいただきます"
+           "（空欄を事業所なしとは判断しません）"),
     ("部署ID", "任意", "数字", _ID),
     ("部署コード", "任意", "文字 100", _CODE),
     ("部署名", "必須", "文字 1〜255",
@@ -4011,7 +4026,7 @@ BULK_HELP = [
     ("事業所ID", "任意", "数字", _ID),
     ("事業所コード", "任意", "文字 100", _CODE),
     ("事業所名", "任意", "文字 1〜255",
-     "<b>空欄の行は事業所を作成しません</b>（その行の部署は企業の直下に登録されます）。照合キー③として使います"),
+     "<b>空欄の行は事業所を作成しません</b>（その行の部署は事業所なしで登録されます）。照合キー③として使います"),
     ("事業所名（フリガナ）", "任意", "文字 1〜255", "—"),
     ("事業所被保険者証記号", "任意", "文字 20",
      "健診データ連携のファイル名に使用します" + _BULK_NOTE),
@@ -4299,20 +4314,29 @@ def _match(by_code, by_id, code, ident, out_of_scope=None):
     """① 外部コード → ② 内部ID の順に照合する。
 
     戻り値は (見つかった行, エラー文)。複数に一致したらエラーにする（勝手に更新しない）。
+    両方書かれていて指す先が違う場合もエラーにする（上位の _resolve_ref と同じ規則）。
     out_of_scope は、IDは実在するが探す範囲の外だったときに出す文言。"""
+    hit_c = hit_i = None
     if code:
         hits = by_code.get(_norm_code(code)) or []
         if len(hits) > 1:
-            return None, f"コード「{code}」に一致するものが {len(hits)} 件あります。更新できません"
+            # コードが重複していても、IDがそのうちの1件を指していればそれに決める
+            same = [h for h in hits if ident and str(h["id"]) == str(ident)]
+            if not same:
+                return None, (f"コード「{code}」に一致するものが {len(hits)} 件あります。"
+                              + ("IDで特定してください" if not ident else "更新できません"))
+            hits = same
         if hits:
-            return hits[0], None
+            hit_c = hits[0]
     if ident:
-        row = by_id.get(str(ident))
-        if row:
-            return row, None
-        return None, (out_of_scope or "").replace("{id}", str(ident)) \
-            or f"ID「{ident}」は担当範囲の外です（または登録されていません）"
-    return None, None
+        hit_i = by_id.get(str(ident))
+        if not hit_i:
+            return None, (out_of_scope or "").replace("{id}", str(ident)) \
+                or f"ID「{ident}」は担当範囲の外です（または登録されていません）"
+    if hit_c and hit_i and hit_c["id"] != hit_i["id"]:
+        return None, (f"IDとコードが別のものを指しています"
+                      f"（ID「{ident}」／コード「{code}」）")
+    return (hit_c or hit_i), None
 
 
 # ---------------------------------------------------------------- 様式ごとの検証
@@ -4324,12 +4348,13 @@ BULK_COMPANY_COLS = {k: ("企業" + v if k not in ("name", "kana") else v)
                      for k, v in COMPANY_COLS.items()}
 
 
-def _check_company(db, acc, kenpo_id, rows, help_rows=None, colmap=None):
-    """企業の行を検証する。一括取込からは企業の列だけの定義と列名の対応表を渡す"""
+def _check_company(db, acc, kenpo_id, rows, help_rows=None, colmap=None, dup_check=True):
+    """企業の行を検証する。一括取込からは企業の列だけの定義と列名の対応表を渡す
+    （一括取込は同じ企業の行が並ぶのが普通なので、重複の検査はしない）"""
     cm = colmap or COMPANY_COLS
     by_id, by_code, by_key, _ = _scoped_company_map(acc, kenpo_id)
-    out = []
-    for r in rows:
+    out, seen = [], {}      # seen: 更新先の企業ID → 先に出てきた行番号
+    for i, r in enumerate(rows):
         warn = []
         e = _check_columns(help_rows or COMPANY_HELP, r)
         name = _g(r, cm["name"])
@@ -4340,6 +4365,8 @@ def _check_company(db, acc, kenpo_id, rows, help_rows=None, colmap=None):
         if not cur and not code and not ident and name:
             hits = by_key.get((_g(r, cm["kana"]), _g(r, cm["cert_mark"]))) or []
             cur = hits[0] if len(hits) == 1 else None
+        if cur and dup_check:
+            _dup_row(e, "企業", cur["id"], seen, i + 2)
         vals = {k: _g(r, col) for k, col in cm.items()}
         warn += _blanked("企業", cur, [
             ("名称（フリガナ）", "kana", vals["kana"]),
@@ -4351,6 +4378,16 @@ def _check_company(db, acc, kenpo_id, rows, help_rows=None, colmap=None):
                     "target_id": cur["id"] if cur else None, "ext_code": code or None,
                     "vals": vals, "place": "—"})
     return out
+
+
+def _dup_row(errs, label, rid, seen, line):
+    """同じものを2行以上で更新しようとしていたら止める（後の行が黙って勝つのを防ぐ）。
+    seen は 更新先のID → 先に出てきた行番号"""
+    if rid in seen:
+        errs.append(f"{label}：{seen[rid]} 行目と同じ{label}（{label}ID「{rid}」）を"
+                    f"指しています。ファイル内で重複しています")
+    else:
+        seen[rid] = line
 
 
 def _resolve_ref(by_code, by_id, code, ident, label):
@@ -4365,7 +4402,12 @@ def _resolve_ref(by_code, by_id, code, ident, label):
     if code:
         hits = by_code.get(_norm_code(code)) or []
         if len(hits) > 1:
-            return None, f"{label}コード「{code}」に一致するものが {len(hits)} 件あります", True
+            # コードが重複していても、IDがそのうちの1件を指していればそれに決める
+            same = [h for h in hits if ident and str(h["id"]) == str(ident)]
+            if not same:
+                return None, (f"{label}コード「{code}」に一致するものが {len(hits)} 件あります"
+                              + ("。IDで特定してください" if not ident else "")), True
+            hits = same
         if not hits:
             return None, (f"{label}コード「{code}」は担当範囲の外です"
                           f"（または登録されていません）"), True
@@ -4402,18 +4444,20 @@ def resolve_parents(acc, kenpo_id, kind, rows, picks):
     """事業所登録・部署登録の上位を、行ごとに決める。
 
     上位はまずCSVの列（企業ID／企業コード、事業所ID／事業所コード）で指定する。
-    列が空欄の行だけ、確認画面のプルダウンで選ぶ。選択は「決まらない組み合わせ」ごとに
-    1つで、操作の回数は行数ではなく組み合わせの数になる。
-    空欄の事業所を「企業の直下」と決めつけない（入れ忘れが黙って企業直下に入るのを防ぐ）。
+    列が空欄の行だけ、確認画面のプルダウンで**行ごとに**選ぶ（同じ企業の行でも
+    行ごとに違う事業所を選べる）。
+    空欄の事業所を「事業所なし」と決めつけない（入れ忘れが黙って事業所なしで入るのを防ぐ）。
 
-    picks は画面で選ばれた内容 {"company": 企業ID, "under:<企業ID>": "company"|"o<事業所ID>"}。
-    戻り値は (行ごとの上位, 選ばせる組み合わせ, すべて選べているか)。"""
+    picks は画面で選ばれた内容 {"c:<行>": 企業ID, "u:<行>": "company"|"o<事業所ID>"}。
+    戻り値は (行ごとの上位, 選ばせる行の一覧（1行＝企業と事業所の選択）, すべて選べているか)。"""
     comps, c_id, c_code, offs, o_id, o_code = _parents_for(acc, kenpo_id)
     need_office = (kind == "dept")
-    picked_c = c_id.get(str(picks.get("company") or ""))
-    out, n_company, n_office = [], 0, {}
+    c_options = [{"v": str(c["id"]), "t": f"{c['ext_code'] or c['id']}　{c['name']}"}
+                 for c in comps]
+    out, pend = [], []
 
-    for r in rows:
+    for i, r in enumerate(rows):
+        line = i + 2
         errs = []
         comp, cerr, c_given = _resolve_ref(c_code, c_id, _g(r, "企業コード"),
                                            _g(r, "企業ID"), "企業")
@@ -4421,7 +4465,7 @@ def resolve_parents(acc, kenpo_id, kind, rows, picks):
             errs.append(cerr)
         off, o_given = None, False
         if need_office:
-            # 事業所コードは企業ごとに付ける番号。企業が分かっていれば、その配下だけで引く
+            # 事業所コードは企業ごとに付ける番号。企業が分かっていれば、その企業の事業所だけで引く
             oc, oi = o_code, o_id
             if comp:
                 oi = {k: v for k, v in o_id.items() if v["company_id"] == comp["id"]}
@@ -4434,62 +4478,57 @@ def resolve_parents(acc, kenpo_id, kind, rows, picks):
                 wide, _, _ = _resolve_ref(o_code, o_id, _g(r, "事業所コード"),
                                           _g(r, "事業所ID"), "事業所")
                 if wide:
-                    oerr = "指定された事業所は、指定された企業の配下にありません"
+                    oerr = "指定された事業所は、指定された企業の事業所ではありません"
             if oerr:
                 errs.append(oerr)
             if off:
                 if comp and off["company_id"] != comp["id"]:
-                    errs.append("指定された事業所は、指定された企業の配下にありません")
+                    errs.append("指定された事業所は、指定された企業の事業所ではありません")
                 elif not comp:
                     comp = c_id.get(str(off["company_id"]))   # 下位から上位を補う
-        # 企業が決まらない行は、まとめて1つ選ばせる
-        if not comp and not c_given and not o_given:
-            n_company += 1
-            comp = picked_c
-        # 事業所が書かれていない行は、企業ごとにまとめて選ばせる
+        # 上位が列で決まらない行は、その行で選ばせる。1行＝企業と事業所の2つのプルダウン
+        # （企業が列で決まっていれば企業は名前だけ出す。事業所登録の様式は企業だけ）
+        need_c = not comp and not c_given and not o_given and not errs
+        need_u = need_office and not o_given and not errs
         under_ok = True
-        if need_office and not o_given and not errs:
-            if comp:
-                key = f"under:{comp['id']}"
-                n_office[key] = n_office.get(key, 0) + 1
-                sel = (picks.get(key) or "").strip()
-                if sel == "company":
-                    off = None
-                elif sel.startswith("o") and sel[1:] in o_id \
-                        and o_id[sel[1:]]["company_id"] == comp["id"]:
-                    off = o_id[sel[1:]]
-                else:
-                    under_ok = False
+        if need_c or need_u:
+            row_pick = {"line": line, "key": f"c:{line}" if need_c else f"u:{line}",
+                        "c": None, "u": None, "done": True}
+            if need_c:
+                sel = (picks.get(f"c:{line}") or "").strip()
+                comp = c_id.get(sel)
+                row_pick["c"] = {"given": False, "value": sel if comp else "",
+                                 "options": c_options}
+                if not comp:
+                    row_pick["done"] = False
             else:
-                under_ok = False
+                row_pick["c"] = {"given": True, "name": comp["name"] if comp else "—"}
+            if need_u:
+                sel = (picks.get(f"u:{line}") or "").strip()
+                if comp:
+                    if sel == "company":
+                        off = None
+                    elif sel.startswith("o") and sel[1:] in o_id \
+                            and o_id[sel[1:]]["company_id"] == comp["id"]:
+                        off = o_id[sel[1:]]
+                    else:
+                        sel, under_ok = "", False
+                    mine = [o for o in offs if o["company_id"] == comp["id"]]
+                else:
+                    sel, under_ok, mine = "", False, []
+                row_pick["u"] = {"value": sel, "enabled": comp is not None,
+                                 "company": str(comp["id"]) if comp else "",
+                                 "options": ([{"v": "company", "t": "（事業所なし）"}]
+                                             + [{"v": f"o{o['id']}",
+                                                 "t": f"{o['ext_code'] or o['id']}　{o['name']}"}
+                                                for o in mine])}
+                if not under_ok:
+                    row_pick["done"] = False
+            pend.append(row_pick)
         out.append({"company": comp, "office": off, "errors": errs,
                     "pending": not comp and not errs,     # 企業はこれから画面で選ぶ
                     "ready": bool(comp) and under_ok and not errs})
-
-    # 選ばせる組み合わせを組み立てる
-    groups = []
-    if n_company:
-        groups.append({
-            "key": "company", "label": "企業が未指定", "n": n_company,
-            "value": str(picks.get("company") or ""),
-            "options": [{"v": str(c["id"]),
-                         "t": f"{c['ext_code'] or c['id']}　{c['name']}"} for c in comps],
-            "done": picked_c is not None})
-    for key in sorted(n_office, key=lambda k: int(k.split(":")[1])):
-        cid = key.split(":")[1]
-        c = c_id.get(cid)
-        mine = [o for o in offs if str(o["company_id"]) == cid]
-        sel = (picks.get(key) or "").strip()
-        done = sel == "company" or (sel.startswith("o") and sel[1:] in o_id
-                                    and str(o_id[sel[1:]]["company_id"]) == cid)
-        groups.append({
-            "key": key, "label": f"{c['name'] if c else '—'} の事業所が未指定",
-            "n": n_office[key], "value": sel,
-            "options": ([{"v": "company", "t": "（企業の直下）"}]
-                        + [{"v": f"o{o['id']}",
-                            "t": f"{o['ext_code'] or o['id']}　{o['name']}"} for o in mine]),
-            "done": done})
-    return out, groups, all(g["done"] for g in groups)
+    return out, pend, all(p["done"] for p in pend)
 
 
 def _check_office(db, acc, kenpo_id, rows, parents):
@@ -4508,8 +4547,8 @@ def _check_office(db, acc, kenpo_id, rows, parents):
             cache[cid] = (by_id, by_code, by_name)
         return cache[cid]
 
-    out = []
-    for r, p in zip(rows, parents):
+    out, seen = [], {}      # seen: 更新先の事業所ID → 先に出てきた行番号
+    for i, (r, p) in enumerate(zip(rows, parents)):
         warn = []
         e = _check_columns(OFFICE_HELP, r) + list(p["errors"])
         comp = p["company"]
@@ -4521,12 +4560,14 @@ def _check_office(db, acc, kenpo_id, rows, parents):
         if comp:
             by_id, by_code, by_name = idx(comp["id"])
             cur, err = _match(by_code, by_id, code, ident, out_of_scope=(
-                "事業所ID「{id}」の事業所は " + comp["name"] + " の配下にありません"))
+                "事業所ID「{id}」の事業所は " + comp["name"] + " の事業所ではありません"))
             if err:
                 e.append("事業所：" + err)
             if not cur and not code and not ident and name:
                 hits = by_name.get(name) or []
                 cur = hits[0] if len(hits) == 1 else None
+        if cur:
+            _dup_row(e, "事業所", cur["id"], seen, i + 2)
         vals = {"name": name, "kana": _g(r, "事業所名（フリガナ）"),
                 "cert_mark": _g(r, "被保険者証記号"), "owner": _g(r, "代表者名"),
                 "zip": _g(r, "郵便番号"), "address": _g(r, "住所"),
@@ -4540,7 +4581,8 @@ def _check_office(db, acc, kenpo_id, rows, parents):
         out.append({"errors": e, "warnings": warn, "mode": "更新" if cur else "新規",
                     "target_id": cur["id"] if cur else None, "ext_code": code or None,
                     "vals": vals, "company_id": comp["id"] if comp else None,
-                    "place": comp["name"] if comp else "—"})
+                    "place": comp["name"] if comp else "—",
+                    "place_c": comp["name"] if comp else None})
     return out
 
 
@@ -4562,8 +4604,9 @@ def _check_dept(db, acc, kenpo_id, rows, parents):
             cache[key] = (by_id, by_code, by_name)
         return cache[key]
 
-    out = []
-    for r, p in zip(rows, parents):
+    allowed = {str(c["id"]) for c in scoped_companies(acc)}
+    out, seen = [], {}      # seen: 更新先の部署ID → 先に出てきた行番号
+    for i, (r, p) in enumerate(zip(rows, parents)):
         warn = []
         e = _check_columns(DEPT_HELP, r) + list(p["errors"])
         comp, off = p["company"], p["office"]
@@ -4576,8 +4619,17 @@ def _check_dept(db, acc, kenpo_id, rows, parents):
         if comp and p["ready"]:
             by_id, by_code, by_name = idx(comp["id"], off["id"] if off else None)
             cur, err = _match(by_code, by_id, code, ident, out_of_scope=(
-                "部署ID「{id}」の部署は " + place + " の配下にありません"))
+                "部署ID「{id}」の部署は " + place + " の部署ではありません"))
             if err:
+                # IDが担当範囲内の別の場所にあるなら、本来の所属を添えて迷わないようにする
+                if ident and not by_id.get(str(ident)):
+                    real = db.execute(
+                        "SELECT company_id, office_id FROM department WHERE id=?",
+                        (ident,)).fetchone()
+                    if real and str(real["company_id"]) in allowed:
+                        err += ("（この部署は "
+                                + _dept_place(real["company_id"], real["office_id"])
+                                + " の配下です）")
                 e.append("部署：" + err)
             if not cur and not code and not ident and name:
                 hits = by_name.get(name) or []
@@ -4586,13 +4638,17 @@ def _check_dept(db, acc, kenpo_id, rows, parents):
                 elif len(hits) > 1:
                     warn.append(f"部署：同じ名前の部署が {len(hits)} 件あるため、"
                                 f"新しく登録します")
+        if cur:
+            _dup_row(e, "部署", cur["id"], seen, i + 2)
         vals = {"name": name, "kana": _g(r, "部署名（フリガナ）")}
         warn += _blanked("部署", cur, [("名称（フリガナ）", "kana", vals["kana"])])
         out.append({"errors": e, "warnings": warn, "mode": "更新" if cur else "新規",
                     "target_id": cur["id"] if cur else None, "ext_code": code or None,
                     "vals": vals, "company_id": comp["id"] if comp else None,
                     "office_id": off["id"] if off else None,
-                    "place": place if p["ready"] else ("—" if e else "（これから選びます）")})
+                    "place": place if p["ready"] else ("—" if e else "（これから選びます）"),
+                    "place_c": comp["name"] if comp else None,
+                    "place_o": ((off["name"] if off else "（事業所なし）") if p["ready"] else None)})
     return out
 
 
@@ -4600,11 +4656,52 @@ def _check_bulk(db, acc, kenpo_id, rows):
     """一括取込。1行に企業＋事業所＋部署が入る。上位は行の中の階層で決まる"""
     # 企業の列は企業登録と同じ定義で見る。事業所・部署の列は、書かれている行だけ見る
     comp = _check_company(db, acc, kenpo_id, rows, help_rows=BULK_HELP[:len(COMPANY_HELP)],
-                          colmap=BULK_COMPANY_COLS)
+                          colmap=BULK_COMPANY_COLS, dup_check=False)
     o_help = BULK_HELP[len(COMPANY_HELP):len(COMPANY_HELP) + len(OFFICE_HELP)]
     d_help = BULK_HELP[len(COMPANY_HELP) + len(OFFICE_HELP):]
     by_id, by_code, _, _ = _scoped_company_map(acc, kenpo_id)
     allowed = {c["id"] for c in scoped_companies(acc)}
+    ocache, dcache = {}, {}
+
+    def oidx(cid):
+        """企業ごとの既存の事業所（ID・コード・名称）"""
+        if cid not in ocache:
+            by_i, by_c, by_n = {}, {}, {}
+            for o in db.execute("SELECT * FROM office WHERE company_id=?", (cid,)):
+                by_i[str(o["id"])] = o
+                if o["ext_code"]:
+                    by_c.setdefault(_norm_code(o["ext_code"]), []).append(o)
+                by_n.setdefault(o["name"], []).append(o)
+            ocache[cid] = (by_i, by_c, by_n)
+        return ocache[cid]
+
+    def didx(cid, oid):
+        """企業＋事業所ごとの既存の部署（ID・コード・名称）"""
+        key = (cid, oid or 0)
+        if key not in dcache:
+            by_i, by_c, by_n = {}, {}, {}
+            for d in db.execute(
+                    "SELECT * FROM department WHERE company_id=? AND IFNULL(office_id,0)=?",
+                    (cid, oid or 0)):
+                by_i[str(d["id"])] = d
+                if d["ext_code"]:
+                    by_c.setdefault(_norm_code(d["ext_code"]), []).append(d)
+                by_n.setdefault(d["name"], []).append(d)
+            dcache[key] = (by_i, by_c, by_n)
+        return dcache[key]
+
+    def find(label, maps, code, ident, name, place):
+        """階層別の様式と同じ規則で1件に決める。戻り値は (既存の行, エラー文)"""
+        by_i, by_c, by_n = maps
+        cur, err = _match(by_c, by_i, code, ident, out_of_scope=(
+            label + "ID「{id}」の" + label + "は " + place + " の" + label + "ではありません"))
+        if err:
+            return None, label + "：" + err
+        if not cur and not code and not ident:
+            hits = by_n.get(name) or []
+            cur = hits[0] if len(hits) == 1 else None
+        return cur, None
+
     out, seen_company = [], {}
     for r, cr in zip(rows, comp):
         e = list(cr["errors"])
@@ -4613,6 +4710,30 @@ def _check_bulk(db, acc, kenpo_id, rows):
         cur_c = cr["target_id"]
         if cur_c and cur_c not in allowed:
             e.append("この企業は担当範囲の外です")
+        # 事業所・部署も、階層別の様式と同じ規則で既存を引く（IDとコードの食い違いはエラー）。
+        # 企業が新規なら、その下はすべて新規
+        cname = cr["vals"]["name"]
+        cur_o = cur_d = None
+        o_code, o_id = _g(r, "事業所コード"), _g(r, "事業所ID")
+        d_code, d_id = _g(r, "部署コード"), _g(r, "部署ID")
+        if oname and cur_c:
+            cur_o, err = find("事業所", oidx(cur_c), o_code, o_id, oname, cname)
+            if err:
+                e.append(err)
+        if dname and cur_c and (cur_o or not oname):
+            cur_d, err = find("部署", didx(cur_c, cur_o["id"] if cur_o else None),
+                              d_code, d_id, dname,
+                              cname + ("／" + oname if oname else "（事業所なし）"))
+            if err:
+                e.append(err)
+        levels = ["企業：" + cr["mode"]]
+        if oname:
+            levels.append("事業所：" + ("更新" if cur_o else "新規"))
+        if dname:
+            levels.append("部署：" + ("更新" if cur_d else "新規"))
+        # 行の判定は、いちばん下の階層（その行が主に登録するもの）で決める
+        mode = ("更新" if cur_d else "新規") if dname else (
+            ("更新" if cur_o else "新規") if oname else cr["mode"])
         # ファイル内で同じ企業の行どうしが食い違っていないか
         ckey = cr["ext_code"] or _g(r, "企業ID") or cr["vals"]["name"]
         sig = tuple(sorted(cr["vals"].items()))
@@ -4624,14 +4745,14 @@ def _check_bulk(db, acc, kenpo_id, rows):
         if dname:
             e += _check_columns(d_help, r)
         if not oname and dname:
-            warn.append("事業所が空欄のため、部署は企業の直下に登録します")
-        place = cr["vals"]["name"] + ("／" + oname if oname else "（企業直下）")
+            warn.append("事業所が空欄のため、部署は事業所なしで登録します")
+        place = cr["vals"]["name"] + ("／" + oname if oname else "（事業所なし）")
         out.append({
-            "errors": e, "warnings": warn, "mode": cr["mode"],
+            "errors": e, "warnings": warn, "mode": mode, "levels": "／".join(levels),
             "target_id": cur_c, "ext_code": cr["ext_code"], "vals": cr["vals"],
             "place": place if (oname or dname) else cr["vals"]["name"],
-            "office": ({"name": oname, "code": _g(r, "事業所コード") or None,
-                        "ident": _g(r, "事業所ID"),
+            "office": ({"name": oname, "code": o_code or None, "ident": o_id,
+                        "target_id": cur_o["id"] if cur_o else None,
                         "vals": {"name": oname, "kana": _g(r, "事業所名（フリガナ）"),
                                  "cert_mark": _g(r, "事業所被保険者証記号"),
                                  "owner": _g(r, "事業所代表者名"),
@@ -4640,8 +4761,8 @@ def _check_bulk(db, acc, kenpo_id, rows):
                                  "tel": _g(r, "事業所電話番号"),
                                  "email": _g(r, "事業所担当メールアドレス")}}
                        if oname else None),
-            "dept": ({"name": dname, "code": _g(r, "部署コード") or None,
-                      "ident": _g(r, "部署ID"),
+            "dept": ({"name": dname, "code": d_code or None, "ident": d_id,
+                      "target_id": cur_d["id"] if cur_d else None,
                       "vals": {"name": dname, "kana": _g(r, "部署名（フリガナ）")}}
                      if dname else None)})
     return out
@@ -4678,7 +4799,7 @@ def _check_member(db, acc, kenpo_id, rows):
         flu = 1 if _g(r, "インフルエンザ予防接種対象") != "対象外" else 0
         kenshin = 1 if _g(r, "健診対象") != "対象外" else 0
 
-        # 所属先。まず企業を決め、決まっていればその配下に限って事業所・部署を探す。
+        # 所属先。まず企業を決め、決まっていればその企業の事業所・部署に限って探す。
         # 外部コードは企業ごとに付けるため、健保の全体から探すと別の企業の同じコードに
         # ぶつかる。上位が分かっているときは、そこへ絞り込んでから照合する。
         comp, err, _ = _resolve_ref(by_code, by_id, _g(r, "企業コード"), _g(r, "企業ID"), "企業")
@@ -4698,7 +4819,7 @@ def _check_member(db, acc, kenpo_id, rows):
         if err:
             e.append(err)
         if off:
-            # 事業所まで決まったら、部署はその配下に限る
+            # 事業所まで決まったら、部署はその事業所のものに限る
             d_id = {k: v for k, v in d_id.items() if v["office_id"] == off["id"]}
             d_code = {k: [x for x in v if x["office_id"] == off["id"]]
                       for k, v in d_code.items()}
@@ -4707,14 +4828,14 @@ def _check_member(db, acc, kenpo_id, rows):
             e.append(err)
         if dept:
             if off and dept["office_id"] and dept["office_id"] != off["id"]:
-                e.append("指定された部署は、指定された事業所の配下にありません")
+                e.append("指定された部署は、指定された事業所の部署ではありません")
             if comp and dept["company_id"] != comp["id"]:
-                e.append("指定された部署は、指定された企業の配下にありません")
+                e.append("指定された部署は、指定された企業の部署ではありません")
             off = off or (offs_id.get(str(dept["office_id"])) if dept["office_id"] else None)
             comp = comp or by_id.get(str(dept["company_id"]))
         if off:
             if comp and off["company_id"] != comp["id"]:
-                e.append("指定された事業所は、指定された企業の配下にありません")
+                e.append("指定された事業所は、指定された企業の事業所ではありません")
             comp = comp or by_id.get(str(off["company_id"]))
         if not comp and not off and not dept:
             warn.append("所属先の指定がないため、未紐づけで登録します")
@@ -4759,8 +4880,8 @@ def _check_member(db, acc, kenpo_id, rows):
 def verify_rows(kind, acc, kenpo_id, rows, picks=None):
     """様式に応じて行を検証し、明細・件数の要約・上位の選択欄を返す。
 
-    picks は確認画面で選んだ上位 {"company": 企業ID, "under:<企業ID>": ...}。
-    事業所登録・部署登録では、列で上位が決まらない行があるときだけ選択欄（groups）が出る。"""
+    picks は確認画面で行ごとに選んだ上位 {"c:<行>": 企業ID, "u:<行>": ...}。
+    事業所登録・部署登録では、列で上位が決まらない行があるときだけ選択欄（groups＝行の一覧）が出る。"""
     db = get_db()
     groups, ready = [], True
     if kind == "company":
@@ -4809,11 +4930,11 @@ def _import_ctx(acc, kind):
     db = get_db()
     kenpo_id = import_kenpo(acc)
     kenpo = db.execute("SELECT * FROM kenpo WHERE id=?", (kenpo_id,)).fetchone()
-    return {"kind": kind, "spec": CSV_FORMATS[kind], "formats": CSV_FORMATS,
+    return {"kind": kind, "spec": CSV_FORMATS[kind],
             "kenpo": kenpo, "kenpo_id": kenpo_id,
             "kenpos": (db.execute("SELECT * FROM kenpo ORDER BY code").fetchall()
                        if acc["role"] == "system_admin" else []),
-            "hier_kinds": HIER_KINDS, "max_rows": MAX_IMPORT_ROWS}
+            "max_rows": MAX_IMPORT_ROWS}
 
 
 @app.route("/import")
@@ -4884,16 +5005,21 @@ def import_receive():
 
 
 def _import_picks():
-    """確認画面のプルダウンで選んだ上位を読み取る。
-    company … 企業が未指定の行に当てる企業ID
-    under:<企業ID> … その企業で事業所が未指定の行に当てる先（company＝企業の直下／o<事業所ID>）"""
+    """確認画面のプルダウンで行ごとに選んだ上位を読み取る。
+    pick_c_<行> … その行の企業ID
+    pick_u_<行> … その行の事業所（company＝事業所なし／o<事業所ID>）"""
     picks = {}
     for k, v in request.values.items():
-        if k == "pick_company":
-            picks["company"] = (v or "").strip()
-        elif k.startswith("pick_under_"):
-            picks["under:" + k[len("pick_under_"):]] = (v or "").strip()
+        if k.startswith("pick_c_") and k[7:].isdigit():
+            picks["c:" + k[7:]] = (v or "").strip()
+        elif k.startswith("pick_u_") and k[7:].isdigit():
+            picks["u:" + k[7:]] = (v or "").strip()
     return picks
+
+
+def _pick_param(key):
+    """picks のキー（c:<行>／u:<行>）を、画面のパラメータ名に戻す"""
+    return ("pick_c_" if key.startswith("c:") else "pick_u_") + key.split(":")[1]
 
 
 # ---------------------------------------------------------------- S2 確認
@@ -4940,9 +5066,8 @@ def import_commit():
     # 上位の選択も検証も、確認画面と同じ関数でもう一度通す（確定だけ緩くならないように）
     picks = _import_picks()
     rows, summary, groups, ready = verify_rows(kind, acc, kenpo_id, stg["rows"], picks)
-    back = url_for("import_preview", token=token, **{
-        ("pick_company" if k == "company" else "pick_under_" + k.split(":")[1]): v
-        for k, v in picks.items()})
+    back = url_for("import_preview", token=token,
+                   **{_pick_param(k): v for k, v in picks.items()})
     if not ready:
         log("import", "取込の確定をブロック", "blocked", target=stg["filename"],
             detail="上位（親）が未選択")
@@ -5007,14 +5132,16 @@ def _apply_rows(db, kind, kenpo_id, rows):
             oid = None
             if r.get("office"):
                 o = r["office"]
-                cur = _find_child(db, "office", cid, o["code"], o["ident"], o["name"])
+                cur = o["target_id"] or _find_child(db, "office", cid, o["code"],
+                                                    o["ident"], o["name"])
                 oid, new = _upsert(db, "office", cur, o["vals"],
                                    {"company_id": cid, "ext_code": o["code"],
                                     "code": next_code("office", str(cid), width=3)})
                 c["事業所"]["ins" if new else "upd"] += 1
             if r.get("dept"):
                 d = r["dept"]
-                cur = _find_dept(db, cid, oid, d["code"], d["ident"], d["name"])
+                cur = d["target_id"] or _find_dept(db, cid, oid, d["code"],
+                                                   d["ident"], d["name"])
                 _, new = _upsert(db, "department", cur, d["vals"],
                                  {"company_id": cid, "office_id": oid,
                                   "ext_code": d["code"],
@@ -5048,14 +5175,17 @@ def _find_child(db, table, cid, code, ident, name):
 
 
 def _find_dept(db, cid, oid, code, ident, name):
+    """一括取込で、確定のときに部署をもう一度引き直す（同じ事業所の中だけで探す）"""
     if code:
-        r = db.execute("SELECT id FROM department WHERE company_id=? AND ext_code=?",
-                       (cid, code)).fetchone()
+        r = db.execute("SELECT id FROM department WHERE company_id=?"
+                       " AND IFNULL(office_id,0)=? AND ext_code=?",
+                       (cid, oid or 0, code)).fetchone()
         if r:
             return r["id"]
     if ident:
-        r = db.execute("SELECT id FROM department WHERE company_id=? AND id=?",
-                       (cid, ident)).fetchone()
+        r = db.execute("SELECT id FROM department WHERE company_id=?"
+                       " AND IFNULL(office_id,0)=? AND id=?",
+                       (cid, oid or 0, ident)).fetchone()
         if r:
             return r["id"]
     rows = db.execute("SELECT id FROM department WHERE company_id=? AND IFNULL(office_id,0)=?"
@@ -5136,7 +5266,7 @@ def _format_rows(kind, acc, kenpo_id):
             if d["company_id"] not in cmap:
                 continue
             o = omap.get(d["office_id"]) if d["office_id"] else None
-            # 企業直下の部署は事業所の列を空欄で出す（取り込むときは画面で「企業の直下」を選ぶ）
+            # 事業所なしの部署は事業所の列を空欄で出す（取り込むときは画面で「（事業所なし）」を選ぶ）
             out.append(up_c(d["company_id"])
                        + [o["id"] if o else "", _excel_code(o["ext_code"] if o else "")]
                        + drow(d))
@@ -5152,7 +5282,7 @@ def _format_rows(kind, acc, kenpo_id):
         out = []
         for c in comps:
             wrote = False
-            for d in deps.get((c["id"], 0), []):     # 企業直下の部署
+            for d in deps.get((c["id"], 0), []):     # 事業所なしの部署
                 out.append(crow(c) + blank_o + drow(d))
                 wrote = True
             for o in offs.get(c["id"], []):
@@ -5632,10 +5762,10 @@ def scope_kenpo_id(acc, scopes):
 def _resolve_scope(acc, role, company_ids, office_ids=None, dept_ids=None):
     """ロールから閲覧範囲を決定する。手動指定はさせない。
     企業担当者は「健保 → 企業 → 事業所 → 部署」の連動で担当範囲を選ぶ。
-    - 事業所・部署は選択企業の配下に限る（企業を跨いだ指定はできない）。
+    - 事業所・部署は選択企業のものに限る（企業を跨いだ指定はできない）。
     - 部署は事業所を選ばなくても直接指定できる。ただしその企業の事業所を選んでいる
-      場合は、選んだ事業所の配下の部署に限る。
-    - 企業配下の事業所・部署を1つも選ばなければ、その企業まるごとが担当範囲。
+      場合は、選んだ事業所の部署に限る。
+    - その企業の事業所・部署を1つも選ばなければ、その企業まるごとが担当範囲。
       1つ以上選んだ場合は企業まるごとの担当を外し、選んだ事業所・部署だけに絞る。
     指定できるのは発行者の操作範囲内のものだけ。
     戻り値は (view_scope, scopes, rejected, rel_companies)。
@@ -5663,7 +5793,7 @@ def _resolve_scope(acc, role, company_ids, office_ids=None, dept_ids=None):
     cset = set(comp_sel)
     off_sel = [o["id"] for o in offs if o["id"] in set(want_o) and o["company_id"] in cset]
     oset = set(off_sel)
-    # 事業所を選んだ企業では、部署はその事業所の配下だけ。選んでいない企業では直接指定できる
+    # 事業所を選んだ企業では、部署はその事業所のものだけ。選んでいない企業では直接指定できる
     off_narrowed = {o["company_id"] for o in offs if o["id"] in oset}
     dept_sel = [d["id"] for d in depts
                 if d["id"] in set(want_d) and d["company_id"] in cset
@@ -6087,7 +6217,7 @@ def accounts_set_password(aid):
         flash("削除済みのアカウントです。", "error")
         return redirect(url_for("accounts"))
     if row["id"] == acc["id"]:
-        flash("自分のパスワードは「パスワード変更」から変更してください。", "error")
+        flash("自分のパスワードは「マイアカウント」の「パスワードの変更」から変更してください。", "error")
         return redirect(url_for("accounts"))
 
     if request.method == "GET":

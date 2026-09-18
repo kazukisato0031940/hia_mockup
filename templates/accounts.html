@@ -55,8 +55,8 @@
 <div class="block note-card" style="margin-bottom:14px">
   <h2>パスワード未設定のアカウントがあります</h2>
   <p class="note" style="margin:8px 0 0;">
-    メールが届かない場合は、一覧の「<b>案内リンク</b>」でリンクを画面に表示して
-    ご本人へお伝えするか、「<b>PW設定</b>」で管理者がその場でパスワードを設定できます。</p>
+    メールが届かない場合は、一覧の「<b>編集</b>」を開き、「<b>ログイン用パスワードの設定</b>」で
+    案内リンクを画面に表示してご本人へお伝えするか、管理者がその場でパスワードを設定できます。</p>
 </div>
 {% endif %}
 
@@ -98,7 +98,7 @@
     </div>
     <div class="modal-foot">
       <button type="button" class="btn-back" onclick="closeInv()">あとで送信する</button>
-      <a class="btn-sm" href="{{ url_for('accounts_set_password', aid=inv.id) }}"
+      <a class="btn-sm" href="{{ url_for('accounts_edit', aid=inv.id) }}#card-password"
          style="text-decoration:none">メールを使わずに設定する</a>
       <form method="post" action="{{ url_for('accounts_send_invite', aid=inv.id) }}"
             style="display:inline">

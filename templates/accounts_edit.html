@@ -30,7 +30,7 @@
     <h2>権限</h2>
 {% set SCOPE_OF = {'system_admin':'全健保の加入者を閲覧',
                     'kenpo_user':'自組合全体の加入者を閲覧',
-                    'company_user':'選択した1社の加入者のみ閲覧'} %}
+                    'company_user':'選択した企業の加入者のみ閲覧'} %}
     {% set cur = (form.role if form else row.role) %}
     <div class="search-group"><label>権限ロール</label>
       <div class="role-pick">
@@ -100,14 +100,14 @@
 {% endif %}
 {{ company_picker(comps, selected, acc) }}
 
-{# ---- 健保 → 企業 → 事業所 → 部署 の連動。事業所・部署は選んだ企業の配下だけ ---- #}
+{# ---- 健保 → 企業 → 事業所 → 部署 の連動。事業所・部署は選んだ企業のものだけ ---- #}
 <div class="block" id="card-scope">
   <h2>担当する事業所・部署（任意）</h2>
   <p class="note" style="margin-bottom:12px">
     上で選んだ企業の<b>すべての加入者</b>が担当対象です。
     特定の事業所・部署だけに絞りたい場合は、以下で選択してください
     （<b>企業を選ぶと候補が表示されます</b>。部署は事業所を選ばなくても直接選べます。
-    事業所を選ぶと、部署の候補はその事業所の配下に絞られます）。</p>
+    事業所を選ぶと、部署の候補はその事業所の部署に絞られます）。</p>
   <div class="scope-cols">
     <div>
       <div class="scope-head">事業所
@@ -141,7 +141,7 @@
           <input type="checkbox" name="dept_ids" value="{{ d.id }}"
                  {{ 'checked' if d.id in sel_depts }}>
           <span class="pr-code">{{ d.ext_code or d.code }}</span>
-          <span class="pr-name">{{ d.company_name }}　／　{{ d.office_name or '（企業直下）' }}　／　{{ d.name }}</span>
+          <span class="pr-name">{{ d.company_name }}　／　{{ d.office_name or '（事業所なし）' }}　／　{{ d.name }}</span>
         </label>
         {% endfor %}
         <div class="ribbon-empty" id="sc-depts-empty">先に「対象の企業」で企業を選択してください。</div>

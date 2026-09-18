@@ -1,13 +1,13 @@
-{# 部署一覧の行だけ。事業所が空の行は企業の直下に置かれた部署 #}
+{# 部署一覧の行だけ。事業所が空の行は事業所なしの部署 #}
 {% for r in rows %}
 <tr class="ls-row" data-cname="{{ r.company_name }}"
-    data-oname="{{ r.office_name or '企業直下' }}"
+    data-oname="{{ r.office_name or '事業所なし' }}"
     data-code="{{ r.ext_code or '' }} {{ r.id }}" data-name="{{ r.name }}">
   <td class="tl"><span class="ellip w210" title="{{ r.company_name }}">{{ r.company_name }}</span></td>
   <td class="code">{% if r.office_id %}{{ r.office_ext or r.office_id }}{% else %}—{% endif %}</td>
   <td class="tl">
     {% if r.office_id %}<span class="ellip w190" title="{{ r.office_name }}">{{ r.office_name }}</span>
-    {% else %}<span class="st st-invited" title="事業所を置かず、企業の直下にある部署です">企業直下</span>{% endif %}</td>
+    {% else %}<span class="st st-invited" title="事業所のない部署です">事業所なし</span>{% endif %}</td>
   <td class="code">{{ r.ext_code or '—' }}</td>
   <td class="code"><span class="hint">{{ r.id }}</span></td>
   <td class="tl"><span class="ellip w210" title="{{ r.name }}">{{ r.name }}</span>

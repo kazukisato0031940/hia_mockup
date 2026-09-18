@@ -2,7 +2,7 @@
 <h1 class="page-title">{{ '加入者情報の編集' if row else '加入者情報の登録' }}</h1>
 <p class="page-lead">
   {% if row %}登録済みの加入者を編集します。
-  {% else %}加入者を1件ずつ登録します。まとめて登録する場合は一覧の「一括インポート」をお使いください。{% endif %}</p>
+  {% else %}加入者を1件ずつ登録します。まとめて登録する場合は一覧の「CSVで取り込む」をお使いください。{% endif %}</p>
 
 {% if row %}
 <div class="rec-head">
@@ -219,7 +219,7 @@
         {% set cd = (form.dept_id|int if form and form.dept_id else (row.dept_id if row else 0)) %}
         <select id="dept_id" name="dept_id">
           <option value="">未設定</option>
-          {% for d in depts %}<option value="{{ d.id }}" data-office="{{ d.office_id }}"
+          {% for d in depts %}<option value="{{ d.id }}" data-company="{{ d.company_id }}" data-office="{{ d.office_id or '' }}"
             {{ 'selected' if cd==d.id }}>{{ d.ext_code or d.code }}　{{ d.name }}</option>{% endfor %}
         </select>
       </div>
@@ -308,7 +308,8 @@
 </form>
 
 <script>
-/* 企業 → 事業所 → 部署 の順に候補を絞り、採番される加入者IDも切り替える */
+/* 企業 → 事業所 → 部署 の順に候補を絞り、採番される加入者IDも切り替える。
+   部署は事業所を選ばなくても選べる（企業で絞る）。事業所を選ぶとその事業所の部署だけ。 */
 (function(){
   var c = document.getElementById('company_id');
   var o = document.getElementById('office_id');
@@ -318,16 +319,18 @@
   if(!c || !o) return;
   function snap(sel, key){
     return [].slice.call(sel.options).map(function(op){
-      return {v: op.value, t: op.textContent, p: op.dataset[key] || ''};
+      return {v: op.value, t: op.textContent, p: op.dataset[key] || '',
+              c: op.dataset.company || ''};
     });
   }
   var allO = snap(o, 'company');
   var allD = dp ? snap(dp, 'office') : [];
-  function build(sel, list, parent){
+  function build(sel, list, parent, company){
     var keep = sel.value;
     sel.innerHTML = '';
     list.forEach(function(x){
-      if(x.v === '' || x.p === parent){
+      var hit = (company !== undefined && !parent) ? x.c === company : x.p === parent;
+      if(x.v === '' || hit){
         var op = document.createElement('option');
         op.value = x.v; op.textContent = x.t;
         if(x.v === keep) op.selected = true;
@@ -340,7 +343,7 @@
     if(sid && map[c.value]) sid.textContent = map[c.value];
     fillD();
   }
-  function fillD(){ if(dp) build(dp, allD, o.value); }
+  function fillD(){ if(dp) build(dp, allD, o.value, c.value); }
   c.addEventListener('change', fillO);
   o.addEventListener('change', fillD);
   fillO();

@@ -4,11 +4,10 @@
 {% block body %}
 {% if not EMBED %}
 <h1 class="page-title">部署情報</h1>
-<p class="page-lead">部署の登録・編集・削除を行います。部署は<b>事業所の配下</b>にも<b>企業の直下</b>にも置けます
-  （事業所を使っていない企業では企業直下になります）。</p>
+<p class="page-lead">部署の登録・編集・削除を行います。事業所は任意です（事業所を使っていない企業では、事業所なしで登録します）。</p>
 {% endif %}
 
-{{ search_card([('cname', '企業名', '220px'), ('oname', '事業所名・企業直下', '200px'),
+{{ search_card([('cname', '企業名', '220px'), ('oname', '事業所名', '200px'),
                 ('code', '部署コード・部署ID', '180px'), ('name', '部署名', '200px')], f) }}
 
 <div class="block list-card">
@@ -51,7 +50,7 @@
   {% else %}<div class="empty-box">
     {% if f.cname or f.oname or f.code or f.name %}条件に一致する部署がありません。
     {% else %}部署がまだ登録されていません。先に企業を登録してください
-      （事業所は必須ではありません。企業の直下にも部署を置けます）。{% endif %}
+      （事業所は必須ではありません）。{% endif %}
   </div>{% endif %}
 </div>
 

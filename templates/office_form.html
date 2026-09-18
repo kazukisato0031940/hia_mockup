@@ -2,7 +2,7 @@
 <h1 class="page-title">{{ '事業所情報の編集' if row else '事業所の登録' }}</h1>
 <p class="page-lead">
   {% if row %}登録済みの事業所を編集します。企業は変更できません。
-  {% else %}事業所を1件ずつ登録します。まとめて登録する場合は一覧の「一括インポート」をお使いください。{% endif %}</p>
+  {% else %}事業所を1件ずつ登録します。まとめて登録する場合は一覧の「CSVで取り込む」をお使いください。{% endif %}</p>
 
 {% if row %}
 <div class="rec-head">
@@ -106,7 +106,7 @@
   <ol class="steps-flow">
     <li><span class="sf-no">1</span>
       <span class="sf-body"><b>加入者を登録します</b><br>
-        <span class="hint">「加入者情報」から登録、または一括インポートで取り込みます。</span></span></li>
+        <span class="hint">「加入者情報」から登録、または「CSVで取り込む」で取り込みます。</span></span></li>
     <li><span class="sf-no">2</span>
       <span class="sf-body"><b>加入者をこの事業所に紐づけます</b><br>
         <span class="hint">「企業・部署の紐づけ」でまとめて紐づけられます。</span></span></li>

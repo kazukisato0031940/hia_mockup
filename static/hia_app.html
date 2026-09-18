@@ -3450,7 +3450,7 @@ button.cancel:hover, a.btn-cancel:hover {
           <h1 class="page-title">事業所情報</h1>
           <button class="btn-back" onclick="sysBack('master')">戻る</button>
         </div>
-        <p class="sys-note">事業所の登録・編集・削除を行います。事業所コードはシステムが自動採番します。</p>
+        <p class="sys-note">事業所の登録・編集・削除を行います。事業所コードは企業が管理する番号、事業所IDはHIAの通し番号で自動で決まります。</p>
         <iframe class="sys-frame" data-src="/offices" title="事業所情報"></iframe>
       </div>
 
@@ -3470,7 +3470,7 @@ button.cancel:hover, a.btn-cancel:hover {
           <h1 class="page-title">部署情報</h1>
           <button class="btn-back" onclick="sysBack('master')">戻る</button>
         </div>
-        <p class="sys-note">部署の登録・編集・削除を行います。部署は事業所の下に置きます。</p>
+        <p class="sys-note">部署の登録・編集・削除を行います。事業所は任意です（事業所を使わない企業では事業所なしで登録します）。</p>
         <iframe class="sys-frame" data-src="/departments" title="部署情報"></iframe>
       </div>
 
@@ -3964,14 +3964,14 @@ var CAT_CARD_CONFIG = {
   },
   master: {
     title: 'マスタ管理',
-    subtitle: '企業・事業所・加入者の登録と編集',
+    subtitle: '企業・事業所・部署・加入者の登録と編集',
     color: '#2b6cb0', iconBg: '#ebf8ff',
     cards: [
-      { page:'sys-company', feature:'master.view', label:'企業情報', desc:'企業の登録・編集・削除。企業コードは自動採番', tag:'マスタ', tagClass:'tag-sys',
+      { page:'sys-company', feature:'master.view', label:'企業情報', desc:'企業の登録・編集・削除。企業コードは健保の番号、企業IDは自動採番', tag:'マスタ', tagClass:'tag-sys',
         icon:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h6"/>' },
-      { page:'sys-office', feature:'master.view', label:'事業所情報', desc:'事業所の登録・編集・削除。事業所コードは自動採番', tag:'マスタ', tagClass:'tag-sys',
+      { page:'sys-office', feature:'master.view', label:'事業所情報', desc:'事業所の登録・編集・削除。事業所コードは企業の番号、事業所IDは自動採番', tag:'マスタ', tagClass:'tag-sys',
         icon:'<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>' },
-      { page:'sys-dept', feature:'master.view', label:'部署情報', desc:'部署の登録・編集・削除。事業所の下に置く', tag:'マスタ', tagClass:'tag-sys',
+      { page:'sys-dept', feature:'master.view', label:'部署情報', desc:'部署の登録・編集・削除。事業所は任意', tag:'マスタ', tagClass:'tag-sys',
         icon:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="8" y="14" width="8" height="7" rx="1"/><path d="M6.5 10v2h11v-2M12 12v2"/>' },
       { page:'sys-member', feature:'master.view', label:'加入者情報', desc:'加入者の登録・編集・削除・CSV取込', tag:'マスタ', tagClass:'tag-sys',
         icon:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>' },
