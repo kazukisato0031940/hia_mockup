@@ -1,23 +1,8 @@
 {% extends LAYOUT %}{% block body %}
-<h1 class="page-title">{{ '加入者情報の編集' if row else '加入者情報の登録' }}</h1>
+<h1 class="page-title">{{ row.name if row else '加入者情報の登録' }}</h1>
 <p class="page-lead">
-  {% if row %}登録済みの加入者を編集します。
+  {% if row %}この加入者の情報を編集します。
   {% else %}加入者を1件ずつ登録します。まとめて登録する場合は一覧の「一括インポート」をお使いください。{% endif %}</p>
-
-{% if row %}
-<div class="rec-head">
-  <div class="rec-main">
-    <span class="rec-code">{{ row.member_no }}{% if row.cert_branch %}-{{ row.cert_branch }}{% endif %}</span>
-    <span class="rec-name">{{ row.name }}</span>
-  </div>
-  <div class="rec-meta">
-    {% if row.relation %}<span class="rec-tag">{{ row.relation }}</span>{% endif %}
-    {% if row.company_name %}<span class="rec-tag">{{ row.company_name }}{% if row.office_name %}／{{ row.office_name }}{% endif %}{% if row.dept_name %}／{{ row.dept_name }}{% endif %}</span>
-    {% else %}<span class="rec-tag" style="color:#c05621;background:#fffaf0">未紐づけ</span>{% endif %}
-    {% if row.subscriber_id %}<span class="rec-tag">加入者ID {{ row.subscriber_id }}</span>{% endif %}
-  </div>
-</div>
-{% endif %}
 
 <style>
 /* ===== 項目の並び（見出しの帯 ＋ 表形式：項目名のセル｜入力欄のセル を左右2組） ===== */
