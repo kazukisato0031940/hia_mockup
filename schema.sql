@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS kenpo (
   --   A：被保険者記号・被保険者番号・カナ・生年月日・性別
   --   B：被保険者番号・カナ・生年月日・性別（記号を使わない組合）
   auth_pattern  TEXT NOT NULL DEFAULT 'A',
+  -- 加入者向けサイト（クローズサイト）に表示する同意文（本文・同意必須 の項目の JSON。空なら表示しない）
+  consent_text  TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -103,13 +105,13 @@ CREATE TABLE IF NOT EXISTS member (
   address2     TEXT,                            -- 住所（建物名）
   tel          TEXT,
   email        TEXT,
-  delivery_code TEXT,                           -- 配付先コード
-  employee_code TEXT,                           -- 社員コード
-  connect_id   TEXT,
-  personal_id  TEXT,                            -- 個人ID
-  subscriber_id TEXT,                           -- 加入者ID
+  billing_code TEXT,                            -- 請求先コード
+  employee_code TEXT,                           -- 社員番号
+  kenpo_member_id TEXT,                         -- 健保別加入者管理ID（健保が独自に管理する番号）
+  subscriber_id TEXT,                           -- 加入者ID（当システムで採番）
   src_company_code TEXT,                        -- 取込時の事業所（企業）コード
   src_office_code  TEXT,                        -- 取込時の所属コード
+  memo         TEXT,                            -- メモ（加入者ごとの申し送り。画面で編集）
   night_work   INTEGER NOT NULL DEFAULT 0,      -- 深夜業従事（1＝深夜健診の対象）
   excluded     INTEGER NOT NULL DEFAULT 0,      -- 健診の対象から除外（1＝除外）
   created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
@@ -129,9 +131,11 @@ CREATE TABLE IF NOT EXISTS account (
   role          TEXT NOT NULL,
   -- 企業担当者のサブロール（''／doctor＝産業医／hr＝人事）。産業医面談管理で使う
   sub_role      TEXT NOT NULL DEFAULT '',
+  -- 加入者本人（role='member'）のログインが、どの加入者のものかを指す
+  member_id     INTEGER REFERENCES member(id),
   view_scope    TEXT NOT NULL,
   can_download  INTEGER NOT NULL DEFAULT 0,
-  is_primary    INTEGER NOT NULL DEFAULT 0,   -- 代表者アカウント
+  is_primary    INTEGER NOT NULL DEFAULT 0,   -- （旧・代表者アカウントの区分。画面からは廃止。互換のため列だけ残す）
   kenpo_id      INTEGER REFERENCES kenpo(id),
   company_id    INTEGER REFERENCES company(id),
   dept_id       INTEGER REFERENCES department(id),   -- 部署の管理者の場合
@@ -157,12 +161,83 @@ CREATE TABLE IF NOT EXISTS account_company (
   PRIMARY KEY (account_id, company_id)
 );
 
+-- 加入者ごとの写真（採血結果などの画像。個人ごとに取り込み、加入者マスタで閲覧する）
+-- ファイル本体は uploads/member_photos/<member_id>/ に保存し、ここには場所と情報だけ持つ
+CREATE TABLE IF NOT EXISTS member_photo (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  member_id   INTEGER NOT NULL REFERENCES member(id),
+  kind        TEXT,                             -- 採血結果／健診結果票／その他
+  filename    TEXT NOT NULL,                    -- 保存したファイル名
+  orig_name   TEXT,                             -- 取り込んだときのファイル名
+  mime        TEXT,
+  bytes       INTEGER NOT NULL DEFAULT 0,
+  taken_on    TEXT,                             -- 検査日・撮影日（任意）
+  note        TEXT,                             -- 補足
+  uploaded_by TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_mphoto_member ON member_photo(member_id);
+
+-- 判定マスタ（検査項目）
+-- 判定基準は「健保共通」と「企業ごと」の2段で持ちます（企業ごとの設定が優先）
+CREATE TABLE IF NOT EXISTS judge_item (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  code       TEXT NOT NULL UNIQUE,             -- 項目コード
+  name       TEXT NOT NULL,                    -- 検査項目名
+  unit       TEXT,
+  sort       INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+-- 判定基準（判定区分・性別・下限値・上限値の組）
+CREATE TABLE IF NOT EXISTS judge_criteria (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  kenpo_id   INTEGER NOT NULL REFERENCES kenpo(id),
+  company_id INTEGER REFERENCES company(id),   -- NULL＝健保共通の基準
+  item_id    INTEGER NOT NULL REFERENCES judge_item(id),
+  fiscal_year TEXT NOT NULL,                   -- 適用年度（2026 など）
+  judge      TEXT NOT NULL,                    -- A〜E
+  sex        TEXT NOT NULL DEFAULT '共通',     -- 共通／男性／女性
+  lo         TEXT,                             -- 下限値（以上）。空欄＝下限なし
+  hi         TEXT,                             -- 上限値（未満）。空欄＝上限なし
+  sort       INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_jc_key
+  ON judge_criteria(kenpo_id, company_id, item_id, fiscal_year);
+
+-- 定期健康診断結果報告書（様式第6号）の報告項目
+-- eGov「定期健康診断結果報告書 仕様書」の項目に合わせています。
+-- 人数は健診結果から集計するため、ここには集計できない情報（事業場・機関・産業医など）を持ちます
+CREATE TABLE IF NOT EXISTS form6_report (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  kenpo_id    INTEGER NOT NULL REFERENCES kenpo(id),
+  company_id  INTEGER REFERENCES company(id),   -- 事業場（企業）。NULL＝健保全体
+  target_year TEXT NOT NULL,                    -- 対象年（報告対象年）
+  labor_insurance_no TEXT,                      -- 労働保険番号
+  industry_type      TEXT,                      -- 事業の種類
+  workplace_name     TEXT,                      -- 事業場の名称
+  workplace_zip      TEXT,                      -- 事業場の郵便番号
+  workplace_address  TEXT,                      -- 事業場の所在地
+  workplace_tel      TEXT,                      -- 事業場の電話番号
+  report_count       TEXT,                      -- 報告回目
+  examination_date   TEXT,                      -- 健診年月日
+  institution_name   TEXT,                      -- 健康診断実施機関名
+  institution_address TEXT,                     -- 健康診断実施機関所在地
+  employees_count    INTEGER,                   -- 在籍労働者数（未入力なら加入者数）
+  physician_name     TEXT,                      -- 産業医氏名
+  physician_address  TEXT,                      -- 産業医所在地
+  employer_name_title TEXT,                     -- 事業者職氏名
+  updated_at  TEXT,
+  UNIQUE (kenpo_id, company_id, target_year)
+);
+
 -- 操作ログ（両画面のログを1つに集約。追記のみ）
 CREATE TABLE IF NOT EXISTS audit_log (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   ts          TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   shell       TEXT,               -- km（HIA総合管理）/ kenpo（HIA健保管理）
-  category    TEXT NOT NULL,      -- auth / account / master / import / download
+  category    TEXT NOT NULL,      -- auth / account / master / import / download / view
   action      TEXT NOT NULL,
   result      TEXT NOT NULL,      -- success / failure / blocked
   actor_email TEXT,
@@ -171,7 +246,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
   kenpo_id    INTEGER,
   ip          TEXT,
   target      TEXT,
-  detail      TEXT
+  detail      TEXT,
+  path        TEXT                -- 操作した画面のURL（ディレクトリ）
 );
 
 CREATE TRIGGER IF NOT EXISTS audit_log_no_update

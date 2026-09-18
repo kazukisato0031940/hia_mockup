@@ -75,6 +75,10 @@ CREATE TABLE IF NOT EXISTS oh_candidate (
   approved_at    TEXT,
   mail_count     INTEGER NOT NULL DEFAULT 0,    -- 勧奨メールの送信回数
   last_mail_at   TEXT,
+  due_on         TEXT,                          -- 対応期限（判定期限・受診の報告期限など）
+  done_on        TEXT,                          -- 対応完了日
+  follow_on      TEXT,                          -- 次回フォロー予定日
+  booked_on      TEXT,                          -- 面談予定日（人事が日程を調整して登録）
   updated_at     TEXT,
   UNIQUE (member_id, fiscal_year)
 );
@@ -85,6 +89,11 @@ CREATE TABLE IF NOT EXISTS oh_memo (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   member_id   INTEGER NOT NULL REFERENCES member(id),
   fiscal_year TEXT,
+  kind        TEXT NOT NULL DEFAULT 'メモ',     -- 記録の種類（メモ／対応区分の変更）
+  hr_class    TEXT,                             -- そのとき設定した対応区分
+  due_on      TEXT,                             -- 対応期限
+  done_on     TEXT,                             -- 対応完了日
+  follow_on   TEXT,                             -- 次回フォロー予定日
   body        TEXT NOT NULL,
   author      TEXT,
   role        TEXT,
@@ -132,7 +141,9 @@ CREATE TABLE IF NOT EXISTS oh_mail_log (
   sent_at     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   actor       TEXT,
   result      TEXT NOT NULL DEFAULT 'success',  -- success / skipped / failure
-  detail      TEXT
+  detail      TEXT,
+  -- out＝担当者から加入者へ送ったもの／in＝加入者本人から届いた問い合わせ
+  direction   TEXT NOT NULL DEFAULT 'out'
 );
 CREATE INDEX IF NOT EXISTS ix_oh_mail_log_m ON oh_mail_log (member_id);
 

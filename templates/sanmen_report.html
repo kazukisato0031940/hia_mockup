@@ -12,49 +12,138 @@
   <div class="blk-head">
     <div class="blk-head-left"><h2>社内管理用サマリー</h2></div>
     <div class="actions">
+      {# 報告は事業所ごとに出すため、ここで年度と事業所をしぼります。
+         事業場の名称・所在地・電話は事業所マスタの内容がそのまま入ります。 #}
       <form method="get" style="display:flex;gap:8px;align-items:center;margin:0">
         <label class="fld-label" style="margin:0;">報告対象年度</label>
         <select name="fy" class="w-s" style="width:120px" onchange="this.form.submit()">
           {% for y in fys %}<option value="{{ y }}" {{ 'selected' if y == fy }}>{{ y }}年度</option>{% endfor %}
         </select>
+        <label class="fld-label" style="margin:0 0 0 8px;">事業所</label>
+        <select name="office" id="rpOffice" style="width:250px" onchange="this.form.submit()">
+          <option value="">すべての事業所</option>
+          {% for o in offices %}
+          <option value="{{ o.id }}" {{ 'selected' if oid|string == o.id|string }}>
+            {{ o.company_name }}／{{ o.name }}</option>
+          {% endfor %}
+        </select>
       </form>
-      <a class="btn-sm" href="{{ url_for('oh.oh_report_csv', fy=fy) }}"
+      <a class="btn-sm" href="{{ url_for('oh.oh_report_csv', fy=fy, office=oid or None) }}"
          style="text-decoration:none">集計CSV出力</a>
     </div>
   </div>
 
-  <div class="rk-row">
-    <div class="rk-box"><span class="rk-label">報告対象期間</span>
-      <span class="rk-value" style="font-size:18px">{{ fy }}年度</span>
-      <span class="rk-unit">{{ fy }}年4月〜{{ fy|int + 1 }}年3月</span></div>
-    <div class="rk-box"><span class="rk-label">面談対象（確定）</span>
-      <span class="rk-value">{{ s.iv_target }}</span><span class="rk-unit">名</span></div>
-    <div class="rk-box"><span class="rk-label">面談実施済</span>
-      <span class="rk-value">{{ s.iv_done }}</span>
-      <span class="rk-unit">名（{{ '%.0f'|format(s.iv_rate) }}%）</span></div>
-    <div class="rk-box oh-box-alert"><span class="rk-label">未実施（要フォロー）</span>
-      <span class="rk-value {{ 'risk-高' if s.iv_rest }}">{{ s.iv_rest }}</span>
-      <span class="rk-unit">名</span></div>
+  {# ---- サマリーカード（産業医面談ダッシュボードと同じ形） ---- #}
+  {% set tot = s.total or 1 %}
+  {% set tgt = s.iv_target or 1 %}
+  {% set dn = s.iv_done or 1 %}
+  <div class="summary-grid">
+    <div class="summary-card" style="border-top-color:#3182ce">
+      <div class="label">報告対象期間</div>
+      <div class="value"><span>{{ fy }}年度</span></div>
+      <div class="rate">{{ fy }}年4月〜{{ fy|int + 1 }}年3月</div>
+    </div>
+    <div class="summary-card" style="border-top-color:#805ad5">
+      <div class="label">面談対象（確定）</div>
+      <div class="value"><span>{{ s.iv_target }}</span>
+        <span class="total">/ {{ s.total }}</span></div>
+      <div class="rate">在籍労働者の {{ '%.0f'|format(s.iv_target * 100.0 / tot) }}%</div>
+    </div>
+    <div class="summary-card" style="border-top-color:#38a169">
+      <div class="label">面談実施済</div>
+      <div class="value"><span>{{ s.iv_done }}</span>
+        <span class="total">/ {{ s.iv_target }}</span></div>
+      <div class="rate">実施率 {{ '%.0f'|format(s.iv_rate) }}%</div>
+    </div>
+    <div class="summary-card" style="border-top-color:#dd6b20">
+      <div class="label">未実施（要フォロー）</div>
+      <div class="value"><span {% if s.iv_rest %}class="risk-高"{% endif %}>{{ s.iv_rest }}</span>
+        <span class="total">/ {{ s.iv_target }}</span></div>
+      <div class="rate">{% if s.iv_rest %}面談の案内・予約の確認へ{% else %}未実施はありません{% endif %}</div>
+    </div>
+    <div class="summary-card" style="border-top-color:#0694a2">
+      <div class="label">就業上の措置 実施数</div>
+      <div class="value"><span>{{ s.iv_measure }}</span>
+        <span class="total">/ {{ s.iv_done }}</span></div>
+      <div class="rate">面談実施済の {{ '%.0f'|format(s.iv_measure * 100.0 / dn) }}%</div>
+    </div>
   </div>
 
-  <div class="oh-sec">
-    <div class="oh-sec-title">長時間労働・高ストレス者に対する面接指導 実施報告（様式イメージ）</div>
-    <div class="oh-metrics">
-      <div class="oh-metric"><span class="oh-metric-label">在籍労働者数</span>
-        <span class="oh-metric-value">{{ s.total }}</span></div>
-      <div class="oh-metric"><span class="oh-metric-label">健診受診者数</span>
-        <span class="oh-metric-value">{{ s.done }}</span></div>
-      <div class="oh-metric"><span class="oh-metric-label">有所見者数（C以上）</span>
-        <span class="oh-metric-value">{{ s.finding }}</span></div>
-      <div class="oh-metric"><span class="oh-metric-label">面接指導 対象者数</span>
-        <span class="oh-metric-value">{{ s.iv_target }}</span></div>
-      <div class="oh-metric"><span class="oh-metric-label">面接指導 実施数</span>
-        <span class="oh-metric-value">{{ s.iv_done }}</span></div>
-      <div class="oh-metric"><span class="oh-metric-label">就業上の措置 実施数</span>
-        <span class="oh-metric-value">{{ s.iv_measure }}</span></div>
+  {# ---- 内訳（様式イメージ・事業場の情報）。ダッシュボードの2列パネルと同じ形 ---- #}
+  <div class="bottom-flex">
+    <div class="block-inner">
+      <h2>長時間労働・高ストレス者に対する面接指導 実施報告（様式イメージ）</h2>
+      <p class="hint" style="margin:-8px 0 12px">在籍労働者 {{ s.total }}名。
+        個人が特定される情報は本報告には含めません。数値は現在の登録内容から自動集計しています。</p>
+      {% set done_ = s.done or 1 %}
+      <div class="insured-grid">
+        <div class="insured-card">
+          <div class="ic-label">在籍労働者数</div>
+          <div class="ic-rate" style="color:#2d3748">{{ s.total }}名</div>
+          <div class="ic-sub">報告対象の全員</div>
+          <div class="ic-bar"><div class="ic-bar-fg" style="background:#718096;width:100%"></div></div>
+        </div>
+        <div class="insured-card">
+          <div class="ic-label">健診受診者数</div>
+          <div class="ic-rate" style="color:#3182ce">{{ s.done }}名</div>
+          <div class="ic-sub">在籍労働者の {{ '%.0f'|format(s.done * 100.0 / tot) }}%</div>
+          <div class="ic-bar"><div class="ic-bar-fg" style="background:#3182ce;
+            width:{{ '%.0f'|format(s.done * 100.0 / tot) }}%"></div></div>
+        </div>
+        <div class="insured-card">
+          <div class="ic-label">有所見者数（C判定以上）</div>
+          <div class="ic-rate" style="color:#dd6b20">{{ s.finding }}名</div>
+          <div class="ic-sub">健診受診者の {{ '%.0f'|format(s.finding * 100.0 / done_) }}%</div>
+          <div class="ic-bar"><div class="ic-bar-fg" style="background:#dd6b20;
+            width:{{ '%.0f'|format(s.finding * 100.0 / done_) }}%"></div></div>
+        </div>
+        <div class="insured-card">
+          <div class="ic-label">面接指導 対象者数</div>
+          <div class="ic-rate" style="color:#805ad5">{{ s.iv_target }}名</div>
+          <div class="ic-sub">在籍労働者の {{ '%.0f'|format(s.iv_target * 100.0 / tot) }}%</div>
+          <div class="ic-bar"><div class="ic-bar-fg" style="background:#805ad5;
+            width:{{ '%.0f'|format(s.iv_target * 100.0 / tot) }}%"></div></div>
+        </div>
+        <div class="insured-card">
+          <div class="ic-label">面接指導 実施数</div>
+          <div class="ic-rate" style="color:#38a169">{{ s.iv_done }}名</div>
+          <div class="ic-sub">面接指導 対象者の {{ '%.0f'|format(s.iv_rate) }}%</div>
+          <div class="ic-bar"><div class="ic-bar-fg" style="background:#38a169;
+            width:{{ '%.0f'|format(s.iv_rate) }}%"></div></div>
+        </div>
+        <div class="insured-card">
+          <div class="ic-label">就業上の措置 実施数</div>
+          <div class="ic-rate" style="color:#0694a2">{{ s.iv_measure }}名</div>
+          <div class="ic-sub">面接指導 実施数の {{ '%.0f'|format(s.iv_measure * 100.0 / dn) }}%</div>
+          <div class="ic-bar"><div class="ic-bar-fg" style="background:#0694a2;
+            width:{{ '%.0f'|format(s.iv_measure * 100.0 / dn) }}%"></div></div>
+        </div>
+      </div>
     </div>
-    <p class="hint" style="margin:12px 0 0;">※ 個人が特定される情報は本報告には含めません。
-      数値は現在の登録内容から自動集計しています。</p>
+
+    {# 様式に載る事業場の情報は、事業所マスタの登録内容をそのまま使います #}
+    <div class="block-inner">
+      <h2>様式に入る事業場の情報</h2>
+      <p class="hint" style="margin:-8px 0 12px">事業所マスタの登録内容がそのまま様式に入ります。</p>
+      <div class="rp-office">
+        <div class="rp-of-row"><span class="fld-label">事業場の名称</span>
+          <div>{{ f6.workplace_name or '—（事業所を選ぶと入ります）' }}</div></div>
+        <div class="rp-of-row"><span class="fld-label">事業場の所在地</span>
+          <div>{% if f6.workplace_zip %}〒{{ f6.workplace_zip }}　{% endif %}{{ f6.workplace_address or '—' }}</div></div>
+        <div class="rp-of-row"><span class="fld-label">電話番号</span>
+          <div>{{ f6.workplace_tel or '—' }}</div></div>
+        <div class="rp-of-row"><span class="fld-label">在籍労働者数</span>
+          <div>{{ f6c.employees }} 名</div></div>
+        <div class="rp-of-row"><span class="fld-label">受診労働者数</span>
+          <div>{{ f6c.examinees }} 名</div></div>
+        <div class="rp-of-row"><span class="fld-label">所見のあった者</span>
+          <div>{{ f6c.abnormal }} 名</div></div>
+      </div>
+      <p class="hint" style="margin:14px 0 0;">
+        内容を直すときは<b>事業所マスタ</b>（マスタ管理 → 事業所情報）で登録し直してください。
+        この画面からは変更できません。
+        労働保険番号・事業の種類・実施機関・産業医の欄は、提出前に様式へご記入ください。</p>
+    </div>
   </div>
 </div>
 
@@ -70,7 +159,7 @@
       {'kind':'kenshin', 'title':'定期健康診断結果報告書',
        'sub':'労働安全衛生規則 様式第6号 準拠　／　集計サマリ'},
       {'kind':'stress', 'title':'心理的な負担の程度を把握するための検査結果等報告書',
-       'sub':'労働安全衛生規則 様式第6号の3 準拠　／　集計サマリ'}] %}
+       'sub':'労働安全衛生規則 様式第6号の2 準拠　／　集計サマリ'}] %}
     {% set sg = signs.get(d.kind) %}
     <div class="oh-doc-card">
       <div class="oh-doc-head">
@@ -83,10 +172,12 @@
         {% else %}<span class="st-label warn">未記名</span>{% endif %}
       </div>
       <div class="oh-doc-frame">
-        <iframe src="{{ url_for('oh.oh_report_print', kind=d.kind, fy=fy, preview=1) }}"
+        <iframe src="{{ url_for('oh.oh_report_print', kind=d.kind, fy=fy,
+                                office=oid or None, preview=1) }}"
                 title="{{ d.title }}のプレビュー" loading="lazy"></iframe>
         <a class="oh-doc-pdf" target="_blank" title="PDFで開く（印刷・保存）"
-           href="{{ url_for('oh.oh_report_print', kind=d.kind, fy=fy) }}">PDF</a>
+           href="{{ url_for('oh.oh_report_print', kind=d.kind, fy=fy,
+                            office=oid or None) }}">PDF</a>
       </div>
       <div class="oh-doc-foot">
         {% if CAN_SIGN %}

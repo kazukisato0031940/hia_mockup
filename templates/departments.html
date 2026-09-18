@@ -1,5 +1,6 @@
 {% set FIXED_HEIGHT = true %}
 {% extends LAYOUT %}
+{% from "_import_modal.html" import import_modal, import_script %}
 {% from "_listsearch.html" import search_card, search_script, rows_script %}
 {% block body %}
 {% if not EMBED %}
@@ -14,6 +15,11 @@
   <div class="blk-head">
     <div class="blk-head-left">
       <h2>登録済みの部署</h2>
+      <div class="actions">
+        {% if CAN_MASTER %}
+        <button type="button" class="btn-sm" onclick="openImport('imp-dept')">一括インポート</button>
+        {% endif %}
+      </div>
     </div>
     <div class="actions">
       {% if CAN_MASTER %}
@@ -47,6 +53,10 @@
   </div>{% endif %}
 </div>
 
+{% if CAN_MASTER %}
+{{ import_modal('imp-dept', '部署の一括インポート', url_for('departments_import')) }}
+{% endif %}
+{{ import_script() }}
 {{ search_script([('cname','cname'), ('oname','oname'), ('code','code'), ('name','name')]) }}
 {{ rows_script() }}
 {% endblock %}

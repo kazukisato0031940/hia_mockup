@@ -53,7 +53,114 @@ JUDGE_LABEL = {"A": "異常なし", "B": "軽度異常", "C": "要再検査・�
 FINDING_JUDGES = ("C", "D", "E")          # 有所見（C判定以上）
 
 WORK_CLASSES = ["通常勤務", "就業制限", "要休業"]
-HR_CLASSES = ["未判定", "産業医判定済", "要精査・加療指示", "保健師対応中", "再検査対応指示"]
+# 対応区分（ステータス）。人事の運用の流れにそって並べています。
+#   未判定 →（人事が依頼）→ 産業医依頼中 →（産業医が就業区分を判定）→
+#   通常勤務／就業制限／要休業 →（人事が案内を送付）→ 保健師対応中 →
+#  （ご本人が検査結果を取り込む）→ 再検査対応済み
+HR_WAIT = "未判定"
+HR_REQ = "産業医依頼中"
+HR_NURSE = "保健師対応中"
+HR_DONE = "再検査対応済み"
+HR_CLASSES = [HR_WAIT, HR_REQ] + WORK_CLASSES + [HR_NURSE, HR_DONE]
+# 産業医の判定結果がそのまま入る区分（人事はここから案内を送ります）
+HR_JUDGED = list(WORK_CLASSES)
+# 産業医の検索条件に出すステータス（自分が判定するものだけ）
+DOCTOR_HR_CLASSES = [HR_WAIT] + list(WORK_CLASSES)
+# 以前の区分名 → いまの区分名（移行と取込のゆれ対策）
+HR_CLASS_OLD = {"産業医判定済": "通常勤務", "要精査・加療指示": "保健師対応中",
+                "経過観察": "通常勤務"}
+
+# 対応区分（ステータス）ごとの「短い状態名」と、ロールごとに行うこと。
+# 画面（一括処理・マイページ・面談ダッシュボード）に同じ内容を出すため、ここで一元管理します。
+HR_CLASS_GUIDE = {
+    HR_WAIT: {
+        "short": "判定待ち",
+        "action": "産業医へ依頼",
+        "hr": ["健診結果の取り込み状況を確認する。",
+               "産業医の判定対象者を抽出し、判定依頼を行う。",
+               "判定期限・未対応者を管理する。"],
+        "doctor": [],
+        "nurse": [],
+        "note": "ステータスの「産業医へ依頼」を押すと、産業医依頼中になります。",
+    },
+    HR_REQ: {
+        "short": "産業医の判定待ち",
+        "action": "",
+        "hr": ["判定期限・未対応者を管理する。",
+               "産業医からの判定結果を待つ。"],
+        "doctor": ["健診結果を確認する。",
+                   "必要に応じて過去の健診結果、業務内容、労働時間などを確認する。",
+                   "就業区分や就業上の配慮について医学的な意見を入力する。"],
+        "nurse": [],
+        "note": "産業医が就業区分を判定すると、その区分（通常勤務・就業制限・要休業）が"
+                "そのままステータスになります。",
+    },
+    "通常勤務": {
+        "short": "産業医判定済",
+        "action": "案内を送付",
+        "hr": ["産業医の判定結果を確認する。",
+               "対象者へ結果を通知する（ステータスのボタンから案内を送ります）。",
+               "必要に応じて保健指導・面談を調整する。"],
+        "doctor": ["健診結果を医学的に評価する。",
+                   "通常勤務と判定する。",
+                   "必要なフォローを意見として記録する。"],
+        "nurse": [],
+        "note": "",
+    },
+    "就業制限": {
+        "short": "産業医判定済",
+        "action": "案内を送付",
+        "hr": ["就業上の措置が必要な対象者の対応計画を立てる。",
+               "対象者へ結果通知・再検査／受診の案内を送る（ステータスのボタン）。",
+               "受診状況や報告期限を管理する。"],
+        "doctor": ["就業区分を「就業制限」と判定する。",
+                   "業務上のリスクを評価し、必要な就業上の配慮を記録する。",
+                   "精密検査・治療の必要性や緊急性を確認する。"],
+        "nurse": ["面談（保健指導）を実施し、面談結果入力で記録する（確定すると対応済み）。"],
+        "note": "受診・治療の指示（要精査・加療）は医療機関の判断によるもので、"
+                "就業制限の判定とは別に管理します。",
+    },
+    "要休業": {
+        "short": "産業医判定済",
+        "action": "案内を送付",
+        "hr": ["休業の手続き・社内調整を行う。",
+               "対象者へ結果通知・受診の案内を送る（ステータスのボタン）。",
+               "受診状況や報告期限を管理する。"],
+        "doctor": ["就業区分を「要休業」と判定する。",
+                   "就業上の措置・面談・フォローアップを判断する。",
+                   "主治医との連携が必要かを確認する。"],
+        "nurse": ["面談（保健指導）を実施し、面談結果入力で記録する（確定すると対応済み）。"],
+        "note": "",
+    },
+    HR_NURSE: {
+        "short": "フォロー中",
+        "action": "",
+        "hr": ["保健師への対応依頼を登録する。",
+               "面談・保健指導の実施状況を確認する。",
+               "必要な勤務上の配慮や社内調整を行う。"],
+        "doctor": ["保健師からの相談・報告を受ける。",
+                   "医学的判断が必要なケースを確認する。",
+                   "必要に応じて面談、就業意見の見直し、主治医との連携を行う。"],
+        "nurse": ["対象者への面談・保健指導・受診勧奨を実施する。",
+                  "対応内容や次回フォロー日を記録する。"],
+        "note": "ご本人が健康マイページから検査結果を取り込むと、"
+                "再検査対応済みになります。",
+    },
+    HR_DONE: {
+        "short": "対応完了",
+        "action": "",
+        "hr": ["再検査の受診・結果提出の状況を確認する。",
+               "対応完了日を記録する。",
+               "就業措置が継続中か、解除・見直しが必要かを確認する。"],
+        "doctor": ["再検査結果や主治医の意見書などを確認する。",
+                   "就業区分・就業上の配慮を再評価する。",
+                   "継続フォロー、再検査、通常勤務への復帰などの意見を記録する。"],
+        "nurse": [],
+        "note": "",
+    },
+}
+# ロールの並びと見出し（画面で同じ順・同じ名前にします）
+GUIDE_ROLES = [("hr", "人事"), ("doctor", "産業医"), ("nurse", "保健師")]
 
 ST_WAIT = "産業医確認待ち"
 ST_APPROVED = "面談対象（承認済）"
@@ -66,9 +173,13 @@ STATUSES = [ST_WAIT, ST_APPROVED, ST_MAILED, ST_BOOKED, ST_DONE, ST_OUT]
 ST_TARGET = "面談対象"
 STATUS_GROUPS = {ST_TARGET: [ST_APPROVED, ST_MAILED, ST_BOOKED]}
 DOCTOR_STATUSES = [ST_WAIT, ST_TARGET, ST_DONE, ST_OUT]
+# 「承認を取消」を出すステータス（承認より先へ進んでいるもの）
+APPROVED_STATUSES = [ST_APPROVED, ST_MAILED, ST_BOOKED, ST_DONE]
 
 KINDS = ["定期", "深夜"]
-MAIL_KINDS = ["面談受診勧奨", "ストレスチェック案内"]
+# メール配信管理で扱う種別。「健康管理のお知らせ」は加入者健康一覧から送るもので、
+# テンプレートの編集と配信履歴はこの画面（メール配信管理）にまとめています。
+MAIL_KINDS = ["面談受診勧奨", "ストレスチェック案内", "健康管理のお知らせ"]
 METHODS = ["対面", "オンライン", "電話"]
 PURPOSES = ["健診有所見", "長時間労働", "高ストレス", "本人からの申出", "その他"]
 
@@ -76,9 +187,10 @@ OT_LIMIT = 80        # 面談候補として抽出する時間外労働（月）
 OT_LIMIT2 = 100      # 医師の面接指導が特に必要な水準
 
 # 一覧の表示列（A-06 表示列カスタマイズ）
-LIST_COLS = [("emp", "加入者ID"), ("name", "氏名"), ("dept", "部署"), ("age", "年齢"),
-             ("judge", "健診判定"), ("reason", "抽出理由"), ("overtime", "時間外"),
-             ("stress", "ストレス"), ("memo", "メモ"), ("status", "ステータス")]
+# 部署・時間外（月）・ストレスCKの列は出しません（詳細表示のモーダルで確認します）
+LIST_COLS = [("emp", "加入者ID"), ("empno", "社員番号"), ("name", "氏名"),
+             ("age", "年齢"), ("judge", "健診判定"), ("reason", "抽出理由"),
+             ("memo", "メモ"), ("status", "ステータス")]
 LIST_COL_KEYS = [k for k, _ in LIST_COLS]
 
 # 旧表記のデータを学会区分へ自動でマッピングする（B-04）
@@ -163,11 +275,27 @@ def login_required(fn):
     return wrapper
 
 
+def is_hr(acc=None):
+    """人事（運用事務）のアカウントか。取込・メール配信・対応区分・出力を行う。"""
+    acc = acc or H.current_account()
+    return bool(acc) and H.sub_role(acc) == "hr"
+
+
 def is_doctor(acc=None):
     """医学的判断（承認・就業区分・面談記録・記名）ができるか。
     企業担当者のサブロールが「産業医（doctor）」のアカウントだけが行える。"""
     acc = acc or H.current_account()
     return bool(acc) and H.sub_role(acc) == "doctor"
+
+
+def is_nurse(acc=None):
+    """保健師（sub_role=nurse）か。保健指導の面談を面談結果入力で記録し、記録すると対応済みになる。"""
+    acc = acc or H.current_account()
+    return bool(acc) and H.sub_role(acc) == "nurse"
+
+
+# 保健師が扱うステータス（産業医の判定で保健指導の対象になる区分と、保健師対応中）
+NURSE_HR_CLASSES = ["就業制限", "要休業", HR_NURSE]
 
 
 def is_ops(acc=None):
@@ -177,17 +305,19 @@ def is_ops(acc=None):
     return bool(acc) and not is_doctor(acc)
 
 
-def need(key):
+def need(*keys):
     """機能制御（ロール・サブロールごとの利用可否）で画面・操作を制限する。
-    医学的判断（oh.approve／oh.interview／oh.sign）は設定で変更できず、産業医のみ。"""
+    医学的判断（oh.approve／oh.interview／oh.sign）は設定で変更できず、産業医のみ。
+    複数のキーを渡したときは、どれか1つでも使えれば通します
+    （例：確認・処理の保存は、面談対象者一覧からでも加入者健康一覧からでも行います）。"""
     def deco(fn):
         @wraps(fn)
         def wrapper(*a, **kw):
             acc = H.current_account()
             if not acc:
                 return redirect(url_for("login", next=request.path))
-            if not H.feature_allowed(key, acc):
-                return H.deny_feature(key)
+            if not any(H.feature_allowed(k, acc) for k in keys):
+                return H.deny_feature(keys[0])
             return fn(*a, **kw)
         return wrapper
     return deco
@@ -231,7 +361,8 @@ def scoped_members(acc, f=None):
     db = H.get_db()
     where, params = H.member_where(acc)
     sql = ("SELECT m.id, m.name, m.kana, m.birth, m.sex, m.email, m.employee_code,"
-           " m.member_no, m.subscriber_id, m.night_work, m.kenpo_id,"
+           " m.member_no, m.subscriber_id, m.night_work, m.kenpo_id, m.office_id,"
+           " m.cert_mark, m.cert_branch, m.relation,"
            " c.name AS company_name, o.name AS office_name, d.name AS dept_name"
            " FROM member m"
            " LEFT JOIN company c ON c.id=m.company_id"
@@ -244,7 +375,7 @@ def scoped_members(acc, f=None):
         sql += " AND (m.name LIKE ? OR m.kana LIKE ? OR IFNULL(m.employee_code,'') LIKE ?)"
         p += [f"%{f['name']}%"] * 3
     if f.get("mid"):
-        # 加入者ID（採番）・被保険者証番号・社員コードのいずれでも探せるようにする
+        # 加入者ID（採番）・被保険者証番号・社員番号のいずれでも探せるようにする
         sql += (" AND (IFNULL(m.subscriber_id,'') LIKE ? OR IFNULL(m.member_no,'') LIKE ?"
                 " OR IFNULL(m.employee_code,'') LIKE ?)")
         p += [f"%{f['mid']}%"] * 3
@@ -299,11 +430,41 @@ def memo_of(ids):
     return {r["member_id"]: r for r in rows}
 
 
-def reasons_of(judge, ot, stress):
+# 抽出理由に載せる異常値の件数（多いときは「ほかn件」とまとめます）
+ABNORMAL_MAX = 5
+
+
+def abnormal_items(items):
+    """健診の明細から、判定がC以上（有所見）の項目を値つきで並べる。
+
+    「BMI 28.4」「血圧 148/94 mmHg」のように数値を出して、
+    どの検査がどれだけ外れているのかが一覧で分かるようにします。
+    （検査値の意味づけ・受診の必要性の判断は産業医・医師が行います）
+    """
+    out = []
+    for i in items or []:
+        if norm_judge(i["judge"]) not in FINDING_JUDGES:
+            continue
+        v = (i["value"] or "").strip()
+        if not v:
+            continue
+        unit = (i["unit"] or "").strip()
+        out.append(f"{i['name']} {v}{unit}")
+    return out
+
+
+def reasons_of(judge, ot, stress, items=None):
     """抽出理由を組み立てる（複数該当時は併記）"""
     rs = []
     if judge in FINDING_JUDGES:
-        rs.append(f"健診有所見（{judge}判定：{JUDGE_LABEL[judge]}）")
+        ab = abnormal_items(items)
+        if ab:
+            text = "／".join(ab[:ABNORMAL_MAX])
+            if len(ab) > ABNORMAL_MAX:
+                text += f"／ほか{len(ab) - ABNORMAL_MAX}件"
+            rs.append(f"健診有所見（{judge}）{text}")
+        else:
+            rs.append(f"健診有所見（{judge}判定：{JUDGE_LABEL[judge]}）")
     if ot and (ot["hours"] or 0) > OT_LIMIT:
         lv = "100時間超" if (ot["hours"] or 0) > OT_LIMIT2 else "80時間超"
         rs.append(f"長時間労働（{ot['ym']} 時間外{ot['hours']:.0f}時間・{lv}）")
@@ -313,6 +474,16 @@ def reasons_of(judge, ot, stress):
             s += "・本人から面接指導の申出あり"
         rs.append(s)
     return rs
+
+
+def reason_display(rs):
+    """一覧に出す抽出理由。「健診有所見（C）」などの前置きは外して値だけにする"""
+    out = []
+    for t in rs or []:
+        t = re.sub(r"^健診有所見（[A-E]）", "", t)
+        t = re.sub(r"^健診有所見（[A-E]判定：[^）]*）", "健診有所見", t)
+        out.append(t.strip())
+    return "／".join(x for x in out if x)
 
 
 def build_rows(acc, fy, f=None, kind="定期"):
@@ -332,6 +503,13 @@ def build_rows(acc, fy, f=None, kind="定期"):
                    " AND fiscal_year=?", ids, params_tail=(fy,))
     ot = overtime_of(ids, fy)
     memo = memo_of(ids)
+    # 健診の明細（抽出理由に異常値を出すため。まとめて取ります）
+    kitems = {}
+    kids = [k["id"] for k in ken.values()]
+    if kids:
+        for r in fetch_rows("SELECT * FROM oh_kenshin_item WHERE kenshin_id IN ({IN})"
+                            " ORDER BY sort, id", kids):
+            kitems.setdefault(r["kenshin_id"], []).append(r)
 
     rows, changed = [], False
     for m in members:
@@ -339,7 +517,7 @@ def build_rows(acc, fy, f=None, kind="定期"):
         judge = norm_judge(k["judge"]) if k else None
         s = st.get(m["id"])
         o = ot.get(m["id"])
-        rs = reasons_of(judge, o, s)
+        rs = reasons_of(judge, o, s, kitems.get(k["id"]) if k else None)
         c = cand.get(m["id"])
         # 面談候補の自動抽出（B-01）。理由が変わったら更新する。
         if rs:
@@ -360,11 +538,14 @@ def build_rows(acc, fy, f=None, kind="定期"):
             "m": m, "id": m["id"], "age": age_of(m["birth"]),
             "judge": judge, "kenshin": k, "exam_date": k["exam_date"] if k else None,
             "stress": s, "overtime": o, "reasons": rs,
-            "reason_text": "／".join(rs), "cand": c, "iv": iv.get(m["id"]),
+            "reason_text": reason_display(rs), "cand": c, "iv": iv.get(m["id"]),
             "memo": memo.get(m["id"]),
             "status": (c["status"] if c else "—"),
             "work_class": (c["work_class"] if c else None),
             "hr_class": (c["hr_class"] if c else "未判定"),
+            "due_on": (c["due_on"] if c else None),
+            "done_on": (c["done_on"] if c else None),
+            "follow_on": (c["follow_on"] if c else None),
         })
     if changed:
         db.commit()
@@ -397,6 +578,11 @@ def apply_row_filter(rows, f):
         rows = [r for r in rows if r["exam_date"]]
     elif f.get("done") == "not":
         rows = [r for r in rows if not r["exam_date"]]
+    # 面談結果入力の「入力状況」（入力済＝面談日が入っている）
+    if f.get("iv") == "done":
+        rows = [r for r in rows if r["iv"] and r["iv"]["met_on"]]
+    elif f.get("iv") == "not":
+        rows = [r for r in rows if not (r["iv"] and r["iv"]["met_on"])]
     return rows
 
 
@@ -502,7 +688,7 @@ def member_row(acc, mid):
 def form_filter():
     f = {k: (request.args.get(k) or "").strip()
          for k in ("name", "mid", "dept", "company", "cond", "status", "hr_class",
-                   "done")}
+                   "done", "iv")}
     f["judges"] = request.args.getlist("judge")
     f["fy"] = (request.args.get("fy") or current_fy()).strip()
     return f
@@ -513,18 +699,26 @@ def common(fy):
     return {"acc": acc, "fy": fy, "fys": fy_choices(), "JUDGES": JUDGES,
             "today": date.today().isoformat(),
             "JUDGE_LABEL": JUDGE_LABEL, "WORK_CLASSES": WORK_CLASSES,
-            "HR_CLASSES": HR_CLASSES, "STATUSES": STATUSES, "METHODS": METHODS,
+            "HR_CLASSES": HR_CLASSES, "HR_DONE": HR_DONE, "STATUSES": STATUSES, "METHODS": METHODS,
             "PURPOSES": PURPOSES, "OT_LIMIT": OT_LIMIT, "OT_LIMIT2": OT_LIMIT2,
             "DOCTOR_STATUSES": DOCTOR_STATUSES,
+            "APPROVED_STATUSES": APPROVED_STATUSES,
+            # 対応区分ごとの進め方（人事・産業医・保健師が行うこと）
+            "HR_CLASS_GUIDE": HR_CLASS_GUIDE, "GUIDE_ROLES": GUIDE_ROLES,
+            "DOCTOR_HR_CLASSES": DOCTOR_HR_CLASSES,
             # 画面に出す操作は機能制御に合わせる
             "CAN_MED": H.feature_allowed("oh.approve", acc),
             "CAN_IV": H.feature_allowed("oh.interview", acc),
+            "CAN_IV_VIEW": H.feature_allowed("oh.interview.view", acc),
             "CAN_SIGN": H.feature_allowed("oh.sign", acc),
             "CAN_HR": H.feature_allowed("oh.hr_class", acc),
             "CAN_UPLOAD": H.feature_allowed("oh.upload", acc),
             "CAN_MAIL": H.feature_allowed("oh.mail", acc),
             "CAN_KENSHIN": H.feature_allowed("oh.kenshin", acc),
             "CAN_OPS": is_ops(acc),
+            "IS_DOCTOR": is_doctor(acc), "IS_NURSE": is_nurse(acc),
+            # 保健師の「一覧に戻る」は加入者健康一覧
+            "LIST_URL": (url_for("hm.hm_list", fy=fy) if is_nurse(acc) else url_for("oh.oh_list", fy=fy)),
             "ROLE_NAME": role_label(), "LIST_COLS": LIST_COLS}
 
 
@@ -541,16 +735,17 @@ def oh_list():
     total = len(rows)
     done = sum(1 for r in rows if r["exam_date"])
     cols = visible_cols(acc)
-    if is_doctor(acc):
-        # 産業医は健診・面談の内容で判断するため、部署の列は出さない
-        cols = [c for c in cols if c != "dept"]
+    # 社員番号は加入者IDのつぎに出す（名簿と突き合わせるため、どのロールでも出します）
+    if "empno" not in cols:
+        at = cols.index("emp") + 1 if "emp" in cols else 0
+        cols.insert(at, "empno")
     return render_template("sanmen_list.html", rows=rows, f=f, flow_c=flow_c,
                            cols=cols, total=total, done=done,
                            notdone=total - done, **common(f["fy"]))
 
 
 @bp.route("/dashboard")
-@need("oh.list")
+@need("oh.dashboard")
 def oh_dashboard():
     """面談ダッシュボード（全体の件数と進み具合をまとめて見る画面）
 
@@ -622,7 +817,8 @@ def oh_cols():
 
 
 @bp.route("/save", methods=["POST"])
-@need("oh.list")
+# 面談対象者一覧（産業医）と加入者健康一覧（人事・健保）の両方から使います
+@need("oh.list", "health.view")
 def oh_save():
     """確認・処理モーダルの保存（B-08〜B-14）。一括処理にも同じ入口を使う。
 
@@ -644,6 +840,9 @@ def oh_save():
     hr_class = (request.form.get("hr_class") or "").strip()
     memo = (request.form.get("memo") or "").strip()
     ex_reason = (request.form.get("exclude_reason") or "").strip()
+    due_on = (request.form.get("due_on") or "").strip()
+    follow_on = (request.form.get("follow_on") or "").strip()
+    done_on = (request.form.get("done_on") or "").strip()
     med = is_doctor(acc)
 
     # 人事が医学的入力値を送ってきた場合は記録して無視する
@@ -660,7 +859,7 @@ def oh_save():
               detail=f"role={H.role_key(acc)}／機能=oh.hr_class")
         hr_class = ""
 
-    n_app = n_unapp = n_work = n_hr = n_memo = n_out = 0
+    n_app = n_unapp = n_work = n_hr = n_memo = n_out = n_date = 0
     for mid in ids:
         c = ensure_candidate(mid, fy)
         sets, params = [], []
@@ -680,18 +879,44 @@ def oh_save():
             sets.append("work_class=?")
             params.append(work_class)
             n_work += 1
-            # 承認前に就業区分を判定した場合も、面談対象として扱う
-            if action == "save" and c["status"] == ST_WAIT:
-                sets.append("status=?")
-                params.append(ST_APPROVED)
+            # 面談の要否は就業区分で決まる（産業医の判定）
+            #   通常勤務 → 面談不要（対象外）。就業制限・要休業 → 面談対象（承認済）
+            # 案内済み・予約済み・面談完了まで進んでいる方の進み具合は変えない
+            if action == "save":
+                if work_class == "通常勤務" and c["status"] in (ST_WAIT, ST_APPROVED):
+                    sets += ["status=?", "exclude_reason=?"]
+                    params += [ST_OUT, "就業区分「通常勤務」の判定により面談不要"]
+                    n_out += 1
+                elif work_class != "通常勤務" and c["status"] in (ST_WAIT, ST_OUT):
+                    sets += ["status=?", "exclude_reason=NULL", "approved_by=?", "approved_at=?"]
+                    params += [ST_APPROVED, actor(), H.now()]
+                    n_app += 1
         if hr_class in HR_CLASSES:
             sets.append("hr_class=?")
             params.append(hr_class)
             n_hr += 1
-        # 「産業医判定済」は承認・就業判定から自動で反映する（コード定義）
-        if med and (action == "approve" or work_class) and c["hr_class"] == "未判定":
+        # 対応期限・次回フォロー予定日・対応完了日（人事・産業医のどちらも記録できます）
+        hit = False
+        for col, val in (("due_on", due_on), ("follow_on", follow_on),
+                         ("done_on", done_on)):
+            if val:
+                sets.append(f"{col}=?")
+                params.append(val)
+                hit = True
+        if hit:
+            n_date += 1
+        # 産業医の入力を人事のステータスに反映します。
+        #   就業区分を判定 → その区分（通常勤務・就業制限・要休業）
+        #   面談対象として承認 → 保健師対応中（保健師のフォローへ進みます）
+        new_hr = ""
+        if med and work_class in WORK_CLASSES:
+            new_hr = work_class
+        if med and action == "approve":
+            new_hr = HR_NURSE
+        if new_hr:
             sets.append("hr_class=?")
-            params.append("産業医判定済")
+            params.append(new_hr)
+            n_hr += 1
         if sets:
             sets.append("updated_at=?")
             params.append(H.now())
@@ -707,7 +932,8 @@ def oh_save():
         f"承認{n_app}件" if n_app else "",
         f"承認取消{n_unapp}件" if n_unapp else "",
         f"就業区分{n_work}件" if n_work else "",
-        f"対応区分{n_hr}件" if n_hr else "", f"メモ{n_memo}件" if n_memo else "",
+        f"対応区分{n_hr}件" if n_hr else "", f"日付{n_date}件" if n_date else "",
+        f"メモ{n_memo}件" if n_memo else "",
         f"対象外{n_out}件" if n_out else ""] if x) or "変更なし"
     H.log("master", "産業医面談の確認・処理", "success",
           target=f"{len(ids)}名（{fy}年度）", detail=detail)
@@ -750,7 +976,8 @@ def oh_member(mid):
     return render_template("sanmen_member.html", m=m, ken=ken, items=items,
                            prev=prev, prev_items=prev_items, st=st, ots=ots,
                            memos=memos, cand=cand, iv=iv, judge=judge,
-                           reasons=reasons_of(judge, otmax, st), age=age_of(m["birth"]),
+                           reasons=reasons_of(judge, otmax, st, items),
+                           age=age_of(m["birth"]),
                            **common(fy))
 
 
@@ -869,29 +1096,58 @@ def oh_night():
 
 
 # ================================================================ E．面談結果入力
-@bp.route("/interview")
-@need("oh.list")
-def oh_interview():
-    """面談結果入力の一覧（E-01・E-02）"""
-    acc = H.current_account()
-    f = form_filter()
-    rows = build_rows(acc, f["fy"], f)
-    flow_c = flow_counts(rows)
-    # 面接指導の対象者（抽出理由あり）・承認済以降・すでに面談記録があるものを表示する。
-    # 該当がないときは、記録を入れられるように担当範囲の対象者をそのまま並べる。
+def _iv_not_done(r):
+    """面談結果がまだ入力されていない方か"""
+    return not (r["iv"] and r["iv"]["met_on"])
+
+
+def interview_rows(acc, fy):
+    """面談結果入力の対象者。面接指導の対象者（抽出理由あり）・承認済以降・
+    すでに面談記録があるものが対象。該当がないときは、記録を入れられるように
+    担当範囲の対象者をそのまま使う。
+    保健師は、産業医が 就業制限・要休業 と判定した方（保健指導の対象）・保健師対応中の方と、記録済みの方。"""
+    rows = build_rows(acc, fy)
+    if is_nurse(acc):
+        picked = [r for r in rows if r["hr_class"] in NURSE_HR_CLASSES or r["iv"]]
+        return rows, picked
     picked = [r for r in rows
               if r["reasons"] or r["iv"]
               or r["status"] in (ST_APPROVED, ST_MAILED, ST_BOOKED, ST_DONE)]
-    rows = picked or rows
-    rows = apply_row_filter(rows, f)
-    # 右側に出す対象者（未指定のときは、まだ入力していない先頭の方）
-    mid = request.args.get("mid", type=int)
-    sel = next((r for r in rows if r["id"] == mid), None)
+    return rows, (picked or rows)
+
+
+def next_waiting(rows, cur_id):
+    """「次の未入力の方」＝いまの方より後ろで未入力の方（無ければ先頭から探す）"""
+    i = next((k for k, r in enumerate(rows) if r["id"] == cur_id), -1)
+    order = rows[i + 1:] + rows[:i]
+    return next((r for r in order if _iv_not_done(r)), None)
+
+
+@bp.route("/interview")
+@need("oh.interview.view")
+def oh_interview():
+    """面談結果入力（E-01・E-02）。1人ずつ入力し、「確定して次の未入力の方へ」で進めます。"""
+    acc = H.current_account()
+    fy = (request.args.get("fy") or current_fy()).strip()
+    all_rows, rows = interview_rows(acc, fy)
+    flow_c = flow_counts(all_rows)
+    not_done = _iv_not_done
+
+    # 入力する対象者（未指定のときは、まだ入力していない先頭の方）
+    sid = request.args.get("sid", type=int)
+    sel = next((r for r in rows if r["id"] == sid), None)
     if sel is None:
-        sel = next((r for r in rows if not r["iv"]), None) or (rows[0] if rows else None)
-    return render_template("sanmen_interview.html", rows=rows, f=f, flow_c=flow_c,
-                           sel=sel, done=sum(1 for r in rows if r["iv"]),
-                           **common(f["fy"]))
+        sel = next((r for r in rows if not_done(r)), None) or (rows[0] if rows else None)
+    nxt = next_waiting(rows, sel["id"]) if sel else None
+    # 「前の方に戻る」＝一覧の並びでひとつ前の方（先頭なら無し → 一覧に戻る）
+    prv = None
+    if sel:
+        i = next((k for k, r in enumerate(rows) if r["id"] == sel["id"]), -1)
+        prv = rows[i - 1] if i > 0 else None
+    waiting = [r for r in rows if not_done(r)]
+    return render_template("sanmen_interview.html", rows=rows, flow_c=flow_c,
+                           sel=sel, nxt=nxt, prv=prv, n_wait=len(waiting),
+                           done=len(rows) - len(waiting), **common(fy))
 
 
 @bp.route("/interview/save", methods=["POST"])
@@ -911,8 +1167,16 @@ def oh_interview_save():
     if met_on is None:
         flash("面談日の形式が正しくありません（例 2026-08-20）。", "error")
         return redirect(url_for("oh.oh_interview", fy=fy))
+    # 次回フォロー予定日も日付として保存します（入力は日付の欄です）
+    if v["next_plan"]:
+        nxt = H.norm_date(v["next_plan"])
+        if nxt is None:
+            flash("次回フォロー予定日の形式が正しくありません（例 2026-08-20）。", "error")
+            return redirect(url_for("oh.oh_interview", fy=fy, sid=mid))
+        v["next_plan"] = nxt
     ot = request.form.get("overtime", type=float)
-    work = v["work_class"] if v["work_class"] in WORK_CLASSES else None
+    # 就業区分は産業医の判定。保健師の記録では変えない
+    work = v["work_class"] if (v["work_class"] in WORK_CLASSES and is_doctor(acc)) else None
     db.execute(
         "INSERT INTO oh_interview (member_id, fiscal_year, met_on, method, purpose,"
         " work_class, measure, findings, next_plan, overtime, doctor, updated_at)"
@@ -925,32 +1189,50 @@ def oh_interview_save():
         (mid, fy, met_on, v["method"], v["purpose"], work, v["measure"], v["findings"],
          v["next_plan"], ot, actor(), H.now()))
     c = ensure_candidate(mid, fy)
-    # 「下書き保存」は記録だけ残し、面談実施済（面談完了）にはしません
-    draft = bool(request.form.get("draft"))
-    sets = ["updated_at=?"] if draft else ["status=?", "updated_at=?"]
-    params = [H.now()] if draft else [ST_DONE, H.now()]
+    # 保存＝確定。面談実施済（面談完了）にして集計・報告へ反映します（下書きは置きません）
+    sets = ["status=?", "updated_at=?"]
+    params = [ST_DONE, H.now()]
     if work:
         sets.append("work_class=?")
         params.append(work)
-    if c["hr_class"] == "未判定" and not draft:
+    if c["hr_class"] == "未判定":
         sets.append("hr_class=?")
         params.append("産業医判定済")
+    # 保健師が面談（保健指導）の結果を記録したら、ステータスを対応済みにする
+    nurse = is_nurse(acc)
+    if nurse:
+        sets.append("hr_class=?")
+        params.append(HR_DONE)
     db.execute(f"UPDATE oh_candidate SET {','.join(sets)} WHERE id=?", params + [c["id"]])
     db.commit()
     H.log("master", "面談記録を登録", "success", target=f"member:{mid}（{fy}年度）",
           detail=f"面談日{met_on}／{v['method']}／就業区分{work or '—'}"
-                 + ("／下書き" if draft else ""))
-    flash("下書きを保存しました。まだ面談実施済にはしていません。" if draft
+                 + (f"／ステータス→{HR_DONE}" if nurse else ""))
+    flash(f"面談記録を確定しました。ステータスを「{HR_DONE}」（対応済み）にしました。" if nurse
           else "面談記録を確定しました。面談実施済として報告に反映します。", "ok")
-    return redirect(url_for("oh.oh_interview", fy=fy, mid=mid))
+    # 「確定して次の未入力の方へ」：確定したうえで、次にまだ入力していない方の画面へ進む
+    if request.form.get("go_next"):
+        _, rows = interview_rows(acc, fy)
+        nxt = next_waiting(rows, mid)
+        if nxt:
+            return redirect(url_for("oh.oh_interview", fy=fy, sid=nxt["id"]))
+        # 次の未入力の方がいなければ、確定して一覧に戻る（保健師は加入者健康一覧）
+        flash("この年度の面談対象は、入力がすべて終わりました。", "ok")
+        return redirect(url_for("hm.hm_list", fy=fy) if nurse else url_for("oh.oh_list", fy=fy))
+    return redirect(url_for("oh.oh_interview", fy=fy, sid=mid))
 
 
 # ================================================================ F．労基署報告
-def report_summary(acc, fy):
-    """報告書に載せる集計。定期健康診断結果報告書（様式第6号）の項目に合わせる。"""
+def report_summary(acc, fy, oid=None):
+    """報告書に載せる集計。定期健康診断結果報告書（様式第6号）の項目に合わせる。
+    事業所（oid）を指定すると、その事業所の加入者だけで集計します。"""
     rows = build_rows(acc, fy, None, "定期")
+    if oid:
+        rows = [r for r in rows if str(r["m"]["office_id"] or "") == str(oid)]
     night = [r for r in rows if r["m"]["night_work"]]
     nrows = build_rows(acc, fy, None, "深夜") if night else []
+    if oid:
+        nrows = [r for r in nrows if str(r["m"]["office_id"] or "") == str(oid)]
     ndone = sum(1 for r in nrows if r["m"]["night_work"] and r["exam_date"])
     judges = {j: 0 for j in JUDGES}
     for r in rows:
@@ -990,6 +1272,234 @@ def report_summary(acc, fy):
     }
 
 
+# ---------------------------------------------------------------- 様式第6号の報告項目
+# eGov「定期健康診断結果報告書 仕様書」の項目に合わせています。
+# 人数は健診結果から集計し、集計できない情報（事業場・実施機関・産業医など）は登録します。
+FORM6_TEXT_FIELDS = [
+    ("labor_insurance_no", "労働保険番号", "例：13101-123456-000"),
+    ("industry_type", "事業の種類", "例：情報通信業"),
+    ("workplace_name", "事業場の名称", "例：株式会社　光通信　本社"),
+    ("workplace_zip", "事業場の郵便番号", "例：1710014"),
+    ("workplace_address", "事業場の所在地", "例：東京都豊島区池袋2-43-1"),
+    ("workplace_tel", "事業場の電話番号", "例：03-6416-3872"),
+    ("examination_date", "健診年月日", "例：2026-06-12"),
+    ("institution_name", "健康診断実施機関名", "例：ひかり健診クリニック"),
+    ("institution_address", "健康診断実施機関所在地", "例：東京都新宿区西新宿1-1-1"),
+    ("physician_name", "産業医氏名", "例：山田 太郎"),
+    ("physician_address", "産業医所在地", "例：東京都港区芝浦4-16-25"),
+    ("employer_name_title", "事業者職氏名", "例：代表取締役　佐藤 一郎"),
+    ("report_count", "報告回目", "例：1"),
+]
+# 様式第6号（用紙）の「健康診断項目」欄の並び。左列7行・右列6行で、
+# それぞれ受診労働者数と有所見者数を書きます（項目名の一部で数えます）
+FORM6_PRINT_ROWS = [
+    ("hearing1000", "聴力検査（オージオメーターによる検査）（1000Hz）",
+     ("聴力(右:1000Hz)", "聴力(左:1000Hz)")),
+    ("hearing4000", "聴力検査（オージオメーターによる検査）（4000Hz）",
+     ("聴力(右:4000Hz)", "聴力(左:4000Hz)")),
+    ("hearing_other", "聴力検査（その他の方法による検査）",
+     ("聴力(検査方法)", "聴力(その他の所見)")),
+    ("chest_xray", "胸部エックス線検査", ("胸部X線", "胸部エックス線", "胸部CT")),
+    ("sputum", "喀痰検査", ("喀痰",)),
+    ("bp", "血圧", ("血圧",)),
+    ("anemia", "貧血検査", ("赤血球", "血色素", "ヘモグロビン", "ヘマトクリット")),
+    ("liver", "肝機能検査", ("AST", "GOT", "ALT", "GPT", "γ-GT", "GTP", "ALP",
+                          "ビリルビン", "総蛋白", "アルブミン")),
+    ("lipid", "血中脂質検査", ("コレステロール", "中性脂肪", "トリグリセリド")),
+    ("glucose", "血糖検査", ("血糖", "HbA1c")),
+    ("urine_sugar", "尿検査（糖）", ("尿糖",)),
+    ("urine_protein", "尿検査（蛋白）", ("尿蛋白",)),
+    ("ecg", "心電図検査", ("心電図",)),
+]
+# 年齢階層別の受診労働者数（様式第6号の（※）欄。左から順に書きます）
+FORM6_AGE_BANDS = [("15歳以下", 0, 15), ("16〜19歳", 16, 19), ("20〜24歳", 20, 24),
+                   ("25〜29歳", 25, 29), ("30〜34歳", 30, 34), ("35〜39歳", 35, 39),
+                   ("40〜44歳", 40, 44), ("45〜49歳", 45, 49), ("50〜54歳", 50, 54),
+                   ("55〜59歳", 55, 59), ("60〜64歳", 60, 64), ("65〜69歳", 65, 69),
+                   ("70歳以上", 70, 200)]
+
+# 健診項目ごとの受診人数（eGov仕様書の項目）。項目名の一部で数えます
+FORM6_ITEM_GROUPS = [
+    ("basic_measurement_count", "身長・体重・腹囲・視力・聴力",
+     ("身長", "体重", "腹囲", "視力", "聴力", "BMI")),
+    ("chest_xray_count", "胸部エックス線検査", ("胸部X線", "胸部エックス線", "胸部CT")),
+    ("sputum_count", "喀痰検査", ("喀痰",)),
+    ("blood_pressure_count", "血圧測定", ("血圧",)),
+    ("anemia_count", "貧血検査", ("赤血球", "血色素", "ヘモグロビン", "ヘマトクリット", "貧血")),
+    ("liver_function_count", "肝機能検査", ("AST", "GOT", "ALT", "GPT", "γ-GT", "GTP",
+                                        "ALP", "ビリルビン", "総蛋白", "アルブミン")),
+    ("lipid_count", "血中脂質検査", ("コレステロール", "中性脂肪", "トリグリセリド")),
+    ("glucose_count", "血糖検査", ("血糖", "HbA1c")),
+    ("urinalysis_count", "尿検査", ("尿糖", "尿蛋白", "尿潜血", "尿比重", "尿沈渣")),
+    ("ecg_count", "心電図検査", ("心電図",)),
+]
+
+
+def form6_empty(year):
+    """健保が決まっていないとき（当社スタッフなど）に使う空の内容"""
+    d = {k: "" for k, _l, _p in FORM6_TEXT_FIELDS}
+    d.update(id=None, target_year=year, employees_count=None, updated_at=None)
+    return d
+
+
+def form6_row(db, acc, year, cid=None):
+    """様式第6号の登録内容（無ければ空の行を作って返す）"""
+    if not acc or not acc["kenpo_id"]:
+        # 健保に属さないアカウント（当社スタッフ）は登録先が決まらないため空で返す
+        return form6_empty(year)
+    row = db.execute("SELECT * FROM form6_report WHERE kenpo_id=? AND company_id IS ?"
+                     " AND target_year=?", (acc["kenpo_id"], cid, year)).fetchone()
+    if row:
+        return row
+    db.execute("INSERT INTO form6_report (kenpo_id, company_id, target_year, updated_at)"
+               " VALUES (?,?,?,?)", (acc["kenpo_id"], cid, year, H.now()))
+    db.commit()
+    return db.execute("SELECT * FROM form6_report WHERE kenpo_id=? AND company_id IS ?"
+                      " AND target_year=?", (acc["kenpo_id"], cid, year)).fetchone()
+
+
+def office_choices(acc):
+    """報告書をしぼり込む事業所の一覧（担当範囲のなかだけ）"""
+    db = H.get_db()
+    where, params = H.member_where(acc)
+    return db.execute(
+        "SELECT o.id, o.name, o.zip, o.tel, o.address, c.name AS company_name,"
+        " c.zip AS c_zip, c.tel AS c_tel, c.address AS c_address"
+        " FROM office o JOIN company c ON c.id=o.company_id"
+        f" WHERE EXISTS (SELECT 1 FROM member m WHERE m.office_id=o.id AND {where})"
+        " ORDER BY c.code, o.code", list(params)).fetchall()
+
+
+def office_row(acc, oid):
+    """選んだ事業所（事業所マスタの内容）。選んでいなければ None"""
+    if not oid:
+        return None
+    for o in office_choices(acc):
+        if str(o["id"]) == str(oid):
+            return o
+    return None
+
+
+def form6_from_office(office, f6, year):
+    """様式第6号に載せる内容を、事業所マスタ（と登録済みの内容）から作る"""
+    d = dict(f6) if f6 is not None else {}
+    d.setdefault("target_year", year)
+    # 事業場の名称・郵便番号・所在地・電話は、事業所マスタの内容だけを使います
+    # （この画面では入力しません。直すときは事業所マスタで登録し直します）
+    if office is not None:
+        d["workplace_name"] = (office["company_name"] or "") + (
+            "　" + office["name"] if office["name"] else "")
+        d["workplace_zip"] = office["zip"] or office["c_zip"] or ""
+        d["workplace_address"] = office["address"] or office["c_address"] or ""
+        d["workplace_tel"] = office["tel"] or office["c_tel"] or ""
+    else:
+        for k in ("workplace_name", "workplace_zip", "workplace_address",
+                  "workplace_tel"):
+            d[k] = ""
+    return d
+
+
+def form6_counts(acc, fy, oid=None):
+    """様式第6号に載せる人数を健診結果から集計する（事業所でしぼれます）"""
+    db = H.get_db()
+    where, params = H.member_where(acc)
+    if oid:
+        where += " AND m.office_id=?"
+        params = list(params) + [oid]
+    total = db.execute(f"SELECT COUNT(*) c FROM member m WHERE {where}",
+                       list(params)).fetchone()["c"]
+    rows = db.execute(
+        "SELECT k.id, k.judge FROM oh_kenshin k JOIN member m ON m.id=k.member_id"
+        f" WHERE {where} AND k.fiscal_year=? AND k.kind='定期'",
+        list(params) + [fy]).fetchall()
+    ids = [r["id"] for r in rows]
+    items = []
+    if ids:
+        q = ",".join("?" * len(ids))
+        items = db.execute(f"SELECT kenshin_id, name, judge FROM oh_kenshin_item"
+                           f" WHERE kenshin_id IN ({q})", ids).fetchall()
+
+    def hit_of(words):
+        """その検査を受けた人（受診労働者数）と、有所見だった人（有所見者数）"""
+        got, ng = set(), set()
+        for r in items:
+            nm = (r["name"] or "").lower()
+            if not any(w.lower() in nm for w in words):
+                continue
+            got.add(r["kenshin_id"])
+            if norm_judge(r["judge"]) in FINDING_JUDGES:
+                ng.add(r["kenshin_id"])
+        return len(got), len(ng)
+
+    per = {}
+    for key, _label, words in FORM6_ITEM_GROUPS:
+        per[key] = hit_of(words)[0]
+    print_rows = []
+    for key, label, words in FORM6_PRINT_ROWS:
+        n, ng = hit_of(words)
+        print_rows.append({"key": key, "label": label, "n": n, "ng": ng})
+    # 年齢階層別の受診労働者数
+    ages = db.execute(
+        "SELECT m.birth FROM oh_kenshin k JOIN member m ON m.id=k.member_id"
+        f" WHERE {where} AND k.fiscal_year=? AND k.kind='定期'",
+        list(params) + [fy]).fetchall()
+    bands = []
+    for label, lo, hi in FORM6_AGE_BANDS:
+        n = 0
+        for a in ages:
+            age = age_of(a["birth"])
+            if age is not None and lo <= age <= hi:
+                n += 1
+        bands.append({"label": label, "n": n})
+    finding = sum(1 for r in rows if norm_judge(r["judge"]) in FINDING_JUDGES)
+    ivs = db.execute(
+        "SELECT COUNT(*) c FROM oh_interview i JOIN member m ON m.id=i.member_id"
+        f" WHERE {where} AND i.fiscal_year=? AND IFNULL(i.measure,'') <> ''",
+        list(params) + [fy]).fetchone()["c"]
+    return {"employees": total, "examinees": len(rows), "items": per,
+            "print_rows": print_rows, "bands": bands,
+            "bands_total": sum(b["n"] for b in bands),
+            "abnormal": finding, "instruction": ivs}
+
+
+@bp.route("/report/form6", methods=["POST"])
+@need("oh.report")
+def oh_report_form6():
+    """様式第6号の報告項目を登録する（eGov仕様書の項目）"""
+    acc, db = H.current_account(), H.get_db()
+    fy = (request.form.get("fy") or current_fy()).strip()
+    year = (request.form.get("target_year") or fy).strip()[:4]
+    if not acc["kenpo_id"]:
+        flash("この報告書は健康保険組合ごとに登録します。"
+              "健保に属するアカウントで操作してください。", "error")
+        return redirect(url_for("oh.oh_report", fy=fy))
+    row = form6_row(db, acc, year)
+    vals, errs = {}, []
+    for key, label, _ph in FORM6_TEXT_FIELDS:
+        v = (request.form.get(key) or "").strip()
+        if key == "examination_date" and v:
+            v = H.norm_date(v) or v
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
+                errs.append("健診年月日は 2026-06-12 のように入力してください。")
+        vals[key] = v
+    emp = (request.form.get("employees_count") or "").strip()
+    if emp and not emp.isdigit():
+        errs.append("在籍労働者数は数字で入力してください。")
+    if errs:
+        for e in errs:
+            flash(e, "error")
+        return redirect(url_for("oh.oh_report", fy=fy))
+    keys = list(vals.keys())
+    db.execute("UPDATE form6_report SET " + ", ".join(f"{k}=?" for k in keys)
+               + ", employees_count=?, updated_at=? WHERE id=?",
+               [vals[k] for k in keys] + [int(emp) if emp else None, H.now(), row["id"]])
+    db.commit()
+    H.log("master", "定期健康診断結果報告書の報告項目を登録", "success",
+          target=f"{year}年", detail=vals.get("workplace_name") or "事業場名未入力")
+    flash(f"定期健康診断結果報告書（{year}年）の報告項目を保存しました。", "ok")
+    return redirect(url_for("oh.oh_report", fy=fy))
+
+
 @bp.route("/report")
 @need("oh.report")
 def oh_report():
@@ -999,8 +1509,19 @@ def oh_report():
     db = H.get_db()
     signs = {r["kind"]: r for r in db.execute(
         "SELECT * FROM oh_sign WHERE fiscal_year=?", (fy,))}
-    return render_template("sanmen_report.html", s=report_summary(acc, fy),
-                           signs=signs, **common(fy))
+    oid = (request.args.get("office") or "").strip()
+    offices = office_choices(acc)
+    office = office_row(acc, oid)
+    if office is None:
+        oid = ""
+    f6 = form6_from_office(office, form6_row(db, acc, fy), fy)
+    return render_template("sanmen_report.html",
+                           s=report_summary(acc, fy, oid),
+                           signs=signs, f6=f6, office=office,
+                           offices=offices, oid=oid,
+                           f6c=form6_counts(acc, fy, oid),
+                           F6_FIELDS=FORM6_TEXT_FIELDS, F6_ITEMS=FORM6_ITEM_GROUPS,
+                           **common(fy))
 
 
 @bp.route("/report/sign", methods=["POST"])
@@ -1050,6 +1571,28 @@ def oh_report_unsign():
     return redirect(url_for("oh.oh_report", fy=fy))
 
 
+@bp.route("/opinion/<int:mid>")
+@need("oh.interview.view")
+def oh_opinion(mid):
+    """産業医意見書（1名分の帳票）。面談結果入力の記録から作り、印刷・PDF保存する。
+    ロール別業務フローの「産業医：意見書を出力」に対応する。"""
+    acc = H.current_account()
+    fy = (request.args.get("fy") or current_fy()).strip()
+    if not owns_member(acc, mid):
+        return render_template("denied.html", path=request.path, notfound=True), 404
+    rows = build_rows(acc, fy)
+    r = next((x for x in rows if x["id"] == mid), None)
+    if r is None:
+        return render_template("denied.html", path=request.path, notfound=True), 404
+    db = H.get_db()
+    memos = db.execute(
+        "SELECT * FROM oh_memo WHERE member_id=? AND fiscal_year=? AND kind IN ('医学的意見','就業上の措置')"
+        " ORDER BY created_at DESC LIMIT 5", (mid, fy)).fetchall()
+    H.log("download", "産業医意見書を出力", "success", target=f"member:{mid}（{fy}年度）")
+    return render_template("sanmen_opinion.html", r=r, m=r["m"], iv=r["iv"], cand=r["cand"],
+                           memos=memos, **common(fy))
+
+
 @bp.route("/report/print/<kind>")
 @need("oh.report")
 def oh_report_print(kind):
@@ -1064,8 +1607,16 @@ def oh_report_print(kind):
     H.log("download", "報告書を出力", "success",
           target=f"{'定期健康診断結果報告書' if kind == 'kenshin' else 'ストレスチェック結果等報告書'}"
                  f"（{fy}年度）")
+    oid = (request.args.get("office") or "").strip()
+    office = office_row(acc, oid)
+    if office is None:
+        oid = ""
     return render_template("sanmen_report_print.html", kind=kind, sign=sign,
-                           s=report_summary(acc, fy), **common(fy))
+                           s=report_summary(acc, fy, oid),
+                           f6=form6_from_office(office, form6_row(db, acc, fy), fy),
+                           f6c=form6_counts(acc, fy, oid), office=office,
+                           F6_ITEMS=FORM6_ITEM_GROUPS,
+                           F6_ROWS=FORM6_PRINT_ROWS, **common(fy))
 
 
 @bp.route("/report/csv")
@@ -1074,7 +1625,10 @@ def oh_report_csv():
     """報告用集計のCSV出力（F-06）"""
     acc = H.current_account()
     fy = (request.args.get("fy") or current_fy()).strip()
-    s = report_summary(acc, fy)
+    oid = (request.args.get("office") or "").strip()
+    if office_row(acc, oid) is None:
+        oid = ""
+    s = report_summary(acc, fy, oid)
     rows = [
         ("在籍労働者数", s["total"]), ("受診労働者数", s["done"]),
         ("未受診者数", s["notdone"]), ("受診率（％）", f"{s['rate']:.1f}"),
@@ -1097,12 +1651,21 @@ def oh_report_csv():
 
 
 # ================================================================ G．データ取込
-OT_COLUMNS = ["社員コード", "対象年月", "時間外労働時間", "休日労働時間"]
+OT_COLUMNS = ["社員番号", "対象年月", "時間外労働時間", "休日労働時間"]
 OT_SAMPLE = ["E0001", "2026-07", "92.5", "8.0"]
-SC_COLUMNS = ["社員コード", "実施年度", "受検日", "合計点", "高ストレス者", "面接指導の申出"]
+SC_COLUMNS = ["社員番号", "実施年度", "受検日", "合計点", "高ストレス者", "面接指導の申出"]
 SC_SAMPLE = ["E0001", "2026", "2026-09-10", "78", "1", "1"]
-KEN_COLUMNS = ["社員コード", "受診年度", "健診区分", "受診日", "総合判定", "産業医所見"]
-KEN_SAMPLE = ["E0001", "2026", "定期", "2026-06-12", "C", "血圧・脂質で再検査が必要"]
+# 健診結果CSV。検査値の列を入れると、取込のときに判定マスタの条件で
+# 項目ごとの判定と総合判定を自動で付けます（総合判定の列は空欄でかまいません）
+KEN_VALUE_COLUMNS = ["身長", "体重", "BMI", "収縮期血圧", "拡張期血圧",
+                     "空腹時血糖", "HbA1c", "LDLコレステロール", "HDLコレステロール",
+                     "中性脂肪", "AST(GOT)", "ALT(GPT)", "γ-GT(γ-GTP)", "eGFR",
+                     "尿糖", "尿蛋白"]
+KEN_COLUMNS = ["社員番号", "受診年度", "健診区分", "受診日", "総合判定",
+               "産業医所見"] + KEN_VALUE_COLUMNS
+KEN_SAMPLE = ["E0001", "2026", "定期", "2026-06-12", "", "血圧・脂質で再検査が必要",
+              "170.2", "72.5", "25.0", "138", "84", "98", "5.8", "128", "58",
+              "171", "25", "22", "90", "78", "", ""]
 
 TEMPLATES = {
     "overtime": ("overtime_format.csv", OT_COLUMNS, OT_SAMPLE, "労働時間"),
@@ -1137,7 +1700,8 @@ def oh_upload():
     if only not in ("kenshin", "overtime", "stress"):
         only = ""
     return render_template("sanmen_upload.html", n_ot=n_ot, n_st=n_st, n_ken=n_ken,
-                           n_link=n_link, questions=qs, only=only, **common(fy))
+                           n_link=n_link, questions=qs, only=only,
+                           ksum=kenshin_summary(acc, fy), **common(fy))
 
 
 @bp.route("/template/<kind>.csv")
@@ -1152,7 +1716,7 @@ def oh_template(kind):
 
 
 def find_member(acc, key):
-    """社員コード・被保険者証番号・氏名で加入者を突合する（G-07 加入者名寄せ）"""
+    """社員番号・被保険者証番号・氏名で加入者を突合する（G-07 加入者名寄せ）"""
     key = (key or "").strip()
     if not key:
         return None
@@ -1169,6 +1733,68 @@ def find_member(acc, key):
     return None
 
 
+def judge_from_values(db, mid, fy, vals):
+    """検査値を判定マスタの条件で判定する（企業ごとの基準 → 健保共通の基準）。
+
+    健保共通の基準が無い項目は、HIA総合管理の判定マスタの内容を健保共通として
+    反映してから使います（H.reflect_judge_defaults）。
+    戻り値は [(検査項目名, 値, 単位, 判定), ...]。
+    """
+    m = db.execute("SELECT kenpo_id, company_id, sex FROM member WHERE id=?",
+                   (mid,)).fetchone()
+    if not m:
+        return []
+    kid, cid = m["kenpo_id"], m["company_id"]
+    items, need = [], []
+    for name, value in vals:
+        it = H.judge_item_by_name(db, name)
+        items.append((name, (value or "").strip(), it))
+        if it:
+            need.append(it["id"])
+    # HIA健保管理に設定が無い項目は、HIA総合管理の判定マスタを反映する
+    H.reflect_judge_defaults(db, kid, fy, need)
+    rules = H.criteria_map(db, kid, cid, fy)
+    out = []
+    for name, value, it in items:
+        if not it:
+            out.append((name, value, "", None))
+            continue
+        j = H.judge_by_rules(rules.get(it["id"], []), value, m["sex"])
+        out.append((it["name"], value, it["unit"] or "", j))
+    return out
+
+
+def kenshin_summary(acc, fy, kind="定期"):
+    """取り込んだ健診結果の集計（判定マスタの条件で付けた判定で数えます）"""
+    db = H.get_db()
+    where, params = H.member_where(acc)
+    rows = db.execute(
+        "SELECT k.id, k.judge FROM oh_kenshin k JOIN member m ON m.id=k.member_id"
+        f" WHERE {where} AND k.fiscal_year=? AND k.kind=?",
+        list(params) + [fy, kind]).fetchall()
+    ids = [r["id"] for r in rows]
+    judges = {j: 0 for j in JUDGES}
+    for r in rows:
+        j = norm_judge(r["judge"])
+        if j:
+            judges[j] += 1
+    per = {}
+    if ids:
+        q = ",".join("?" * len(ids))
+        for r in db.execute(
+                f"SELECT name, judge, COUNT(*) n FROM oh_kenshin_item"
+                f" WHERE kenshin_id IN ({q}) GROUP BY name, judge", ids):
+            d = per.setdefault(r["name"], {"n": 0, "finding": 0, "judges": {}})
+            j = norm_judge(r["judge"])
+            d["n"] += r["n"]
+            d["judges"][j or "—"] = d["judges"].get(j or "—", 0) + r["n"]
+            if j in FINDING_JUDGES:
+                d["finding"] += r["n"]
+    return {"n": len(rows), "judges": judges,
+            "finding": sum(judges[j] for j in FINDING_JUDGES if j in judges),
+            "per_item": sorted(per.items(), key=lambda kv: -kv[1]["finding"])}
+
+
 def import_csv(kind):
     """取込の共通処理。1行ずつ突合して登録し、未マッチは要確認として返す。"""
     acc, db = H.current_account(), H.get_db()
@@ -1182,7 +1808,9 @@ def import_csv(kind):
     ok, errs, unmatched = 0, [], []
     for i, row in enumerate(table, start=2):
         row = {(k or "").strip(): (v or "").strip() for k, v in row.items()}
-        key = row.get("社員コード") or row.get("被保険者証番号") or row.get("氏名")
+        # 旧フォーマットの「社員コード」も受け付けます
+        key = (row.get("社員番号") or row.get("社員コード")
+               or row.get("被保険者証番号") or row.get("氏名"))
         mid = find_member(acc, key)
         if not mid:
             unmatched.append({"line": i, "key": key or "（空欄）",
@@ -1217,9 +1845,13 @@ def import_csv(kind):
                 fy = (row.get("受診年度") or current_fy()).strip()[:4]
                 k = row.get("健診区分") if row.get("健診区分") in KINDS else "定期"
                 d = H.norm_date(row.get("受診日")) or ""
-                j = norm_judge(row.get("総合判定"))
+                # 検査値があれば、判定マスタの条件で項目ごとの判定と総合判定を作る
+                vals = [(c, row.get(c)) for c in KEN_VALUE_COLUMNS if (row.get(c) or "").strip()]
+                judged = judge_from_values(db, mid, fy, vals) if vals else []
+                j = norm_judge(row.get("総合判定")) or worst_judge([x[3] for x in judged])
                 if not j:
-                    raise ValueError("総合判定を判別できません（A〜E で指定してください）")
+                    raise ValueError("総合判定を判別できません"
+                                     "（A〜E で指定するか、検査値の列を入れてください）")
                 db.execute("INSERT INTO oh_kenshin (member_id, fiscal_year, kind,"
                            " exam_date, judge, findings, source, updated_at)"
                            " VALUES (?,?,?,?,?,?, 'csv', ?)"
@@ -1227,6 +1859,15 @@ def import_csv(kind):
                            " exam_date=excluded.exam_date, judge=excluded.judge,"
                            " findings=excluded.findings, updated_at=excluded.updated_at",
                            (mid, fy, k, d, j, row.get("産業医所見") or "", H.now()))
+                if judged:
+                    kid = db.execute("SELECT id FROM oh_kenshin WHERE member_id=?"
+                                     " AND fiscal_year=? AND kind=?",
+                                     (mid, fy, k)).fetchone()["id"]
+                    db.execute("DELETE FROM oh_kenshin_item WHERE kenshin_id=?", (kid,))
+                    for n, (name, value, unit, ij) in enumerate(judged, start=1):
+                        db.execute("INSERT INTO oh_kenshin_item (kenshin_id, name, value,"
+                                   " unit, judge, sort) VALUES (?,?,?,?,?,?)",
+                                   (kid, name, value, unit, ij, n * 10))
             ok += 1
         except (ValueError, TypeError) as e:
             errs.append(f"{i}行目：{e}")
@@ -1256,8 +1897,55 @@ def oh_upload_do(kind):
               + "／".join(f"{u['line']}行目：{u['key']}" for u in unmatched[:5])
               + ("…" if len(unmatched) > 5 else "") + "）。加入者マスタをご確認ください。", "error")
     flash(f"{label}を{ok}件取込みました。", "ok")
-    H.log("import", f"{label}を取込", "success", target="産業医面談",
-          detail=f"{ok}件／未突合{len(unmatched)}件／エラー{len(errs)}件")
+    detail = f"{ok}件／未突合{len(unmatched)}件／エラー{len(errs)}件"
+    if kind == "kenshin":
+        # 判定マスタの条件で付けた判定を集計してお知らせする
+        sm = kenshin_summary(H.current_account(), fy)
+        jt = "／".join(f"{j} {sm['judges'][j]}名" for j in JUDGES if sm["judges"][j])
+        flash(f"判定マスタの条件で判定しました（{fy}年度・定期）："
+              f"受診{sm['n']}名／有所見（C以上）{sm['finding']}名"
+              + (f"　{jt}" if jt else "")
+              + "。下の「取込結果の集計」からCSVで出力できます。", "ok")
+        detail += f"／受診{sm['n']}名・有所見{sm['finding']}名・{jt}"
+    H.log("import", f"{label}を取込", "success", target="産業医面談", detail=detail)
+    return redirect(url_for("oh.oh_upload", fy=fy))
+
+
+@bp.route("/upload/summary.csv")
+@need("oh.upload")
+def oh_upload_summary():
+    """取込結果の集計をCSVで出力する（判定マスタの条件で付けた判定で数えます）"""
+    acc = H.current_account()
+    fy = (request.args.get("fy") or current_fy()).strip()
+    sm = kenshin_summary(acc, fy)
+    rows = [["総合判定", "—", "受診者数", sm["n"]],
+            ["総合判定", "—", "有所見（C以上）", sm["finding"]]]
+    for j in JUDGES:
+        rows.append(["総合判定", j, JUDGE_LABEL[j], sm["judges"][j]])
+    for name, d in sm["per_item"]:
+        rows.append(["検査項目", name, "判定した件数", d["n"]])
+        rows.append(["検査項目", name, "有所見（C以上）", d["finding"]])
+        for j in JUDGES:
+            if d["judges"].get(j):
+                rows.append(["検査項目", name, f"{j}（{JUDGE_LABEL[j]}）", d["judges"][j]])
+    return H.export_csv(f"kenshin_summary_{fy}.csv",
+                        ["区分", "対象", "内容", "件数"], rows,
+                        f"健診結果の集計（{fy}年度・定期）") \
+        or redirect(url_for("oh.oh_upload", fy=fy))
+
+
+@bp.route("/upload/reflect", methods=["POST"])
+@need("oh.upload")
+def oh_upload_reflect():
+    """HIA総合管理の判定マスタを、HIA健保管理の健保共通の基準として反映する"""
+    acc, db = H.current_account(), H.get_db()
+    fy = (request.form.get("fy") or current_fy()).strip()
+    n_item, n_row = H.reflect_judge_defaults(db, acc["kenpo_id"], fy)
+    if n_item:
+        flash(f"HIA総合管理の判定マスタから{n_item}項目・{n_row}件を"
+              f"健保共通の基準として反映しました（{fy}年度）。", "ok")
+    else:
+        flash("反映する項目はありませんでした（すでに健保共通の基準があります）。", "ok")
     return redirect(url_for("oh.oh_upload", fy=fy))
 
 
@@ -1313,7 +2001,7 @@ def oh_upload_link():
 @bp.route("/questions")
 @need("oh.upload")
 def oh_questions():
-    """ストレスチェック設問マスタ（マスタ管理から開く画面）"""
+    """ストレスチェック設問（マスタ管理から開く画面）"""
     db = H.get_db()
     fy = (request.args.get("fy") or current_fy()).strip()
     qs = db.execute("SELECT * FROM oh_sc_question ORDER BY no, category, id").fetchall()
@@ -1323,7 +2011,7 @@ def oh_questions():
 @bp.route("/question", methods=["POST"])
 @need("oh.upload")
 def oh_question():
-    """ストレスチェック設問マスタの追加・削除（H-03）"""
+    """ストレスチェック設問の追加・削除（H-03）"""
     db = H.get_db()
     fy = (request.form.get("fy") or current_fy()).strip()
     if request.form.get("delete", type=int):
@@ -1366,22 +2054,117 @@ DEFAULT_TEMPLATES = [
      "回答内容は法令にもとづき保護され、人事評価には一切利用されません。\n"),
 ]
 
+# 案内を送ったあと返事がない方への「リマインド」の既定テンプレート
+# （テンプレート名に「リマインド」を含めると、リマインドのカードで選べます）
+REMIND_WORD = "リマインド"
+REMIND_TEMPLATES = [
+    ("面談受診勧奨", "産業医面談のご案内（リマインド）",
+     "【再度のご案内】産業医面談のご予約について（{{氏名}} 様）",
+     "{{氏名}} 様\n\n"
+     "先日ご案内した産業医面談について、まだご予約の確認ができておりません。\n"
+     "お忙しいところ恐れ入りますが、下記よりご予約をお願いいたします。\n\n"
+     "　ご予約：{{予約URL}}\n"
+     "　回答期限：{{回答期限}}\n\n"
+     "すでにご予約いただいている場合は、本メールはご容赦ください。\n"
+     "本メールは健康管理の一環としてお送りしています。内容は産業医と人事担当者のみが確認します。\n"),
+    ("健康管理のお知らせ", "再検査のご案内（リマインド）",
+     "【再度のご案内】再検査の受診・結果のご提出について（{{氏名}} 様）",
+     "{{氏名}} 様\n\n"
+     "先日ご案内した再検査について、まだ結果のご提出が確認できておりません。\n"
+     "受診がお済みの方は、マイページから結果の写真をアップロードしてください。\n"
+     "まだの方は、期限までの受診をお願いいたします。\n\n"
+     "　マイページ：{{URL}}\n"
+     "　期限：{{期限}}\n\n"
+     "ご不明な点は {{担当窓口}} までお問い合わせください。\n"
+     "すでにご提出いただいている場合は、本メールはご容赦ください。\n"),
+]
+
 
 def ensure_templates():
     db = H.get_db()
-    if db.execute("SELECT COUNT(*) c FROM oh_mail_template").fetchone()["c"]:
-        return
-    for kind, name, subject, body in DEFAULT_TEMPLATES:
-        db.execute("INSERT INTO oh_mail_template (kind, name, subject, body)"
-                   " VALUES (?,?,?,?)", (kind, name, subject, body))
+    if not db.execute("SELECT COUNT(*) c FROM oh_mail_template").fetchone()["c"]:
+        for kind, name, subject, body in DEFAULT_TEMPLATES:
+            db.execute("INSERT INTO oh_mail_template (kind, name, subject, body)"
+                       " VALUES (?,?,?,?)", (kind, name, subject, body))
+    # リマインドのテンプレートは、種別ごとに1つも無ければ既定のものを足します
+    for kind, name, subject, body in REMIND_TEMPLATES:
+        has = db.execute("SELECT COUNT(*) c FROM oh_mail_template WHERE kind=?"
+                         " AND name LIKE ?", (kind, f"%{REMIND_WORD}%")).fetchone()["c"]
+        if not has:
+            db.execute("INSERT INTO oh_mail_template (kind, name, subject, body)"
+                       " VALUES (?,?,?,?)", (kind, name, subject, body))
     db.commit()
 
 
-def fill_template(text, m, deadline, url):
-    """差し込み項目を反映する（D-09）"""
-    return (text or "").replace("{{氏名}}", m["name"] or "") \
-        .replace("{{予約URL}}", url or "（予約URLは配信設定で指定します）") \
-        .replace("{{回答期限}}", deadline or "（未設定）")
+REMIND_DAYS = [3, 7, 14, 30]
+
+
+def reminder_targets(acc, fy, days):
+    """案内を送ったあと、返事（予約・結果の提出）がないまま日数がたった方を集める。
+
+    ・面談受診勧奨　　：勧奨メール送信済のまま予約・面談に進んでいない方
+    ・健康管理のお知らせ：案内を送って「保健師対応中」のまま結果の提出がない方
+    最後に送ってから days 日以上たった方だけを出します（送った回数も添えます）。
+    """
+    db = H.get_db()
+    members = {m["id"]: m for m in scoped_members(acc)}
+    if not members:
+        return []
+    ids = list(members)
+    cands = fetch_map("SELECT * FROM oh_candidate WHERE member_id IN ({IN})"
+                      " AND fiscal_year=?", ids, params_tail=(fy,))
+    # 種別ごとの最終送信日時と送信回数（成功したものだけ）
+    last = {}
+    for r in fetch_rows("SELECT member_id, kind, MAX(sent_at) AS last_at, COUNT(*) AS n"
+                        " FROM oh_mail_log WHERE member_id IN ({IN}) AND result='success'"
+                        " AND direction='out' AND kind IN ('面談受診勧奨','健康管理のお知らせ')"
+                        " GROUP BY member_id, kind", ids):
+        last[(r["member_id"], r["kind"])] = r
+    today = date.today()
+    out = []
+    for mid, m in members.items():
+        c = cands.get(mid)
+        if not c:
+            continue
+        wants = []
+        if c["status"] == ST_MAILED:
+            wants.append("面談受診勧奨")
+        if c["hr_class"] == HR_NURSE:
+            wants.append("健康管理のお知らせ")
+        for kind in wants:
+            lg = last.get((mid, kind))
+            if not lg:
+                continue
+            try:
+                d0 = date.fromisoformat(lg["last_at"][:10])
+            except ValueError:
+                continue
+            passed = (today - d0).days
+            if passed < days:
+                continue
+            out.append({"id": mid, "m": m, "kind": kind, "last_at": lg["last_at"][:10],
+                        "n": lg["n"], "days": passed,
+                        "state": c["status"] if kind == "面談受診勧奨" else c["hr_class"],
+                        "due": c["due_on"] or ""})
+    out.sort(key=lambda r: (-r["days"], r["m"]["name"] or ""))
+    return out
+
+
+def fill_template(text, m, deadline, url, fy="", exam_date="", desk=""):
+    """差し込み項目を反映する（D-09）
+
+    「健康管理のお知らせ」のテンプレートで使う項目（年度・受診日・期限・URL・担当窓口）も
+    ここでまとめて置き換えます。期限は回答締切、URLは予約URL／マイページURLの入力を使います。
+    """
+    return ((text or "")
+            .replace("{{氏名}}", m["name"] or "")
+            .replace("{{予約URL}}", url or "（URLは配信設定で指定します）")
+            .replace("{{URL}}", url or "（URLは配信設定で指定します）")
+            .replace("{{回答期限}}", deadline or "（未設定）")
+            .replace("{{期限}}", deadline or "（未設定）")
+            .replace("{{年度}}", str(fy or ""))
+            .replace("{{受診日}}", exam_date or "（未受診）")
+            .replace("{{担当窓口}}", desk or "健康管理のご担当窓口"))
 
 
 @bp.route("/mail")
@@ -1396,6 +2179,8 @@ def oh_mail():
     rows = build_rows(acc, f["fy"], f)
     flow_c = flow_counts(rows)
     db = H.get_db()
+    # テンプレートと配信履歴は種別を問わずこの画面にまとめます
+    # （健康管理のお知らせの送信そのものは加入者健康一覧から行います）
     tpls = db.execute("SELECT * FROM oh_mail_template ORDER BY kind, id").fetchall()
     logs = db.execute(
         "SELECT l.*, m.name FROM oh_mail_log l LEFT JOIN member m ON m.id=l.member_id"
@@ -1404,10 +2189,102 @@ def oh_mail():
     sent_map = {r["member_id"]: r["c"] for r in db.execute(
         "SELECT member_id, COUNT(*) c FROM oh_mail_log WHERE kind=? AND result='success'"
         " GROUP BY member_id", (kind,))}
+    # リマインド：案内を送ったあと返事がない方（経過日数でしぼる）
+    rdays = request.args.get("rdays", type=int)
+    if rdays not in REMIND_DAYS:
+        rdays = 7
+    remind = reminder_targets(acc, f["fy"], rdays)
+    remind_tpls = [t for t in tpls if REMIND_WORD in (t["name"] or "")]
     return render_template("sanmen_mail.html", rows=rows, f=f, kind=kind, flow_c=flow_c,
                            tpls=tpls, logs=logs, camps=camps, sent_map=sent_map,
+                           remind=remind, remind_tpls=remind_tpls, rdays=rdays,
+                           REMIND_DAYS=REMIND_DAYS,
                            MAIL_KINDS=MAIL_KINDS, mail_on=H.mail_enabled(),
                            **common(f["fy"]))
+
+
+@bp.route("/mail/remind", methods=["POST"])
+@need("oh.mail")
+def oh_mail_remind():
+    """リマインドの送信。案内を送ったあと返事がない方へ、リマインドのテンプレートで再送する。
+
+    ステータス（勧奨メール送信済／保健師対応中）は変えず、送った回数だけ増やします。
+    """
+    acc, db = H.current_account(), H.get_db()
+    fy = (request.form.get("fy") or current_fy()).strip()
+    rdays = request.form.get("rdays", type=int) or 7
+    back = url_for("oh.oh_mail", fy=fy, rdays=rdays)
+    deadline = (request.form.get("deadline") or "").strip()
+    url = (request.form.get("book_url") or "").strip()
+    desk = (request.form.get("desk") or "").strip()
+    # 選んだ行は「加入者ID:種別」の形で受け取ります
+    picks = []
+    for v in request.form.getlist("targets"):
+        mid, _, kind = str(v).partition(":")
+        if mid.isdigit() and kind in ("面談受診勧奨", "健康管理のお知らせ"):
+            picks.append((int(mid), kind))
+    picks = [(m, k) for m, k in dict.fromkeys(picks) if owns_member(acc, m)]
+    if not picks:
+        flash("リマインドを送る方を1名以上選んでください。", "error")
+        return redirect(back)
+    tpls = {t["kind"]: t for t in db.execute(
+        "SELECT * FROM oh_mail_template WHERE name LIKE ? ORDER BY id", (f"%{REMIND_WORD}%",))}
+    # 画面で選んだテンプレート（種別ごと）があれば優先します
+    for kind in ("面談受診勧奨", "健康管理のお知らせ"):
+        tid = request.form.get(f"tpl_{kind}", type=int)
+        if tid:
+            t = db.execute("SELECT * FROM oh_mail_template WHERE id=?", (tid,)).fetchone()
+            if t:
+                tpls[kind] = t
+    sent = failed = 0
+    for mid, kind in picks:
+        m = member_row(acc, mid)
+        tpl = tpls.get(kind)
+        if not m or not tpl:
+            failed += 1
+            continue
+        k = db.execute("SELECT exam_date FROM oh_kenshin WHERE member_id=?"
+                       " AND fiscal_year=? AND kind='定期'", (mid, fy)).fetchone()
+        exam = (k["exam_date"] if k else "") or ""
+        subject = fill_template(tpl["subject"], m, deadline, url, fy, exam, desk)
+        body = fill_template(tpl["body"], m, deadline, url, fy, exam, desk)
+        n_before = db.execute("SELECT COUNT(*) c FROM oh_mail_log WHERE member_id=? AND kind=?"
+                              " AND result='success' AND direction='out'",
+                              (mid, kind)).fetchone()["c"]
+        ok, note = False, "メールアドレスが未登録"
+        if m["email"]:
+            try:
+                res = bool(H.send_mail(m["email"], subject, body))
+            except Exception:
+                res = False
+            if res:
+                ok, note = True, f"{REMIND_WORD}（{n_before}回目）"
+            elif not H.mail_enabled():
+                ok, note = True, f"{REMIND_WORD}（{n_before}回目）／SMTP未設定のため outbox に控えを保存"
+            else:
+                note = "送信できませんでした（送信設定をご確認ください）"
+        db.execute("INSERT INTO oh_mail_log (kind, template_id, member_id, subject,"
+                   " actor, result, detail) VALUES (?,?,?,?,?,?,?)",
+                   (kind, tpl["id"], mid, subject, actor(),
+                    "success" if ok else "failure", note))
+        if ok:
+            sent += 1
+            if kind == "面談受診勧奨":
+                cur = ensure_candidate(mid, fy)
+                db.execute("UPDATE oh_candidate SET mail_count=mail_count+1, last_mail_at=?,"
+                           " updated_at=? WHERE id=?", (H.now(), H.now(), cur["id"]))
+        else:
+            failed += 1
+    db.commit()
+    H.log("master", f"メールの{REMIND_WORD}", "success", target=f"{fy}年度",
+          detail=f"送信{sent}件／失敗{failed}件")
+    msg = f"{REMIND_WORD}を{sent}件送信しました。"
+    if failed:
+        msg += f"（{failed}件は送信できませんでした。メールアドレス・送信設定をご確認ください）"
+    if not H.mail_enabled() and sent:
+        msg += "（送信設定が未登録のため、控えを outbox に保存しました）"
+    flash(msg, "ok" if sent else "error")
+    return redirect(back)
 
 
 @bp.route("/mail/template", methods=["POST"])
@@ -1479,8 +2356,12 @@ def oh_mail_send():
                         "面談対象ではないためスキップ"))
             skipped += 1
             continue
-        subject = fill_template(tpl["subject"], m, deadline, url)
-        body = fill_template(tpl["body"], m, deadline, url)
+        k = db.execute("SELECT exam_date FROM oh_kenshin WHERE member_id=?"
+                       " AND fiscal_year=? AND kind='定期'", (mid, fy)).fetchone()
+        exam = (k["exam_date"] if k else "") or ""
+        desk = (request.form.get("desk") or "").strip()
+        subject = fill_template(tpl["subject"], m, deadline, url, fy, exam, desk)
+        body = fill_template(tpl["body"], m, deadline, url, fy, exam, desk)
         ok, note = False, "メールアドレスが未登録"
         if m["email"]:
             try:

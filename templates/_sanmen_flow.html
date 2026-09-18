@@ -76,3 +76,30 @@
   <span class="oh-full"><b>{{ title }}</b>{{ text }}</span></span>
 {% else %}<span class="hint">—</span>{% endif %}
 {% endmacro %}
+
+{# 対応区分（ステータス）ごとの進め方。人事・産業医・保健師が行うことを同じ形で出します #}
+{% macro guide(GUIDE, ROLES, only=None) %}
+<div class="hcg">
+  {% for key, g in GUIDE.items() %}
+  {% if only is none or only == key %}
+  <div class="hcg-item" data-hc="{{ key }}">
+    <div class="hcg-head">
+      <span class="oh-st oh-st-appr">{{ key }}</span>
+      <span class="hcg-short">{{ g.short }}</span>
+    </div>
+    <div class="hcg-roles">
+      {% for rk, rl in ROLES %}
+      {% if g[rk] %}
+      <div class="hcg-role">
+        <div class="hcg-role-name">{{ rl }}</div>
+        <ul>{% for t in g[rk] %}<li>{{ t }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% if g.note %}<p class="hint hcg-note">※ {{ g.note }}</p>{% endif %}
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endmacro %}

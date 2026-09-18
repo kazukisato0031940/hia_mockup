@@ -13,6 +13,9 @@ if "%HIA_SECRET_KEY%"=="" set HIA_SECRET_KEY=change-this-secret-key
 rem 1回のCSV出力で許可する最大件数
 set HIA_MAX_EXPORT_ROWS=1000
 
+rem 画面の表示倍率（画面はブラウザ90%表示に合わせて作ってあるため、100%表示でも同じ見え方になるよう 0.9 を掛けています。等倍にするなら 1）
+set HIA_UI_ZOOM=0.9
+
 rem 接続を許可するIPの前方一致（社内LANのみに限定する場合は行頭の rem を外す）
 rem set HIA_ALLOW_IPS=10.0.105.,127.0.0.1
 

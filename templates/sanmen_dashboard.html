@@ -1,4 +1,5 @@
 {% extends LAYOUT %}
+{% from "_sanmen_flow.html" import guide %}
 {% block body %}
 {# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
 {% if not EMBED %}
@@ -191,6 +192,19 @@
   </div>
   <p class="hint" style="margin:14px 0 0">判定区分は日本人間ドック・予防医療学会の区分にもとづく
     参考情報です。受診の必要性や就業上の措置の最終判断は産業医・医師が行います。</p>
+</div>
+
+
+
+{# ================= ステータスごとの進め方 ================= #}
+<div class="block-inner" style="margin-top:20px">
+  <h2>ステータスごとの進め方</h2>
+  <p class="hint" style="margin:-8px 0 12px">対応区分（ステータス）ごとに、
+    人事・産業医・保健師が行うことをまとめています。
+    一括処理・加入者マイページでも同じ内容を出しています。</p>
+  {{ guide(HR_CLASS_GUIDE, GUIDE_ROLES) }}
+  <p class="hint" style="margin:14px 0 0">就業区分・就業上の措置の判定は産業医が行い、
+    受診・治療の必要性は医療機関（主治医）の判断によります。</p>
 </div>
 
 {% if SHOW_CHART %}

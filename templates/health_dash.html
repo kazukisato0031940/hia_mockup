@@ -1,0 +1,254 @@
+{% extends LAYOUT %}
+{% block body %}
+{# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
+{% if not EMBED %}
+<h1 class="page-title">健康管理ダッシュボード</h1>
+<p class="page-lead">サービス全体の状況をまとめて確認します。件数を押すと、
+  その条件でしぼり込んだ加入者健康一覧が開きます。</p>
+{% endif %}
+
+{# ================= サマリーカード（健診代行・保健指導・産業医面談と同じ形） =================
+   カードを押すと、その条件でしぼり込んだ加入者健康一覧が開きます。 #}
+{% set L = url_for('hm.hm_list', fy=fy, dept=f.dept) %}
+<div class="summary-grid" style="grid-template-columns:repeat(6,1fr)">
+  <a class="summary-card" style="border-top-color:#2c7a7b" href="{{ L }}">
+    <div class="label">対象の加入者</div>
+    <div class="value"><span>{{ stat.all }}</span><span class="total"> 名</span></div>
+    <div class="rate">健康管理の対象 →</div>
+  </a>
+  <a class="summary-card" style="border-top-color:#38a169" href="{{ L }}">
+    <div class="label">健診受診済み</div>
+    <div class="value"><span>{{ stat.done }}</span>
+      <span class="total">/ {{ stat.all }}</span></div>
+    <div class="rate">受診率 {{ rate.done }}%</div>
+  </a>
+  <a class="summary-card" style="border-top-color:#dd6b20" href="{{ L }}&cond=cde">
+    <div class="label">C〜E判定</div>
+    <div class="value"><span>{{ stat.cde }}</span>
+      <span class="total">/ {{ stat.done }}</span></div>
+    <div class="rate">要再検査・要精密検査ほか →</div>
+  </a>
+  <a class="summary-card" style="border-top-color:#805ad5" href="{{ L }}&cond=ot">
+    <div class="label">時間外{{ OT_LIMIT }}時間超</div>
+    <div class="value"><span>{{ stat.ot }}</span>
+      <span class="total">/ {{ stat.all }}</span></div>
+    <div class="rate">{{ OT_LIMIT2 }}時間超 {{ stat.ot2 }}名 →</div>
+  </a>
+  <a class="summary-card" style="border-top-color:#e53e3e" href="{{ L }}&cond=stress">
+    <div class="label">高ストレス</div>
+    <div class="value"><span>{{ stat.stress }}</span>
+      <span class="total">/ {{ stat.all }}</span></div>
+    <div class="rate">ストレスチェックの結果 →</div>
+  </a>
+  <a class="summary-card" style="border-top-color:#0694a2" href="{{ L }}&cond=iv">
+    <div class="label">面談実施済み</div>
+    <div class="value"><span>{{ stat.iv }}</span>
+      <span class="total">/ {{ stat.cde }}</span></div>
+    <div class="rate">C〜E判定に対して {{ rate.iv }}% →</div>
+  </a>
+</div>
+
+{# ================= グラフ（月次推移＋健診判定の内訳） ================= #}
+<div class="charts-flex">
+  <div class="block-inner">
+    <div style="display:flex;justify-content:space-between;align-items:center;
+                margin-bottom:14px;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px">
+        <h2 style="margin:0">月次推移比較</h2>
+        <span style="font-size:11px;color:var(--gray-label)">■ 前年度比較</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <form method="get" style="margin:0;display:flex;gap:8px">
+          <select name="dept" class="control-select" onchange="this.form.submit()"
+                  aria-label="部署・事業所">
+            <option value="">部署・事業所：すべて</option>
+            {% for d in rows | map(attribute='dept') | select | unique | sort %}
+            <option value="{{ d }}" {{ 'selected' if f.dept == d }}>{{ d }}</option>
+            {% endfor %}
+          </select>
+          <select name="fy" class="control-select" onchange="this.form.submit()"
+                  aria-label="受診年度">
+            {% for y in fys %}
+            <option value="{{ y }}" {{ 'selected' if y == fy }}>{{ y }}年度</option>
+            {% endfor %}
+          </select>
+        </form>
+        <select id="hd-chartSelector" class="control-select" onchange="hdMonthly()"
+                aria-label="表示する内容">
+          <option value="ken">健診受診</option>
+          <option value="ot">時間外{{ OT_LIMIT }}時間超</option>
+        </select>
+      </div>
+    </div>
+    <div style="height:260px"><canvas id="hd-monthlyChart"></canvas></div>
+  </div>
+
+  <div class="block-inner">
+    <h2>健診判定の内訳</h2>
+    <div style="height:190px;display:flex;align-items:center;justify-content:center">
+      <canvas id="hd-judgeChart"></canvas></div>
+    <div style="text-align:center;margin-top:10px">
+      <div class="dash-rate-label">健診 受診率</div>
+      <div class="dash-rate-value">{{ rate.done }}%</div>
+      <div class="hint" style="margin-top:4px">受診済 {{ stat.done }}名 ／
+        未受診 {{ stat.all - stat.done }}名</div>
+    </div>
+  </div>
+</div>
+
+{# ================= 内訳（要注意の内訳・健診判定） ================= #}
+<div class="bottom-flex">
+  <div class="block-inner">
+    <h2>要注意の内訳</h2>
+    <p class="hint" style="margin:-8px 0 12px">対象の加入者 {{ stat.all }}名。
+      1人で複数に該当することがあります。カードを押すと一覧が開きます。</p>
+    {% set base = stat.all or 1 %}
+    <div class="insured-grid">
+      <a class="insured-card" href="{{ L }}&cond=cde">
+        <div class="ic-label">健診 C〜E判定</div>
+        <div class="ic-rate" style="color:#dd6b20">{{ stat.cde }}名</div>
+        <div class="ic-sub">対象の {{ '%.0f'|format(stat.cde * 100.0 / base) }}%</div>
+        <div class="ic-bar"><div class="ic-bar-fg" style="background:#dd6b20;
+          width:{{ '%.0f'|format(stat.cde * 100.0 / base) }}%"></div></div>
+      </a>
+      <a class="insured-card" href="{{ L }}&cond=abn">
+        <div class="ic-label">異常値あり（検査値がC以上）</div>
+        <div class="ic-rate" style="color:#0694a2">{{ stat.abn }}名</div>
+        <div class="ic-sub">対象の {{ '%.0f'|format(stat.abn * 100.0 / base) }}%</div>
+        <div class="ic-bar"><div class="ic-bar-fg" style="background:#0694a2;
+          width:{{ '%.0f'|format(stat.abn * 100.0 / base) }}%"></div></div>
+      </a>
+      <a class="insured-card" href="{{ L }}&cond=ot">
+        <div class="ic-label">長時間労働（時間外 {{ OT_LIMIT }}時間超）</div>
+        <div class="ic-rate" style="color:#805ad5">{{ stat.ot }}名</div>
+        <div class="ic-sub">うち{{ OT_LIMIT2 }}時間超 {{ stat.ot2 }}名</div>
+        <div class="ic-bar"><div class="ic-bar-fg" style="background:#805ad5;
+          width:{{ '%.0f'|format(stat.ot * 100.0 / base) }}%"></div></div>
+      </a>
+      <a class="insured-card" href="{{ L }}&cond=stress">
+        <div class="ic-label">高ストレス</div>
+        <div class="ic-rate" style="color:#e53e3e">{{ stat.stress }}名</div>
+        <div class="ic-sub">対象の {{ '%.0f'|format(stat.stress * 100.0 / base) }}%</div>
+        <div class="ic-bar"><div class="ic-bar-fg" style="background:#e53e3e;
+          width:{{ '%.0f'|format(stat.stress * 100.0 / base) }}%"></div></div>
+      </a>
+    </div>
+    <p class="hint" style="margin:14px 0 0">健診未受診 {{ stat.all - stat.done }}名、
+      メールアドレスが未登録の方 {{ stat.nomail }}名（お知らせを送れません）。</p>
+  </div>
+
+  <div class="block-inner">
+    <h2>健診判定ごとの人数</h2>
+    <p class="hint" style="margin:-8px 0 12px">受診済 {{ stat.done }}名の総合判定です。
+      判定を押すとその判定の一覧が開きます。</p>
+    {% set kbase = stat.done or 1 %}
+    {% set jcolor = {'A':'#38a169', 'B':'#0694a2', 'C':'#dd6b20', 'D':'#e53e3e',
+                     'E':'#805ad5'} %}
+    <div class="level-bar-wrap" style="margin-top:0">
+      {% for j in JUDGES %}
+      <div class="level-row">
+        <span class="level-label"><a href="{{ L }}&judge={{ j }}"
+          style="color:inherit">{{ j }} {{ JUDGE_LABEL[j] }}</a></span>
+        <div class="bar-bg"><div class="bar-fg"
+          style="background:{{ jcolor[j] }};
+                 width:{{ '%.0f'|format(judges[j] * 100.0 / kbase) }}%"></div></div>
+        <span class="level-val">{{ judges[j] }}名</span>
+      </div>
+      {% endfor %}
+      <div class="level-row">
+        <span class="level-label"><a href="{{ L }}&cond=none"
+          style="color:inherit">未受診</a></span>
+        <div class="bar-bg"><div class="bar-fg" style="background:#a0aec0;
+          width:{{ '%.0f'|format(judges['未受診'] * 100.0 / (stat.all or 1)) }}%"></div></div>
+        <span class="level-val">{{ judges['未受診'] }}名</span>
+      </div>
+    </div>
+    <p class="hint" style="margin:14px 0 0">判定区分は判定マスタの基準にもとづく参考情報です。
+      受診の必要性や就業上の措置の最終判断は産業医・医師が行います。</p>
+  </div>
+</div>
+
+{# ================= 所属ごとの状況 ================= #}
+<div class="block-inner" style="margin-top:20px">
+  <h2>所属ごとの状況</h2>
+  <p class="hint" style="margin:-8px 0 12px">要注意（C〜E判定・時間外{{ OT_LIMIT }}時間超・
+    高ストレス）の多い所属を上に並べています。所属名を押すとその所属の一覧が開きます。</p>
+  {% if depts %}
+  <div class="table-scroll" style="max-height:360px;overflow-y:auto">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr><th class="tl col-text">所属</th><th class="col-cnt">人数</th>
+      <th class="col-cnt">受診</th><th class="col-cnt">C〜E</th>
+      <th class="col-cnt">時間外</th><th class="col-cnt">高ストレス</th></tr></thead>
+    <tbody>
+    {% for d in depts %}
+    <tr class="ls-row">
+      <td class="tl"><a href="{{ url_for('hm.hm_list', fy=fy, dept=d.name) }}">{{ d.name }}</a></td>
+      <td class="num">{{ d.all }}</td>
+      <td class="num">{{ d.done }}</td>
+      <td class="num">{% if d.cde %}<span class="hm-bad">{{ d.cde }}</span>
+        {% else %}<span class="hint">0</span>{% endif %}</td>
+      <td class="num">{% if d.ot %}<span class="hm-bad">{{ d.ot }}</span>
+        {% else %}<span class="hint">0</span>{% endif %}</td>
+      <td class="num">{% if d.stress %}<span class="hm-bad">{{ d.stress }}</span>
+        {% else %}<span class="hint">0</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-box">対象の加入者がいません。</div>
+  {% endif %}
+</div>
+
+
+<script src="{{ url_for('static', filename='vendor/chart.min.js') }}"></script>
+<script>
+/* ダッシュボードのグラフ（健診代行・保健指導・産業医面談と同じ形） */
+var HD_LABELS = ['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'];
+var HD_DATA   = {{ monthly|tojson }};
+var HD_NAME   = {ken:'健診受診', ot:'時間外{{ OT_LIMIT }}時間超'};
+var HD_COLOR  = {ken:'#0694a2', ot:'#805ad5'};
+var hdMonthlyChart = null, hdJudgeChart = null;
+
+function hdMonthly(){
+  var key = document.getElementById('hd-chartSelector').value;
+  var d   = HD_DATA[key] || {cur:[], prev:[]};
+  var cv  = document.getElementById('hd-monthlyChart');
+  if(!cv || !window.Chart) return;
+  if(hdMonthlyChart) hdMonthlyChart.destroy();
+  hdMonthlyChart = new Chart(cv, {
+    type:'bar',
+    data:{labels:HD_LABELS, datasets:[
+      {label:'{{ fy }}年度 ' + HD_NAME[key], data:d.cur,
+       backgroundColor:HD_COLOR[key], borderRadius:4, maxBarThickness:26},
+      {label:'{{ fy|int - 1 }}年度 ' + HD_NAME[key], data:d.prev,
+       backgroundColor:'#cbd5e0', borderRadius:4, maxBarThickness:26}
+    ]},
+    options:{responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom', labels:{boxWidth:12, font:{size:11}}}},
+      scales:{y:{beginAtZero:true, ticks:{precision:0, font:{size:11}},
+                 grid:{color:'#edf2f7'}},
+              x:{grid:{display:false}, ticks:{font:{size:11}}}}}
+  });
+}
+
+function hdJudge(){
+  var cv = document.getElementById('hd-judgeChart');
+  if(!cv || !window.Chart) return;
+  if(hdJudgeChart) hdJudgeChart.destroy();
+  hdJudgeChart = new Chart(cv, {
+    type:'doughnut',
+    data:{labels:['A','B','C','D','E','未受診'],
+      datasets:[{data:[{{ judges['A'] }}, {{ judges['B'] }}, {{ judges['C'] }},
+                       {{ judges['D'] }}, {{ judges['E'] }}, {{ judges['未受診'] }}],
+        backgroundColor:['#38a169','#0694a2','#dd6b20','#e53e3e','#805ad5','#cbd5e0'],
+        borderWidth:0}]},
+    options:{responsive:true, maintainAspectRatio:false, cutout:'62%',
+      plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:10.5}}}}}
+  });
+}
+hdMonthly();
+hdJudge();
+</script>
+{% endblock %}

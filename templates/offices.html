@@ -56,17 +56,7 @@
 {{ search_script([('cname','cname'), ('code','code'), ('name','name')]) }}
 {{ rows_script() }}
 {% if CAN_MASTER %}
-{{ import_modal('imp-office', '事業所の一括インポート', url_for('offices_import'),
-   url_for('offices_template'),
-   [('保険者番号','必須','登録済みの健康保険組合の番号'),
-    ('事業所（企業）コード','必須','登録済みの企業のコード'),
-    ('所属コード','推奨','企業が管理する番号。**この番号で照合して更新**します'),
-    ('部署名','必須','コードが空欄のときは名称で照合します'),
-    ('部署名（フリガナ）','任意','—'),
-    ('郵便番号','任意','—'),
-    ('住所','任意','—'),
-    ('電話番号','任意','—')],
-   sample=url_for('sample_csv', name='office')) }}
+{{ import_modal('imp-office', '事業所の一括インポート', url_for('offices_import')) }}
 {% endif %}
 {{ import_script() }}
 {% endblock %}
