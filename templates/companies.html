@@ -6,10 +6,10 @@
 {# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
 {% if not EMBED %}
 <h1 class="page-title">企業情報</h1>
-<p class="page-lead">企業の登録・編集・削除を行います。事業所（企業）コードは健保が管理する番号を登録します（当社内部コードは自動で割り振ります）。</p>
+<p class="page-lead">企業の登録・編集・削除を行います。企業コードは健保が管理する番号を登録します（当社内部コードは自動で割り振ります）。</p>
 {% endif %}
 
-{{ search_card([('code', '事業所（企業）コード・内部コード', '200px'),
+{{ search_card([('code', '企業コード', '200px'),
                 ('name', '企業名・フリガナ', '260px'),
                 ('tel', '電話番号', '170px')], f) }}
 
@@ -34,26 +34,26 @@
        data-loaded="{{ rows|length }}" data-total="{{ total }}">
   <table class="result-table" style="width:100%">
     <!-- 列幅は「列幅の標準」（.col-*）に合わせています。
-         企業名（漢字）とフリガナは列を分け、残り幅を等分します
-         （操作列が画面の外に出ないよう、横スクロールなしで収めます） -->
+         コード類（企業コード・所属コード・部署コード）と件数（部署・加入者）は .col-num（120px）、
+         企業名・事業所名・部署名は .col-text（200px）で、企業・事業所・部署の一覧でそろえています。
+         内部コードとフリガナは一覧には出しません（詳細（編集）画面で見られます）。 -->
     <colgroup>
+      <col class="col-num">
+      <col class="col-text">
       <col class="col-num"><col class="col-num">
-      <col><col>
       <col class="col-num"><col class="col-num">
-      <col class="col-flag"><col class="col-flag">
-      <col class="col-dt"><col class="col-ops">
+      <col class="col-dt"><col class="col-ops"><col class="col-spacer">
     </colgroup>
     <thead><tr>
-      <th>事業所（企業）<br>コード</th>
-      <th>内部コード</th>
-      <th>企業名</th>
-      <th>企業名<br>（フリガナ）</th>
+      <th>企業コード</th>
+      <th class="tl col-text">企業名</th>
       <th>被保険者<br>証記号</th>
       <th>電話番号</th>
       <th>部署</th>
       <th>加入者</th>
       <th>更新日時</th>
       <th class="ops">操作</th>
+      <th class="col-spacer"></th>
     </tr></thead>
     <tbody>
     {% include "_rows_companies.html" %}

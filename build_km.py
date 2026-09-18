@@ -142,7 +142,6 @@ const KenpoDB = {
     if(no){ no.value = row ? (row.code || '') : ''; }
     if(nm){ nm.value = row ? (row.name || '') : ''; }
     if(typeof KE !== 'undefined'){
-      if(KE.setAuth) KE.setAuth(row ? (row.auth_pattern || 'A') : 'A');
       if(KE.updatePath) KE.updatePath();
       if(KE.setConsent) KE.setConsent(row ? (row.consent_text || '') : []);
     }
@@ -177,7 +176,6 @@ const KenpoDB = {
   save(btn){
     const no = (document.getElementById('ke-no') || {}).value || '';
     const nm = (document.getElementById('ke-name') || {}).value || '';
-    const auth = (document.getElementById('ke-auth') || {}).value || 'A';
     const consent = (typeof KE !== 'undefined' && KE.getConsent) ? KE.getConsent() : [];
     const editing = this.editingId;
     this.msg('', true);
@@ -185,7 +183,7 @@ const KenpoDB = {
     fetch(editing ? '/api/kenpos/' + editing : '/api/kenpos', {
       method: 'POST', credentials: 'same-origin',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({code: no, name: nm, auth_pattern: auth, consent_text: consent})
+      body: JSON.stringify({code: no, name: nm, consent_text: consent})
     }).then(r => r.json()).then(d => {
       btn.disabled = false;
       this.msg(d.message, !!d.ok);

@@ -27,6 +27,7 @@ import io
 import json
 import os
 import re
+from address_split import split_address
 import secrets
 import smtplib
 import sqlite3
@@ -244,21 +245,7 @@ SCOPE_LABELS = {"all": "全健保", "kenpo_all": "自組合全体",
                 "self": "ご本人のみ"}
 STATUS_LABELS = {"active": "有効", "invited": "PW未設定", "disabled": "無効",
                  "deleted": "削除済み"}
-# 加入者向けサイトの本人確認（認証）で使う項目のパターン。健保ごとに登録する。
-AUTH_PATTERNS = {
-    "A": ["被保険者記号", "被保険者番号", "カナ", "生年月日", "性別"],
-    "B": ["被保険者番号", "カナ", "生年月日", "性別"],
-}
-AUTH_PATTERN_NOTE = {
-    "A": "被保険者証に記号がある組合はこちら（記号と番号で本人を特定します）",
-    "B": "記号を使わない組合はこちら（番号のみで本人を特定します）",
-}
-
-
-def clean_auth_pattern(v, default="A"):
-    # 認証方式の値をそろえる（A か B のどちらか）
-    v = (v or "").strip().upper()
-    return v if v in AUTH_PATTERNS else default
+# 「認証方式（A／B）」の登録は 8-54 で廃止しました（kenpo.auth_pattern 列は互換のため残しています）
 # 各ロールが発行・変更できるロール（自分より広い権限は付与できない）
 ISSUABLE_ROLES = {
     "system_admin": ["system_admin", "kenpo_user", "company_user"],
@@ -792,13 +779,26 @@ def ip_allowlist():
                     mimetype="text/plain; charset=utf-8")
 
 
+def current_shell():
+    """画面の色味（青＝HIA健保管理／緑＝HIA総合管理）を、いま操作しているアカウントの状態から決める。
+    サポートログイン中は必ず HIA健保管理（青）。当社スタッフ本来の画面は HIA総合管理（緑）。
+    （以前はセッションに覚えた値を使っていたため、別のタブで総合管理を開くと
+    健保管理の枠の中まで緑に変わることがあった）"""
+    if support_kenpo():
+        return "kenpo"
+    me = real_account()
+    if me:
+        return SHELL_OF_ROLE.get(me["role"], "kenpo")
+    return session.get("shell", "kenpo")
+
+
 @app.context_processor
 def inject_globals():
     embed = bool(session.get("embed")) and request.endpoint not in ("dashboard",)
     return {
         "LAYOUT": "frag_base.html" if embed else "base.html",
         "EMBED": embed,
-        "SHELL": session.get("shell", "kenpo"),
+        "SHELL": current_shell(),
         # 画面の色味（産業医・人事はブルーグリーン）
         "TONE": role_tone(),
         "acc": current_account(),
@@ -816,8 +816,6 @@ def inject_globals():
         "can_feature": feature_allowed,
         "SCOPE_LABELS": SCOPE_LABELS,
         "STATUS_LABELS": STATUS_LABELS,
-        "AUTH_PATTERNS": AUTH_PATTERNS,
-        "AUTH_PATTERN_NOTE": AUTH_PATTERN_NOTE,
         "BUILD": BUILD,
         "VIEW_LOG_GAP": VIEW_LOG_GAP,
         "MAX_EXPORT_ROWS": MAX_EXPORT_ROWS,
@@ -1664,21 +1662,19 @@ def api_kenpos():
         return {"ok": False, "message": "この保険者番号は既に登録されています。"}
     if db.execute("SELECT 1 FROM kenpo WHERE name=?", (name,)).fetchone():
         return {"ok": False, "message": "この名称は既に登録されています。"}
-    auth = clean_auth_pattern(data.get("auth_pattern"))
     consent, err = clean_consent_text(data.get("consent_text"))
     if err:
         return {"ok": False, "message": err}
-    db.execute("INSERT INTO kenpo (code, name, auth_pattern, consent_text) VALUES (?,?,?,?)",
-               (code, name, auth, consent))
+    db.execute("INSERT INTO kenpo (code, name, consent_text) VALUES (?,?,?)",
+               (code, name, consent))
     kid = db.execute("SELECT id FROM kenpo WHERE code=?", (code,)).fetchone()["id"]
     db.commit()
     log("master", "健康保険組合を登録", "success", target=name,
-        detail=f"保険者番号={code}／認証方式={auth}（{'・'.join(AUTH_PATTERNS[auth])}）"
+        detail=f"保険者番号={code}"
                + (f"／同意文 {len(consent_items(consent))}項目" if consent else "／同意文なし"))
-    return {"ok": True, "id": kid, "auth_pattern": auth,
+    return {"ok": True, "id": kid,
             "message": f"{name}（保険者番号 {code}）を登録しました。"
-                       f"認証方式{auth}（{'・'.join(AUTH_PATTERNS[auth])}）"
-                       + ("／同意文を登録しました" if consent else "")}
+                       + ("同意文を登録しました" if consent else "")}
 
 
 # クローズサイトに表示する同意文：本文・同意必須 の項目の並びを JSON で保存する
@@ -1731,7 +1727,7 @@ def consent_items(text):
 def api_kenpo_one(kid):
     """健康保険組合 1件の取得・更新（HIA総合管理の編集画面から呼ぶ）
 
-    更新できるのは 保険者番号・保険者名称・認証方式・クローズサイトに表示する同意文。
+    更新できるのは 保険者番号・保険者名称・クローズサイトに表示する同意文。
     一覧のトグル（権限）は /api/kenpos/<id>/flag で切り替える。
     """
     db = get_db()
@@ -1753,8 +1749,6 @@ def api_kenpo_one(kid):
         return {"ok": False, "message": "この保険者番号は既に登録されています。"}
     if db.execute("SELECT 1 FROM kenpo WHERE name=? AND id<>?", (name, kid)).fetchone():
         return {"ok": False, "message": "この名称は既に登録されています。"}
-    cur_auth = clean_auth_pattern(row["auth_pattern"])
-    auth = clean_auth_pattern(data.get("auth_pattern"), cur_auth)
     cur_consent = row["consent_text"] if "consent_text" in row.keys() else ""
     if "consent_text" in data:
         consent, err = clean_consent_text(data.get("consent_text"))
@@ -1762,16 +1756,14 @@ def api_kenpo_one(kid):
             return {"ok": False, "message": err}
     else:
         consent = cur_consent or ""
-    db.execute("UPDATE kenpo SET code=?, name=?, auth_pattern=?, consent_text=? WHERE id=?",
-               (code, name, auth, consent, kid))
+    db.execute("UPDATE kenpo SET code=?, name=?, consent_text=? WHERE id=?",
+               (code, name, consent, kid))
     db.commit()
     changes = []
     if code != row["code"]:
         changes.append(f"保険者番号 {row['code']} → {code}")
     if name != row["name"]:
         changes.append(f"名称 {row['name']} → {name}")
-    if auth != cur_auth:
-        changes.append(f"認証方式 {cur_auth} → {auth}")
     if consent != (cur_consent or ""):
         changes.append("同意文を" + ("削除（表示しない）" if not consent
                                   else f"更新（{len(consent_items(consent))}項目）"))
@@ -1804,13 +1796,9 @@ def kenpo_new():
         for e in errs:
             flash(e, "error")
         return render_template("kenpo_form.html", row=None, form=request.form)
-    auth = clean_auth_pattern(request.form.get("auth_pattern"))
-    db.execute("INSERT INTO kenpo (code, name, auth_pattern) VALUES (?,?,?)",
-               (code, name, auth))
+    db.execute("INSERT INTO kenpo (code, name) VALUES (?,?)", (code, name))
     db.commit()
-    log("master", "健康保険組合を登録", "success", target=name,
-        detail=f"保険者番号={code}／認証方式={auth}"
-               f"（{'・'.join(AUTH_PATTERNS[auth])}）")
+    log("master", "健康保険組合を登録", "success", target=name, detail=f"保険者番号={code}")
     flash(f"{name}（保険者番号 {code}）を登録しました。", "ok")
     return redirect(url_for("kenpos"))
 
@@ -1842,15 +1830,10 @@ def kenpo_edit(kid):
         for e in errs:
             flash(e, "error")
         return render_template("kenpo_form.html", row=row, form=request.form)
-    cur_auth = (row["auth_pattern"] if "auth_pattern" in row.keys() else "A") or "A"
-    auth = clean_auth_pattern(request.form.get("auth_pattern"), cur_auth)
-    db.execute("UPDATE kenpo SET code=?, name=?, auth_pattern=? WHERE id=?",
-               (code, name, auth, kid))
+    db.execute("UPDATE kenpo SET code=?, name=? WHERE id=?", (code, name, kid))
     db.commit()
     log("master", "健康保険組合を更新", "success", target=name,
-        detail=f"保険者番号 {row['code']} → {code}／名称 {row['name']} → {name}"
-               + (f"／認証方式 {cur_auth} → {auth}" if cur_auth != auth
-                  else f"／認証方式={auth}"))
+        detail=f"保険者番号 {row['code']} → {code}／名称 {row['name']} → {name}")
     flash(f"{name} を更新しました。", "ok")
     return redirect(url_for("kenpos"))
 
@@ -1967,7 +1950,7 @@ DRUG_CLASSES = {
 }
 
 # 個人を特定しうる項目。NSIPS連携で混入した場合は取込まず除外する
-PII_KEYS = {"name", "kana", "birth", "address", "zip", "tel", "email",
+PII_KEYS = {"name", "kana", "birth", "address", "pref", "city", "zip", "tel", "email",
             "member_no", "cert_mark", "insured_no", "patient_name", "patient_id"}
 
 
@@ -3062,7 +3045,7 @@ def company_new():
         kenpos = db.execute("SELECT * FROM kenpo ORDER BY code").fetchall()
     else:
         kenpos = db.execute("SELECT * FROM kenpo WHERE id=?", (acc["kenpo_id"],)).fetchall()
-    # 健保ごとに、次に採番される事業所（企業）コードを先読みする
+    # 健保ごとに、次に採番される企業コードを先読みする
     nexts = {str(k["id"]): peek_code("company", str(k["id"])) for k in kenpos}
     if request.method == "GET":
         return render_template("company_form.html", row=None, kenpos=kenpos, nexts=nexts)
@@ -3074,13 +3057,13 @@ def company_new():
     if not name:
         errs.append("企業名を入力してください。")
     if ext and not re.fullmatch(r"[0-9A-Za-z\-]{1,20}", ext):
-        errs.append("事業所（企業）コードは英数字とハイフンで入力してください。")
+        errs.append("企業コードは英数字とハイフンで入力してください。")
     if not kenpo_id:
         errs.append("健康保険組合を選択してください。")
     else:
         if ext and db.execute("SELECT 1 FROM company WHERE kenpo_id=? AND ext_code=?",
                               (kenpo_id, ext)).fetchone():
-            errs.append(f"事業所（企業）コード {ext} は、この健康保険組合で既に使われています。")
+            errs.append(f"企業コード {ext} は、この健康保険組合で既に使われています。")
         kn = db.execute("SELECT name FROM kenpo WHERE id=?", (kenpo_id,)).fetchone()
         if kn and name == kn["name"]:
             log("master", "企業登録をブロック", "blocked", target=name,
@@ -3102,10 +3085,10 @@ def company_new():
                 g("tel"), g("address"), g("email")))
     db.commit()
     log("master", "企業を登録", "success", target=name,
-        detail=f"事業所（企業）コード={ext or '（未設定）'}／当社内部コード={code}")
+        detail=f"企業コード={ext or '（未設定）'}／当社内部コード={code}")
     flash(f"「{name}」を登録しました。"
-          + (f"事業所（企業）コードは {ext} です。" if ext
-             else "事業所（企業）コードは未設定です。")
+          + (f"企業コードは {ext} です。" if ext
+             else "企業コードは未設定です。")
           + f"（当社内部コード {code}）", "ok")
     return redirect(url_for("companies"))
 
@@ -3149,7 +3132,7 @@ def company_edit(cid):
     ext = g("ext_code")
     if ext and db.execute("SELECT 1 FROM company WHERE kenpo_id=? AND ext_code=? AND id<>?",
                           (row["kenpo_id"], ext, cid)).fetchone():
-        flash(f"事業所（企業）コード {ext} は、この健康保険組合で既に使われています。", "error")
+        flash(f"企業コード {ext} は、この健康保険組合で既に使われています。", "error")
         return redirect(url_for("company_edit", cid=cid))
     before = f"{row['name']}／{row['ext_code'] or '—'}／TEL {row['tel'] or '—'}"
     kn = db.execute("SELECT name FROM kenpo WHERE id=?", (row["kenpo_id"],)).fetchone()
@@ -3160,7 +3143,7 @@ def company_edit(cid):
                 g("email"), now(), cid))
     db.commit()
     log("master", "企業情報を編集", "success", target=name,
-        detail=f"事業所（企業）コード={ext or '（未設定）'}／変更前: {before}")
+        detail=f"企業コード={ext or '（未設定）'}／変更前: {before}")
     flash(f"「{name}」の情報を更新しました。", "ok")
     return redirect(url_for("companies"))
 
@@ -3774,7 +3757,7 @@ def api_members_link():
 
 
 MEMBER_FORM_FIELDS = ("cert_mark", "cert_branch", "attr", "relation", "kana", "sex",
-                      "qualified_at", "lost_at", "zip", "address", "address2", "tel",
+                      "qualified_at", "lost_at", "zip", "pref", "city", "address", "address2", "tel",
                       "email", "billing_code", "employee_code", "kenpo_member_id",
                       "memo")
 
@@ -4397,13 +4380,22 @@ def member_photo_delete(mid, pid):
     return redirect(request.form.get("back") or url_for("member_photos_page", mid=mid))
 
 
+# 取込ファイルの見出しの旧名称（そのまま取り込めるようにする）
+HEADER_ALIASES = {"事業所（企業）コード": "企業コード"}
+
+
 def read_table(fs):
     raw = fs.read()
     for enc in ("utf-8-sig", "cp932", "utf-8"):
         try:
-            return list(csv.DictReader(io.StringIO(raw.decode(enc))))
+            rows = list(csv.DictReader(io.StringIO(raw.decode(enc))))
         except UnicodeDecodeError:
             continue
+        for r in rows:
+            for old, new in HEADER_ALIASES.items():
+                if old in r and new not in r:
+                    r[new] = r.pop(old)
+        return rows
     raise ValueError("文字コードを判別できませんでした（UTF-8 または Shift_JIS で保存してください）")
 
 
@@ -4424,7 +4416,7 @@ MEMBER_COLUMNS = ["加入者ID", "被保険者証記号", "被保険者証番号
                   "被保険者属性名", "続柄名称", "対象者氏名（漢字）", "対象者氏名（カナ）",
                   "性別", "生年月日", "資格取得日（家族認定日）", "資格喪失日（家族削除日）",
                   "郵便番号", "住所", "住所（建物名）", "電話番号", "メールアドレス",
-                  "事業所（企業）コード", "所属コード", "請求先コード", "社員番号",
+                  "企業コード", "所属コード", "請求先コード", "社員番号",
                   "健保別加入者管理ID"]
 MEMBER_REQUIRED = ["被保険者証番号", "対象者氏名（漢字）"]
 # 加入者IDは当システムで採番する（ファイルの値は使わない）
@@ -4470,7 +4462,7 @@ def members_import():
     db, acc = get_db(), current_account()
     fs = request.files.get("file")
     rows, resp = _read_upload(fs, MEMBER_COLUMNS, "members",
-                              ["被保険者証番号", "対象者氏名（漢字）", "事業所（企業）コード"])
+                              ["被保険者証番号", "対象者氏名（漢字）", "企業コード"])
     if rows is None:
         return resp
 
@@ -4501,7 +4493,7 @@ def members_import():
     ok, err, seen = [], [], set()
     for i, r in enumerate(rows, start=2):
         g = lambda k: (r.get(k) or "").strip()
-        no, name, ccode = g("被保険者証番号"), g("対象者氏名（漢字）"), g("事業所（企業）コード")
+        no, name, ccode = g("被保険者証番号"), g("対象者氏名（漢字）"), g("企業コード")
         ocode = g("所属コード")
         mark, branch = g("被保険者証記号"), g("被保険者証枝番")
         e, warn = [], []
@@ -4551,7 +4543,8 @@ def members_import():
                            "qualified_at": qual,
                            "lost_at": lost,
                            "zip": g("郵便番号"),
-                           "address": g("住所"),
+                           # 取込ファイルの「住所」は 都道府県・市区町村・住所 に分けて持つ
+                           **dict(zip(("pref", "city", "address"), split_address(g("住所")))),
                            "address2": g("住所（建物名）"),
                            "tel": g("電話番号"),
                            "email": g("メールアドレス"),
@@ -4646,7 +4639,7 @@ def _read_upload(fs, columns, back, required=None):
     return rows, None
 
 
-COMPANY_COLUMNS = ["事業所（企業）コード", "保険者番号", "被保険者証記号", "企業名",
+COMPANY_COLUMNS = ["企業コード", "保険者番号", "被保険者証記号", "企業名",
                    "企業名（フリガナ）", "郵便番号", "住所", "電話番号", "担当メールアドレス",
                    "所属コード", "部署名", "部署名（フリガナ）"]
 COMPANY_REQUIRED = ["保険者番号", "企業名", "部署名"]
@@ -4687,7 +4680,7 @@ def companies_import():
     db, acc = get_db(), current_account()
     fs = request.files.get("file")
     rows, resp = _read_upload(fs, COMPANY_COLUMNS, "companies",
-                              ["事業所（企業）コード", "保険者番号", "企業名", "部署名"])
+                              ["企業コード", "保険者番号", "企業名", "部署名"])
     if rows is None:
         return resp
 
@@ -4700,7 +4693,7 @@ def companies_import():
     ok, err, seen, seen_c = [], [], set(), set()
     for i, r in enumerate(rows, start=2):
         g = lambda k: (r.get(k) or "").strip()
-        ccode, kcode, cname = g("事業所（企業）コード"), g("保険者番号"), g("企業名")
+        ccode, kcode, cname = g("企業コード"), g("保険者番号"), g("企業名")
         ocode, oname = g("所属コード"), g("部署名")
         e = []
         for col in COMPANY_REQUIRED:
@@ -4715,7 +4708,7 @@ def companies_import():
             e.append("同じ企業・事業所の行がファイル内で重複")
         seen.add(key)
 
-        # 既存かどうかは「健保が管理する事業所（企業）コード」で判断する。
+        # 既存かどうかは「健保が管理する企業コード」で判断する。
         # コードが空の場合は企業名で照合する。
         cur_c = None
         if kenpo and ccode:
@@ -4736,7 +4729,7 @@ def companies_import():
         seen_c.add((kcode, ccode or cname))
         warn = []
         if not ccode:
-            warn.append("事業所（企業）コードが空欄のため、企業名で照合します")
+            warn.append("企業コードが空欄のため、企業名で照合します")
         if not ocode:
             warn.append("所属コードが空欄のため、事業所名で照合します")
         row = {"line": i, "cells": [g(c) for c in COMPANY_COLUMNS], "errors": e,
@@ -4762,7 +4755,7 @@ def companies_import():
                            commit_url=url_for("companies_import_commit"), show_mode=True,
                            has_warn=any(r["warnings"] for r in ok + err),
                            lead="1行につき企業と部署（事業所）を登録します。"
-                                "事業所（企業）コードと所属コードは"
+                                "企業コードと所属コードは"
                                 "健保・企業が管理する番号として保存し、次回の取込で"
                                 "同じ番号の行があれば内容を更新します（更新のキー）。"
                                 "当社内部コードは自動で割り振ります。")
@@ -4850,9 +4843,9 @@ def office_options(acc):
             for o in scoped_offices(acc)]
 
 
-OFFICE_COLUMNS = ["保険者番号", "事業所（企業）コード", "所属コード", "部署名",
+OFFICE_COLUMNS = ["保険者番号", "企業コード", "所属コード", "部署名",
                   "部署名（フリガナ）", "郵便番号", "住所", "電話番号"]
-OFFICE_REQUIRED = ["保険者番号", "事業所（企業）コード", "部署名"]
+OFFICE_REQUIRED = ["保険者番号", "企業コード", "部署名"]
 # 所属コードはファイルの値を使わず、当システムで採番する
 OFFICE_SAMPLE = ["6139166", "456", "8718", "株式会社　光通信", "ヒカリツウシン",
                  "1080023", "東京都港区芝浦4-16-25　安全ビル4F", "363651454"]
@@ -4875,7 +4868,7 @@ def offices_import():
     if rows is None:
         return resp
 
-    # 操作できる企業を (保険者番号, 事業所（企業）コード) で引けるようにする。
+    # 操作できる企業を (保険者番号, 企業コード) で引けるようにする。
     # 健保が管理する番号（ext_code）でも、当社内部コードでも引ける。
     comps = {}
     for c in scoped_companies(acc):
@@ -4887,7 +4880,7 @@ def offices_import():
     ok, err, seen = [], [], set()
     for i, r in enumerate(rows, start=2):
         g = lambda k: (r.get(k) or "").strip()
-        kcode, ccode, ocode, name = (g("保険者番号"), g("事業所（企業）コード"),
+        kcode, ccode, ocode, name = (g("保険者番号"), g("企業コード"),
                                      g("所属コード"), g("部署名"))
         e = []
         for col in OFFICE_REQUIRED:
@@ -4933,7 +4926,7 @@ def offices_import():
                            commit_url=url_for("offices_import_commit"), show_mode=True,
                            has_warn=any(r["warnings"] for r in ok + err),
                            link=_link_conf("企業", company_options(acc),
-                                           "ファイルの保険者番号・事業所（企業）コードで"
+                                           "ファイルの保険者番号・企業コードで"
                                            "企業を照合しています。"
                                            "選び直すと、その企業の下に登録します。"),
                            lead="所属コードは企業が管理する番号として保存し、"
@@ -4995,9 +4988,9 @@ def offices_import_commit():
 # ================================================================ 部署の一括取込
 # 事業所の下に置く部署を取り込む。事業所は「所属コード」で照合し、
 # 特定できない行は確認画面で事業所を選んで紐づけます。
-DEPT_COLUMNS = ["保険者番号", "事業所（企業）コード", "所属コード", "部署コード",
+DEPT_COLUMNS = ["保険者番号", "企業コード", "所属コード", "部署コード",
                 "部署名", "部署名（フリガナ）"]
-DEPT_REQUIRED = ["保険者番号", "事業所（企業）コード", "部署名"]
+DEPT_REQUIRED = ["保険者番号", "企業コード", "部署名"]
 
 
 @app.route("/departments/import", methods=["POST"])
@@ -5010,7 +5003,7 @@ def departments_import():
     if rows is None:
         return resp
 
-    # 操作できる事業所を（保険者番号, 事業所（企業）コード, 所属コード）で引けるようにする
+    # 操作できる事業所を（保険者番号, 企業コード, 所属コード）で引けるようにする
     offs = {}
     for o in scoped_offices(acc):
         k = db.execute("SELECT code FROM kenpo WHERE id=?", (o["kenpo_id"],)).fetchone()
@@ -5022,7 +5015,7 @@ def departments_import():
     ok, err, seen = [], [], set()
     for i, r in enumerate(rows, start=2):
         g = lambda k: (r.get(k) or "").strip()
-        kcode, ccode, ocode = g("保険者番号"), g("事業所（企業）コード"), g("所属コード")
+        kcode, ccode, ocode = g("保険者番号"), g("企業コード"), g("所属コード")
         dcode, name = g("部署コード"), g("部署名")
         e = []
         for col in DEPT_REQUIRED:
@@ -5153,7 +5146,8 @@ def members_export():
     rows = db.execute(
         "SELECT m.subscriber_id, m.cert_mark, m.member_no, m.cert_branch, m.attr,"
         " m.relation, m.name, m.kana, m.sex, m.birth, m.qualified_at, m.lost_at,"
-        " m.zip, m.address, m.address2, m.tel, m.email, c.code, o.code,"
+        " m.zip, TRIM(COALESCE(m.pref,'')||COALESCE(m.city,'')||COALESCE(m.address,'')),"
+        " m.address2, m.tel, m.email, c.code, o.code,"
         " m.billing_code, m.employee_code, m.kenpo_member_id"
         " FROM member m LEFT JOIN company c ON c.id=m.company_id"
         " LEFT JOIN office o ON o.id=m.office_id"

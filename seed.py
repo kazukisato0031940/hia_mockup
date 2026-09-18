@@ -103,7 +103,7 @@ def load_samples(con):
         con.execute(
             "INSERT INTO company (kenpo_id, ext_code, code, name, kana, cert_mark, zip,"
             " tel, address, email) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (kid, (row.get("事業所（企業）コード") or "").strip() or None,
+            (kid, (row.get("企業コード") or "").strip() or None,
              internal_company_code("ひかり健康保険組合", name),
              name, row.get("企業名（フリガナ）", ""),
              row.get("被保険者証記号", ""), row.get("郵便番号", ""),
@@ -148,7 +148,7 @@ def load_samples(con):
     # 2) 部署の追加分
     for r in read_sample("office_sample.csv"):
         c = con.execute("SELECT id FROM company WHERE kenpo_id=? AND ext_code=?",
-                        (kid, (r.get("事業所（企業）コード") or "").strip())).fetchone()
+                        (kid, (r.get("企業コード") or "").strip())).fetchone()
         if c:
             oid = add_office(c["id"], (r.get("部署名") or "").strip(),
                              r.get("部署名（フリガナ）", ""), r.get("郵便番号", ""),
@@ -162,7 +162,7 @@ def load_samples(con):
         cid = oid = did = None
         if i < len(rows) - 3:      # 最後の3件は未紐づけのまま残す
             c = con.execute("SELECT id FROM company WHERE kenpo_id=? AND ext_code=?",
-                            (kid, g("事業所（企業）コード"))).fetchone()
+                            (kid, g("企業コード"))).fetchone()
             if c:
                 cid = c["id"]
                 o = con.execute("SELECT id FROM office WHERE company_id=? AND ext_code=?",

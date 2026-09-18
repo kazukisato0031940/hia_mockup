@@ -5,41 +5,7 @@
   {% else %}加入者を1件ずつ登録します。まとめて登録する場合は一覧の「一括インポート」をお使いください。{% endif %}</p>
 
 <style>
-/* ===== 項目の並び（見出しの帯 ＋ 表形式：項目名のセル｜入力欄のセル を左右2組） ===== */
-.mt-block{padding:0;overflow:hidden}
-.mt-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 20px;
-  border-bottom:1px solid var(--border)}
-.mt-head h2{margin:0;font-size:14px}
-.mt-note{font-size:11.5px;color:var(--gray-label);line-height:1.6}
-.mt-tbl{display:grid;grid-template-columns:150px minmax(0,1fr) 150px minmax(0,1fr);
-  margin:16px 20px 20px;border:1px solid var(--border);border-radius:6px;overflow:hidden}
-.mt-label,.mt-cell{display:flex;align-items:center;min-height:58px;padding:9px 14px;
-  border-bottom:1px solid var(--border);border-right:1px solid var(--border);
-  margin-bottom:-1px}
-.mt-label{gap:8px;background:#f8fafc;color:#718096;font-size:12.5px;font-weight:500;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mt-label .req{flex:0 0 auto}
-.mt-cell{flex-wrap:wrap;gap:6px 12px;max-width:none}
-.mt-cell:nth-child(4n){border-right:0}
-.mt-span{grid-column:2 / -1;border-right:0}
-.mt-cell input[type=text],.mt-cell select{width:220px;max-width:100%}
-.mt-cell input[type=date]{width:180px;max-width:100%}
-.mt-cell.mt-w-s input[type=text],.mt-cell.mt-w-s select{width:160px}
-.mt-cell.mt-w-m input[type=text],.mt-cell.mt-w-m select{width:300px}
-.mt-cell.mt-w-l select{width:100%;max-width:460px}
-.mt-cell.mt-w-xl input[type=text]{width:100%;max-width:860px}
-.mt-cell.mt-w-full input[type=text],.mt-cell.mt-w-full textarea{width:100%}
-.mt-cell textarea{padding:8px 12px;border-radius:6px;border:1px solid #ccc;font:inherit;font-size:14px}
-.mt-cell .fld-help{flex-basis:100%;margin:0}
-.mt-info{margin:0 20px 20px;padding:11px 14px;border:1px solid #cfe0f5;border-radius:6px;
-  background:#eef4fc;color:#1a365d;font-size:12.5px;line-height:1.6}
-.mt-block .auto-note{margin:0 20px 20px}
-@media (max-width:1180px){
-  .mt-tbl{grid-template-columns:150px minmax(0,1fr)}
-  .mt-cell{border-right:0}
-  .mt-span{grid-column:2}
-  .mt-cell.mt-w-m input[type=text],.mt-cell.mt-w-l select{width:100%}
-}
+/* 項目の並び（見出しの帯＋表形式 .mt-*）は app.css の共通レイアウトを使います */
 /* ===== マイページ表示（対象状況） ===== */
 .mp-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 @media (max-width:1180px){.mp-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -52,9 +18,6 @@
   font-weight:700;background:#edf2f7;color:#4a5568}
 .mp-item.on .mp-badge{background:#e8f4ec;color:#15803d}
 .mp-detail{font-size:12px;color:#666666;line-height:1.6}
-.mp-meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin:0 0 14px;font-size:12px;
-  color:#666666}
-.mp-meta b{color:#333333;font-weight:700}
 </style>
 
 {% if row and mypage %}
@@ -63,16 +26,6 @@
   <div class="blk-head">
     <div class="blk-head-left"><h2>この加入者の対象状況</h2></div>
   </div>
-  <p class="mp-meta">
-    <span>加入者ID <b>{{ row.subscriber_id or '—' }}</b></span>
-    <span>被保険者証 <b>{{ row.cert_mark or '—' }} - {{ row.member_no }}{% if row.cert_branch %}-{{ row.cert_branch }}{% endif %}</b></span>
-    <span>続柄 <b>{{ row.relation or '—' }}</b></span>
-    <span>性別 <b>{{ row.sex or '—' }}</b></span>
-    <span>年齢 <b>{% if mypage.age is not none %}{{ mypage.age }}歳{% else %}—{% endif %}</b></span>
-    <span>所属 <b>{{ row.company_name or '未紐づけ' }}{% if row.office_name %}／{{ row.office_name }}{% endif %}{% if row.dept_name %}／{{ row.dept_name }}{% endif %}</b></span>
-    <span>資格 <b>{% if row.lost_at %}喪失（{{ row.lost_at.replace('-', '/') }}）{% else %}あり{% if row.qualified_at %}（{{ row.qualified_at.replace('-', '/') }}取得）{% endif %}{% endif %}</b></span>
-    <span>{{ mypage.fy }}年度</span>
-  </p>
   <div class="mp-grid">
     {% for sv in mypage.services %}
     <div class="mp-item {{ 'on' if sv.target }}">
@@ -195,18 +148,21 @@
   <div class="block mt-block">
     <div class="mt-head"><h2>連絡先</h2></div>
     <div class="mt-tbl">
-      <label for="zip" class="mt-label">郵便番号</label><div class="mt-cell fld"><input type="text" id="zip" name="zip" maxlength="8"
+<label for="zip" class="mt-label">郵便番号</label><div class="mt-cell fld mt-w-s"><input type="text" id="zip" name="zip" maxlength="8"
             value="{{ (form.zip if form else (row.zip if row else '')) or '' }}" placeholder="例：1710014"></div>
+      <label for="pref" class="mt-label">都道府県</label><div class="mt-cell fld mt-w-s"><input type="text" id="pref" name="pref"
+            value="{{ (form.pref if form else (row.pref if row else '')) or '' }}" placeholder="例：東京都"></div>
+      <label for="city" class="mt-label">市区町村</label><div class="mt-cell fld mt-w-m"><input type="text" id="city" name="city"
+            value="{{ (form.city if form else (row.city if row else '')) or '' }}" placeholder="例：豊島区"></div>
+      <label for="address" class="mt-label">住所</label><div class="mt-cell fld mt-w-m"><input type="text" id="address" name="address"
+            value="{{ (form.address if form else (row.address if row else '')) or '' }}" placeholder="例：池袋2-43-1"></div>
+      <label for="address2" class="mt-label">建物名</label><div class="mt-cell fld mt-w-xl mt-span"><input type="text" id="address2" name="address2"
+            value="{{ (form.address2 if form else (row.address2 if row else '')) or '' }}" placeholder="例：池袋青柳ビル7F"></div>
       <label for="tel" class="mt-label">電話番号</label><div class="mt-cell fld"><input type="text" id="tel" name="tel"
             value="{{ (form.tel if form else (row.tel if row else '')) or '' }}" placeholder="例：03-6416-3872"></div>
-      <label for="address" class="mt-label">住所</label><div class="mt-cell fld mt-w-full mt-span"><input type="text" id="address" name="address"
-            value="{{ (form.address if form else (row.address if row else '')) or '' }}" placeholder="例：東京都豊島区池袋2-43-1"></div>
-      <label for="address2" class="mt-label">住所（建物名）</label><div class="mt-cell fld mt-w-xl mt-span"><input type="text" id="address2" name="address2"
-            value="{{ (form.address2 if form else (row.address2 if row else '')) or '' }}" placeholder="例：池袋青柳ビル7F"></div>
-      <label for="email" class="mt-label">メールアドレス</label><div class="mt-cell fld mt-w-xl mt-span"><input type="text" id="email" name="email"
+      <label for="email" class="mt-label">メールアドレス</label><div class="mt-cell fld mt-w-m"><input type="text" id="email" name="email"
             value="{{ (form.email if form else (row.email if row else '')) or '' }}" placeholder="例：taro@example.jp"></div>
     </div>
-    <p class="mt-info">マイナンバー（個人番号）は本画面では登録しません。特定個人情報は権限を分離した専用機能で管理します。</p>
   </div>
 
   <div class="block mt-block">

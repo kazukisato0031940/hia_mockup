@@ -1,39 +1,18 @@
 {% extends LAYOUT %}{% block body %}
-<h1 class="page-title">{{ '事業所情報の編集' if row else '事業所の登録' }}</h1>
+<h1 class="page-title">{{ row.name if row else '事業所の登録' }}</h1>
 <p class="page-lead">
   {% if row %}登録済みの事業所を編集します。企業は変更できません。
   {% else %}部署（事業所）を1件ずつ登録します。まとめて登録する場合は一覧の「一括インポート」をお使いください。{% endif %}</p>
 
-{% if row %}
-<div class="rec-head">
-  <div class="rec-main">
-    <span class="rec-code">{{ row.ext_code or '（番号なし）' }}</span>
-    <span class="rec-name">{{ row.name }}</span>
-  </div>
-  <div class="rec-meta">
-    <span class="rec-tag">{{ row.company_ext or row.company_code }}　{{ row.company_name }}</span>
-    <span class="rec-tag">内部コード {{ row.code }}</span>
-    <span class="rec-tag">加入者 {{ '{:,}'.format(n_mem or 0) }}人</span>
-  </div>
-</div>
-{% endif %}
 
 <form method="post">
-
-<div class="block mf-card">
-
-  <div class="mf-sec">
-    <div class="mf-sec-head">
-      <h2>基本情報</h2>
-      <span class="mf-sec-note"><b>所属コード</b>は企業が管理している番号で、取込の照合キーになります。
+  <div class="block mt-block">
+    <div class="mt-head"><h2>基本情報</h2>
+      <span class="mt-note"><b>所属コード</b>は企業が管理している番号で、取込の照合キーになります。
         <b>当社内部コード</b>は登録順に自動発番します{% if row %}：<b class="mono">{{ row.code }}</b>{% else %}
-        （この登録では <b class="mono" id="next-code">{{ nexts.values()|list|first if nexts else '001' }}</b>）{% endif %}。</span>
-    </div>
-    <div class="mf-grid mf-g-o-basic">
-      <div class="fld">
-        <label {{ 'for="company_id"' if not row }} class="fld-label">
-          企業{% if not row %}<span class="req">必須</span>{% endif %}</label>
-        {% if row %}
+        （この登録では <b class="mono" id="next-code">{{ nexts.values()|list|first if nexts else '001' }}</b>）{% endif %}。</span></div>
+    <div class="mt-tbl">
+      <label {{ 'for="company_id"' if not row }} class="mt-label">企業{% if not row %}<span class="req">必須</span>{% endif %}</label><div class="mt-cell fld mt-w-l">{% if row %}
         <input type="text" value="{{ row.company_ext or row.company_code }}　{{ row.company_name }}" disabled>
         {% else %}
         <select id="company_id" name="company_id" required
@@ -42,64 +21,28 @@
             {{ 'selected' if form and form.company_id|int == c.id }}>{{ c.ext_code or c.code }}　{{ c.name }}</option>{% endfor %}
         </select>
         {% if comps|length == 1 %}<input type="hidden" name="company_id" value="{{ comps[0].id }}">{% endif %}
-        {% endif %}
-      </div>
-      <div class="fld">
-        <label for="ext_code" class="fld-label">所属コード</label>
-        <input type="text" id="ext_code" name="ext_code" maxlength="20"
-          value="{{ (form.ext_code if form else (row.ext_code if row else '')) or '' }}"
-          placeholder="例：8718">
-      </div>
-      <div class="fld">
-        <label for="name" class="fld-label">事業所名<span class="req">必須</span></label>
-        <input type="text" id="name" name="name" required
-          value="{{ (form.name if form else (row.name if row else '')) or '' }}"
-          placeholder="例：本社">
-      </div>
-      <div class="fld">
-        <label for="kana" class="fld-label">事業所名（フリガナ）</label>
-        <input type="text" id="kana" name="kana"
-          value="{{ (form.kana if form else (row.kana if row else '')) or '' }}"
-          placeholder="例：ホンシャ">
-      </div>
+        {% endif %}</div>
+      <label for="ext_code" class="mt-label">所属コード</label><div class="mt-cell fld"><input type="text" id="ext_code" name="ext_code" maxlength="20"
+            value="{{ (form.ext_code if form else (row.ext_code if row else '')) or '' }}" placeholder="例：8718"></div>
+      <label for="name" class="mt-label">事業所名<span class="req">必須</span></label><div class="mt-cell fld mt-w-m"><input type="text" id="name" name="name" required
+            value="{{ (form.name if form else (row.name if row else '')) or '' }}" placeholder="例：本社"></div>
+      <label for="kana" class="mt-label">事業所名（フリガナ）</label><div class="mt-cell fld mt-w-m"><input type="text" id="kana" name="kana"
+            value="{{ (form.kana if form else (row.kana if row else '')) or '' }}" placeholder="例：ホンシャ"></div>
     </div>
   </div>
 
-  <div class="mf-sec">
-    <div class="mf-sec-head">
-      <h2>所在地</h2>
-      <span class="mf-sec-note">郵便番号はハイフンなしでも構いません。</span>
-    </div>
-    <div class="mf-grid mf-g-addr">
-      <div class="fld">
-        <label for="zip" class="fld-label">郵便番号</label>
-        <input type="text" id="zip" name="zip" maxlength="8"
-          value="{{ (form.zip if form else (row.zip if row else '')) or '' }}"
-          placeholder="例：1080023">
-      </div>
-      <div class="fld">
-        <label for="address" class="fld-label">住所</label>
-        <input type="text" id="address" name="address"
-          value="{{ (form.address if form else (row.address if row else '')) or '' }}"
-          placeholder="例：東京都港区芝浦4-16-25　安全ビル4F">
-      </div>
+  <div class="block mt-block">
+    <div class="mt-head"><h2>所在地・連絡先</h2>
+      <span class="mt-note">郵便番号はハイフンなしでも構いません。</span></div>
+    <div class="mt-tbl">
+      <label for="zip" class="mt-label">郵便番号</label><div class="mt-cell fld mt-w-s"><input type="text" id="zip" name="zip" maxlength="8"
+            value="{{ (form.zip if form else (row.zip if row else '')) or '' }}" placeholder="例：1080023"></div>
+      <label for="address" class="mt-label">住所</label><div class="mt-cell fld mt-w-xl"><input type="text" id="address" name="address"
+            value="{{ (form.address if form else (row.address if row else '')) or '' }}" placeholder="例：東京都港区芝浦4-16-25　安全ビル4F"></div>
+      <label for="tel" class="mt-label">電話番号</label><div class="mt-cell fld mt-span"><input type="text" id="tel" name="tel"
+            value="{{ (form.tel if form else (row.tel if row else '')) or '' }}" placeholder="例：03-6365-1454"></div>
     </div>
   </div>
-
-  <div class="mf-sec">
-    <div class="mf-sec-head"><h2>連絡先</h2></div>
-    <div class="mf-grid mf-g-tel">
-      <div class="fld">
-        <label for="tel" class="fld-label">電話番号</label>
-        <input type="text" id="tel" name="tel"
-          value="{{ (form.tel if form else (row.tel if row else '')) or '' }}"
-          placeholder="例：03-6365-1454">
-      </div>
-      <div class="fld"></div><div class="fld"></div>
-    </div>
-  </div>
-
-</div>
 
 {% if not row %}
 <div class="block next-steps">

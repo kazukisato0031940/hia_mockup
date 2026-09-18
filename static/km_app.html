@@ -305,11 +305,6 @@ td.op-cell{padding:0 6px;vertical-align:middle;}
 .mu-type-btn.active{border-color:#7c3aed;background:#ede9fe;color:#7c3aed;}
 .ke-method-btn:hover{border-color:#2f4f4f;color:#2f4f4f;}
 .ke-method-btn.active{background:#2f4f4f;color:#fff;border-color:#2f4f4f;}
-/* 認証方式で使う項目のチップ（健康保険組合情報カード） */
-.auth-items{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 6px;}
-.auth-item{display:inline-block;padding:3px 10px;border-radius:100px;
-  background:#e8f4ec;color:#15803d;font-size:12.5px;font-weight:700;
-  white-space:nowrap;}
 
 .toggle-wrap input[type="checkbox"]{display:none;}
 .toggle-wrap label{position:relative;display:inline-flex;align-items:center;width:52px;height:22px;cursor:pointer;border-radius:22px;background:#ddd;transition:background .2s;overflow:hidden;}
@@ -2464,23 +2459,6 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
                   </div>
                 </div>
               </div>
-              <!-- 認証方式（加入者向けサイトの本人確認で使う項目のパターン） -->
-              <div style="margin-top:16px;">
-                <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:10px;">
-                  <span style="font-size:13px;font-weight:600;color:#0f172a;">認証方式</span>
-                  <span style="font-size:11px;color:#94a3b8;line-height:1.5;">加入者向けサイトで本人確認に使う項目の組み合わせを登録します</span>
-                </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                  <button type="button" class="ke-method-btn active" data-group="ke-auth"
-                          data-auth="A" onclick="KE.selectAuth(this)">認証方式A</button>
-                  <button type="button" class="ke-method-btn" data-group="ke-auth"
-                          data-auth="B" onclick="KE.selectAuth(this)">認証方式B</button>
-                </div>
-                <input type="hidden" id="ke-auth" value="A">
-                <div class="auth-items" id="ke-auth-items" style="margin-top:10px;"></div>
-                <div id="ke-auth-note" style="font-size:11px;color:#94a3b8;line-height:1.6;"></div>
-              </div>
-
               <!-- 医療機関情報PDF アップロード -->
               <div style="margin-top:16px;">
                 <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:10px;">
@@ -4026,7 +4004,7 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
         <h1>企業情報</h1>
         <button class="back-btn" onclick="sysBack('master')">戻る</button>
       </div>
-      <p class="sys-note">全健保の企業を登録・閲覧・編集・削除します。登録時に健康保険組合を選び、事業所（企業）コードは健保が管理する番号を入れます（当社内部コードは自動で割り振ります）。</p>
+      <p class="sys-note">全健保の企業を登録・閲覧・編集・削除します。登録時に健康保険組合を選び、企業コードは健保が管理する番号を入れます（当社内部コードは自動で割り振ります）。</p>
       <iframe class="sys-frame" data-src="/companies" title="企業情報"></iframe>
     </div>
 
@@ -4718,7 +4696,6 @@ const KenpoDB = {
     if(no){ no.value = row ? (row.code || '') : ''; }
     if(nm){ nm.value = row ? (row.name || '') : ''; }
     if(typeof KE !== 'undefined'){
-      if(KE.setAuth) KE.setAuth(row ? (row.auth_pattern || 'A') : 'A');
       if(KE.updatePath) KE.updatePath();
       if(KE.setConsent) KE.setConsent(row ? (row.consent_text || '') : []);
     }
@@ -4753,7 +4730,6 @@ const KenpoDB = {
   save(btn){
     const no = (document.getElementById('ke-no') || {}).value || '';
     const nm = (document.getElementById('ke-name') || {}).value || '';
-    const auth = (document.getElementById('ke-auth') || {}).value || 'A';
     const consent = (typeof KE !== 'undefined' && KE.getConsent) ? KE.getConsent() : [];
     const editing = this.editingId;
     this.msg('', true);
@@ -4761,7 +4737,7 @@ const KenpoDB = {
     fetch(editing ? '/api/kenpos/' + editing : '/api/kenpos', {
       method: 'POST', credentials: 'same-origin',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({code: no, name: nm, auth_pattern: auth, consent_text: consent})
+      body: JSON.stringify({code: no, name: nm, consent_text: consent})
     }).then(r => r.json()).then(d => {
       btn.disabled = false;
       this.msg(d.message, !!d.ok);
@@ -4962,8 +4938,6 @@ function navigate(key){
   if(key==='kenpo-list-table') KL.render();
   if(key==='settings'||key==='mail-setting'||key==='pw-change'||key==='sys-account'||key==='sys-log'||key==='sys-me'||key==='sys-features'){ document.querySelector('[data-nav="settings"]').classList.add('active'); }
   if(key==='kenpo-list-table'){ KenpoDB.fillList(); }
-  /* 認証方式の選択内容を表示し直す（健康保険組合の編集・新規） */
-  if(key==='kenpo-edit' && typeof KE !== 'undefined' && KE.renderAuth){ KE.renderAuth(); }
   if(key.indexOf('sys-')===0 || key==='mail-setting'){ SYS.open(key); }
   if(key==='kenpo-search'||key==='kenpo-search-2fa'||key==='kenpo-search-result'){ document.querySelector('[data-nav="kenpo-search"]').classList.add('active'); }
   if(CLAIM_VIEWS.has(key)){ document.querySelector('[data-nav="claim-list"]').classList.add('active'); }
@@ -5229,7 +5203,6 @@ const FL=(()=>{
   }
 
   function initEdit(){
-    if(typeof KE !== 'undefined' && KE.renderAuth) KE.renderAuth();
     const t=document.getElementById('ke-editTitle');
     /* 新規作成なら「登録」、編集なら「更新」 */
     const sb=document.getElementById('ke-saveBtn');
@@ -7983,41 +7956,6 @@ const KE=(()=>{
   }
   function selectMethod(btn,group){document.querySelectorAll(`.ke-method-btn[data-group="${group}"]`).forEach(b=>b.classList.remove("active"));btn.classList.add("active");}
 
-  /* 認証方式（加入者向けサイトの本人確認で使う項目のパターン）
-       A：被保険者記号・被保険者番号・カナ・生年月日・性別
-       B：被保険者番号・カナ・生年月日・性別（記号を使わない組合） */
-  const AUTH_PATTERNS = {
-    A: ['被保険者記号', '被保険者番号', 'カナ', '生年月日', '性別'],
-    B: ['被保険者番号', 'カナ', '生年月日', '性別']
-  };
-  const AUTH_NOTES = {
-    A: '被保険者証に記号がある組合はこちら（記号と番号で本人を特定します）',
-    B: '記号を使わない組合はこちら（番号のみで本人を特定します）'
-  };
-  function renderAuth(){
-    const key = (document.getElementById('ke-auth') || {}).value || 'A';
-    const box = document.getElementById('ke-auth-items');
-    const note = document.getElementById('ke-auth-note');
-    if(box){
-      box.innerHTML = (AUTH_PATTERNS[key] || []).map(
-        t => '<span class="auth-item">' + t + '</span>').join('');
-    }
-    if(note) note.textContent = AUTH_NOTES[key] || '';
-    document.querySelectorAll('.ke-method-btn[data-group="ke-auth"]').forEach(b => {
-      b.classList.toggle('active', b.dataset.auth === key);
-    });
-  }
-  function selectAuth(btn){
-    const h = document.getElementById('ke-auth');
-    if(h) h.value = btn.dataset.auth || 'A';
-    renderAuth();
-  }
-  function setAuth(key){
-    const h = document.getElementById('ke-auth');
-    if(h) h.value = (key === 'B' ? 'B' : 'A');
-    renderAuth();
-  }
-
   // サブタブ切替（基本設定 / 健診代行設定 / 保健指導設定 / インフル設定）
   function switchTab(name){
     const tabs=['basic','kenshin','hoken','flu'];
@@ -8105,7 +8043,7 @@ const KE=(()=>{
     });
     return out;
   }
-  return {addSub,selectMethod,selectAuth,setAuth,renderAuth,switchTab,addBillingCourse,addBillingOption,removeBillingRow,updatePath,handlePdfUpload,removePdf,onDragOver,onDragLeave,onDrop,addConsentRow,setConsent,getConsent};
+  return {addSub,selectMethod,switchTab,addBillingCourse,addBillingOption,removeBillingRow,updatePath,handlePdfUpload,removePdf,onDragOver,onDragLeave,onDrop,addConsentRow,setConsent,getConsent};
 })();
 
 /* ============================================================

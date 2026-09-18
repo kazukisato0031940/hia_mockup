@@ -1,42 +1,17 @@
 {% extends LAYOUT %}{% block body %}
-<h1 class="page-title">{{ '企業情報の編集' if row else '企業情報登録' }}</h1>
+<h1 class="page-title">{{ row.name if row else '企業情報登録' }}</h1>
 <p class="page-lead">
   {% if row %}登録済みの企業情報を編集します。
   {% else %}企業を1件ずつ登録します。まとめて登録する場合は一覧の「一括インポート」をお使いください。{% endif %}</p>
 
-{% if row %}
-{# ---- 編集時：いまの状態をひと目で ---- #}
-<div class="rec-head">
-  <div class="rec-main">
-    <span class="rec-code">{{ row.ext_code or '（番号なし）' }}</span>
-    <span class="rec-name">{{ row.name }}</span>
-  </div>
-  <div class="rec-meta">
-    {% if kenpo %}<span class="rec-tag">{{ kenpo.code }}　{{ kenpo.name }}</span>{% endif %}
-    <span class="rec-tag">内部コード {{ row.code }}</span>
-    {% if stat %}<span class="rec-tag">事業所 {{ stat.n_off }}件</span>
-    <span class="rec-tag">加入者 {{ '{:,}'.format(stat.n_mem) }}人</span>{% endif %}
-  </div>
-</div>
-{% endif %}
-
 <form method="post">
-
-<div class="block mf-card">
-
-  {# ================= 基本情報 ================= #}
-  <div class="mf-sec">
-    <div class="mf-sec-head">
-      <h2>基本情報</h2>
-      <span class="mf-sec-note"><b>事業所（企業）コード</b>は健保が管理している番号です
+  <div class="block mt-block">
+    <div class="mt-head"><h2>基本情報</h2>
+      <span class="mt-note"><b>企業コード</b>は健保が管理している番号です
         （取込のときはこの番号で照合します）。<b>当社内部コード</b>は自動で割り振ります{% if row %}：
-        <b class="mono">{{ row.code }}</b>{% endif %}。</span>
-    </div>
-    <div class="mf-grid mf-g-c-basic">
-      <div class="fld">
-        <label {{ 'for="kenpo_id"' if kenpos }} class="fld-label">
-          健康保険組合{% if kenpos %}<span class="req">必須</span>{% endif %}</label>
-        {% if kenpos %}
+        <b class="mono">{{ row.code }}</b>{% endif %}。</span></div>
+    <div class="mt-tbl">
+      <label {{ 'for="kenpo_id"' if kenpos }} class="mt-label">健康保険組合{% if kenpos %}<span class="req">必須</span>{% endif %}</label><div class="mt-cell fld mt-w-l">{% if kenpos %}
         <select id="kenpo_id" name="kenpo_id" required
                 {{ 'disabled' if kenpos|length == 1 }}>
           {% for k in kenpos %}<option value="{{ k.id }}"
@@ -45,81 +20,32 @@
         {% if kenpos|length == 1 %}<input type="hidden" name="kenpo_id" value="{{ kenpos[0].id }}">{% endif %}
         {% else %}
         <input type="text" value="{{ kenpo.code ~ '　' ~ kenpo.name if kenpo else '—' }}" disabled>
-        {% endif %}
-      </div>
-      <div class="fld">
-        <label for="ext_code" class="fld-label">事業所（企業）コード</label>
-        <input type="text" id="ext_code" name="ext_code" maxlength="20"
-          value="{{ (form.ext_code if form else (row.ext_code if row else '')) or '' }}"
-          placeholder="例：456">
-      </div>
-      <div class="fld">
-        <label for="name" class="fld-label">企業名<span class="req">必須</span></label>
-        <input type="text" id="name" name="name" required
-          value="{{ (form.name if form else (row.name if row else '')) or '' }}"
-          placeholder="例：光通信株式会社">
-      </div>
-      <div class="fld">
-        <label for="kana" class="fld-label">企業名（フリガナ）</label>
-        <input type="text" id="kana" name="kana"
-          value="{{ (form.kana if form else (row.kana if row else '')) or '' }}"
-          placeholder="例：ヒカリツウシン">
-      </div>
-      <div class="fld">
-        <label for="cert_mark" class="fld-label">被保険者証記号</label>
-        <input type="text" id="cert_mark" name="cert_mark"
-          value="{{ (form.cert_mark if form else (row.cert_mark if row else '')) or '' }}"
-          placeholder="例：1000">
-      </div>
+        {% endif %}</div>
+      <label for="ext_code" class="mt-label">企業コード</label><div class="mt-cell fld"><input type="text" id="ext_code" name="ext_code" maxlength="20"
+            value="{{ (form.ext_code if form else (row.ext_code if row else '')) or '' }}" placeholder="例：456"></div>
+      <label for="name" class="mt-label">企業名<span class="req">必須</span></label><div class="mt-cell fld mt-w-m"><input type="text" id="name" name="name" required
+            value="{{ (form.name if form else (row.name if row else '')) or '' }}" placeholder="例：光通信株式会社"></div>
+      <label for="kana" class="mt-label">企業名（フリガナ）</label><div class="mt-cell fld mt-w-m"><input type="text" id="kana" name="kana"
+            value="{{ (form.kana if form else (row.kana if row else '')) or '' }}" placeholder="例：ヒカリツウシン"></div>
+      <label for="cert_mark" class="mt-label">被保険者証記号</label><div class="mt-cell fld mt-span"><input type="text" id="cert_mark" name="cert_mark"
+            value="{{ (form.cert_mark if form else (row.cert_mark if row else '')) or '' }}" placeholder="例：1000"></div>
     </div>
   </div>
 
-  {# ================= 所在地 ================= #}
-  <div class="mf-sec">
-    <div class="mf-sec-head">
-      <h2>所在地</h2>
-      <span class="mf-sec-note">郵便番号はハイフンなしでも構いません。</span>
-    </div>
-    <div class="mf-grid mf-g-addr">
-      <div class="fld">
-        <label for="zip" class="fld-label">郵便番号</label>
-        <input type="text" id="zip" name="zip" maxlength="8"
-          value="{{ (form.zip if form else (row.zip if row else '')) or '' }}"
-          placeholder="例：1080023">
-      </div>
-      <div class="fld">
-        <label for="address" class="fld-label">住所</label>
-        <input type="text" id="address" name="address"
-          value="{{ (form.address if form else (row.address if row else '')) or '' }}"
-          placeholder="例：東京都港区芝浦4-16-25　安全ビル4F">
-      </div>
+  <div class="block mt-block">
+    <div class="mt-head"><h2>所在地・連絡先</h2>
+      <span class="mt-note">郵便番号はハイフンなしでも構いません。担当メールアドレスはこの企業の窓口です（通知の送信には使いません）。</span></div>
+    <div class="mt-tbl">
+      <label for="zip" class="mt-label">郵便番号</label><div class="mt-cell fld mt-w-s"><input type="text" id="zip" name="zip" maxlength="8"
+            value="{{ (form.zip if form else (row.zip if row else '')) or '' }}" placeholder="例：1080023"></div>
+      <label for="address" class="mt-label">住所</label><div class="mt-cell fld mt-w-xl"><input type="text" id="address" name="address"
+            value="{{ (form.address if form else (row.address if row else '')) or '' }}" placeholder="例：東京都港区芝浦4-16-25　安全ビル4F"></div>
+      <label for="tel" class="mt-label">電話番号</label><div class="mt-cell fld"><input type="text" id="tel" name="tel"
+            value="{{ (form.tel if form else (row.tel if row else '')) or '' }}" placeholder="例：03-6365-1454"></div>
+      <label for="email" class="mt-label">担当メールアドレス</label><div class="mt-cell fld mt-w-m"><input type="text" id="email" name="email"
+            value="{{ (form.email if form else (row.email if row else '')) or '' }}" placeholder="例：soumu@example.co.jp"></div>
     </div>
   </div>
-
-  {# ================= 連絡先 ================= #}
-  <div class="mf-sec">
-    <div class="mf-sec-head">
-      <h2>連絡先</h2>
-      <span class="mf-sec-note">担当メールアドレスはこの企業の窓口です（通知の送信には使いません）。</span>
-    </div>
-    <div class="mf-grid mf-g-tel">
-      <div class="fld">
-        <label for="tel" class="fld-label">電話番号</label>
-        <input type="text" id="tel" name="tel"
-          value="{{ (form.tel if form else (row.tel if row else '')) or '' }}"
-          placeholder="例：03-6365-1454">
-      </div>
-      <div class="fld">
-        <label for="email" class="fld-label">担当メールアドレス</label>
-        <input type="text" id="email" name="email"
-          value="{{ (form.email if form else (row.email if row else '')) or '' }}"
-          placeholder="例：soumu@example.co.jp">
-      </div>
-      <div class="fld"></div>
-    </div>
-  </div>
-
-</div>
 
 {% if not row %}
 {# ================= 登録後の流れ ================= #}

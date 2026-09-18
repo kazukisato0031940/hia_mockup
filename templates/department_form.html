@@ -1,40 +1,18 @@
 {% extends LAYOUT %}{% block body %}
-<h1 class="page-title">{{ '部署情報の編集' if row else '部署の登録' }}</h1>
+<h1 class="page-title">{{ row.name if row else '部署の登録' }}</h1>
 <p class="page-lead">
   {% if row %}登録済みの部署を編集します。事業所は変更できません。
   {% else %}事業所の下に置く部署を登録します。{% endif %}</p>
 
-{% if row %}
-<div class="rec-head">
-  <div class="rec-main">
-    <span class="rec-code">{{ row.ext_code or '（番号なし）' }}</span>
-    <span class="rec-name">{{ row.name }}</span>
-  </div>
-  <div class="rec-meta">
-    <span class="rec-tag">{{ row.company_ext or row.company_code }}　{{ row.company_name }}</span>
-    <span class="rec-tag">{{ row.office_ext or row.office_code }}　{{ row.office_name }}</span>
-    <span class="rec-tag">内部コード {{ row.code }}</span>
-    <span class="rec-tag">加入者 {{ '{:,}'.format(n_mem or 0) }}人</span>
-  </div>
-</div>
-{% endif %}
 
 <form method="post">
-
-<div class="block mf-card">
-
-  <div class="mf-sec">
-    <div class="mf-sec-head">
-      <h2>基本情報</h2>
-      <span class="mf-sec-note"><b>部署コード</b>は企業が管理している番号があれば入れます（任意）。
+  <div class="block mt-block">
+    <div class="mt-head"><h2>基本情報</h2>
+      <span class="mt-note"><b>部署コード</b>は企業が管理している番号があれば入れます（任意）。
         <b>当社内部コード</b>は登録順に自動発番します{% if row %}：<b class="mono">{{ row.code }}</b>{% else %}
-        （この登録では <b class="mono" id="next-code">{{ nexts.values()|list|first if nexts else '001' }}</b>）{% endif %}。</span>
-    </div>
-    <div class="mf-grid mf-g-d-basic">
-      <div class="fld">
-        <label {{ 'for="office_id"' if not row }} class="fld-label">
-          事業所{% if not row %}<span class="req">必須</span>{% endif %}</label>
-        {% if row %}
+        （この登録では <b class="mono" id="next-code">{{ nexts.values()|list|first if nexts else '001' }}</b>）{% endif %}。</span></div>
+    <div class="mt-tbl">
+      <label {{ 'for="office_id"' if not row }} class="mt-label">事業所{% if not row %}<span class="req">必須</span>{% endif %}</label><div class="mt-cell fld mt-w-l">{% if row %}
         <input type="text" disabled
                value="{{ row.company_name }}　／　{{ row.office_ext or row.office_code }}　{{ row.office_name }}">
         {% else %}
@@ -42,30 +20,15 @@
           {% for o in offs %}<option value="{{ o.id }}"
             {{ 'selected' if form and form.office_id|int == o.id }}>{{ o.company_name }}　／　{{ o.ext_code or o.code }}　{{ o.name }}</option>{% endfor %}
         </select>
-        {% endif %}
-      </div>
-      <div class="fld">
-        <label for="ext_code" class="fld-label">部署コード</label>
-        <input type="text" id="ext_code" name="ext_code" maxlength="20"
-          value="{{ (form.ext_code if form else (row.ext_code if row else '')) or '' }}"
-          placeholder="例：01">
-      </div>
-      <div class="fld">
-        <label for="name" class="fld-label">部署名<span class="req">必須</span></label>
-        <input type="text" id="name" name="name" required
-          value="{{ (form.name if form else (row.name if row else '')) or '' }}"
-          placeholder="例：総務部">
-      </div>
-      <div class="fld">
-        <label for="kana" class="fld-label">部署名（フリガナ）</label>
-        <input type="text" id="kana" name="kana"
-          value="{{ (form.kana if form else (row.kana if row else '')) or '' }}"
-          placeholder="例：ソウムブ">
-      </div>
+        {% endif %}</div>
+      <label for="ext_code" class="mt-label">部署コード</label><div class="mt-cell fld"><input type="text" id="ext_code" name="ext_code" maxlength="20"
+            value="{{ (form.ext_code if form else (row.ext_code if row else '')) or '' }}" placeholder="例：01"></div>
+      <label for="name" class="mt-label">部署名<span class="req">必須</span></label><div class="mt-cell fld mt-w-m"><input type="text" id="name" name="name" required
+            value="{{ (form.name if form else (row.name if row else '')) or '' }}" placeholder="例：総務部"></div>
+      <label for="kana" class="mt-label">部署名（フリガナ）</label><div class="mt-cell fld mt-w-m"><input type="text" id="kana" name="kana"
+            value="{{ (form.kana if form else (row.kana if row else '')) or '' }}" placeholder="例：ソウムブ"></div>
     </div>
   </div>
-
-</div>
 
 {% if not row %}
 <div class="block next-steps">
