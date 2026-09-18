@@ -27,8 +27,6 @@
         <button type="button" class="btn-sm" id="mk-open-all" onclick="mkOpen(true)"
                 title="いま絞り込んでいる条件に一致する全件を紐づけます">
           検索結果すべて（{{ '{:,}'.format(total) }}件）を紐づける</button>
-        <a class="btn-sm" href="{{ url_for('members_link_auto') }}" style="text-decoration:none"
-           title="取込した加入者情報のコードで、まとめて紐づけます">コードで紐づける</a>
         <a class="btn-sm" href="{{ url_for('members_link_page') }}" style="text-decoration:none"
            title="紐づけ先を選んでから、ドラッグで紐づける専用ページを開きます">企業・部署の紐づけ</a>
         {% endif %}

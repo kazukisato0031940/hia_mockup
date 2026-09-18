@@ -181,7 +181,7 @@ def load_samples(con):
             "INSERT INTO member (kenpo_id, company_id, office_id, dept_id, member_no,"
             " cert_mark, cert_branch, attr, relation, name, kana, sex, birth,"
             " qualified_at, lost_at, zip, address, address2, tel, email, employee_code,"
-            " delivery_code, subscriber_id)"
+            " billing_code, subscriber_id)"
             " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (kid, cid, oid, did, g("被保険者証番号"), g("被保険者証記号"),
              g("被保険者証枝番"), g("被保険者属性名"), g("続柄名称"),
@@ -189,7 +189,7 @@ def load_samples(con):
              norm_date(g("生年月日")), norm_date(g("資格取得日（家族認定日）")),
              norm_date(g("資格喪失日（家族削除日）")), g("郵便番号"), g("住所"),
              g("住所（建物名）"), g("電話番号"), g("メールアドレス"),
-             g("社員コード"), g("配付先コード"), str(mseq).zfill(8)))
+             (g("社員番号") or g("社員コード")), (g("請求先コード") or g("配付先コード")), str(mseq).zfill(8)))
 
     set_seq(con, "company", str(kid), cseq)
     for cid, n in oseq.items():
@@ -201,16 +201,16 @@ def load_samples(con):
     # 動作確認用のアカウント
     ph = generate_password_hash(SAMPLE_PW)
     con.execute(
-        "INSERT INTO account (email, name, role, view_scope, can_download, is_primary,"
+        "INSERT INTO account (email, name, role, view_scope, can_download,"
         " kenpo_id, status, password_hash, created_by)"
-        " VALUES (?,?,'kenpo_user','kenpo_all',1,1,?,'active',?,'seed')",
+        " VALUES (?,?,'kenpo_user','kenpo_all',1,?,'active',?,'seed')",
         ("kenpo@example.local", "ひかり健保 担当", kid, ph))
     first = con.execute("SELECT id FROM company WHERE kenpo_id=? ORDER BY id",
                         (kid,)).fetchone()
     con.execute(
-        "INSERT INTO account (email, name, role, view_scope, can_download, is_primary,"
+        "INSERT INTO account (email, name, role, view_scope, can_download,"
         " kenpo_id, company_id, status, password_hash, created_by)"
-        " VALUES (?,?,'company_user','own_company',0,1,?,?,'active',?,'seed')",
+        " VALUES (?,?,'company_user','own_company',0,?,?,'active',?,'seed')",
         ("company@example.local", "光通信 担当", kid, first["id"], ph))
     aid = con.execute("SELECT id FROM account WHERE email='company@example.local'"
                       ).fetchone()["id"]
@@ -341,9 +341,9 @@ def main():
             pw = os.environ.get("HIA_ADMIN_PASSWORD") or ADMIN_DEFAULT_PASSWORD
             con.execute(
                 "INSERT INTO account (email, name, role, view_scope, can_download,"
-                " is_primary, status, password_hash, created_by)"
-                " VALUES (?,?,?,?,?,?,'active',?,'seed')",
-                (ADMIN_EMAIL, ADMIN_NAME, "system_admin", "all", 1, 0,
+                " status, password_hash, created_by)"
+                " VALUES (?,?,?,?,?,'active',?,'seed')",
+                (ADMIN_EMAIL, ADMIN_NAME, "system_admin", "all", 1,
                  generate_password_hash(pw)))
             con.execute("INSERT INTO audit_log (shell, category, action, result,"
                         " actor_email, ip, target, detail) VALUES"
@@ -421,9 +421,9 @@ def main():
 
     pw = os.environ.get("HIA_ADMIN_PASSWORD") or ADMIN_DEFAULT_PASSWORD
     con.execute(
-        "INSERT INTO account (email, name, role, view_scope, can_download, is_primary,"
-        " status, password_hash, created_by) VALUES (?,?,?,?,?,?,'active',?,'seed')",
-        (ADMIN_EMAIL, ADMIN_NAME, "system_admin", "all", 1, 0,
+        "INSERT INTO account (email, name, role, view_scope, can_download,"
+        " status, password_hash, created_by) VALUES (?,?,?,?,?,'active',?,'seed')",
+        (ADMIN_EMAIL, ADMIN_NAME, "system_admin", "all", 1,
          generate_password_hash(pw)))
     con.execute("INSERT INTO audit_log (shell, category, action, result, actor_email, ip,"
                 " target, detail) VALUES ('km','master','初期データを投入','success','seed',"

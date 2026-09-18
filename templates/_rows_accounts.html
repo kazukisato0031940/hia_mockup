@@ -3,7 +3,7 @@
     <tr class="ls-row acc-row {{ 'muted' if r.status=='deleted' }}"
     data-name="{{ r.name }}" data-email="{{ r.email }}"
     data-company="{{ (r.companies + r.scopes) | join(' ') }}">
-      <td class="tl"><span class="ellip w110" title="{{ r.name }}">{{ r.name }}</span>{% if r.is_primary %}<span class="st st-role" style="margin-left:6px">代表者</span>{% endif %}</td>
+      <td class="tl"><span class="ellip w110" title="{{ r.name }}">{{ r.name }}</span></td>
       <td class="tl code"><span class="ellip wfull" title="{{ r.email }}">{{ r.email }}</span></td>
       <td class="wrap"><span title="{{ role_full(r) }}">{{ ROLE_LABELS.get(r.role, r.role) }}</span>
         {% if sub_role_of(r) %}<div style="margin-top:2px" class="hint"

@@ -3,172 +3,164 @@
 {% block body %}
 {# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
 {% if not EMBED %}
-<h1 class="page-title">面談結果入力{{ '（産業医）' if IS_DOCTOR }}</h1>
+<h1 class="page-title">面談結果入力{{ '（産業医）' if IS_DOCTOR else '（保健師）' if IS_NURSE }}</h1>
 <p class="page-lead">実施した面接指導の内容・就業区分・事後措置を記録します。
   ここで確定した内容が労基署報告に反映されます。</p>
 {% endif %}
 
-<div class="iv-cols">
-
-  {# ================= 左：対象者を選ぶ ================= #}
-  <div>
-    <div class="block">
-      <div class="blk-head"><div class="blk-head-left"><h2>対象者を検索</h2></div></div>
-      <form method="get" class="search-row" style="margin:0">
-        <input type="hidden" name="fy" value="{{ fy }}">
-        <div class="search-group" style="flex:1;min-width:220px">
-          <label for="name">氏名</label>
-          <input type="text" id="name" name="name" value="{{ f.name }}" list="ivNames"
-                 style="width:100%" placeholder="氏名を入力（サジェスト）">
-          <datalist id="ivNames">
-            {% for r in rows %}<option value="{{ r.m.name }}"></option>{% endfor %}
-          </datalist>
-        </div>
-      </form>
+{# 画面の作り：対象者の見出し帯 → 面談結果の入力（全幅）。
+   対象者を探す検索条件・一覧は置かず、カード右下の「確定して次の未入力の方へ」で
+   確定しながら1人ずつ進めます（左下は「前の方に戻る」。先頭の方なら「一覧に戻る」）。就業区分は一覧で判定済みなので見出し帯に表示するだけです。
+   （対象者を選んで開くときは、面談対象者一覧の「面談結果入力」ボタンから来ます） #}
+{# ============ 見出し帯（だれの面談結果を入力しているか） ============ #}
+{% if sel %}
+<div class="hm-hero">
+  <div class="hm-hero-id">
+    <div class="hm-hero-name">
+      <b>{{ sel.m.name }}</b>
+      <span class="hm-hero-kana">{{ sel.m.kana or '' }}</span>
+      {% if sel.judge %}<span class="hm-hero-j j-{{ sel.judge }}"
+        title="{{ JUDGE_LABEL[sel.judge] }}">総合判定 {{ sel.judge }}</span>{% endif %}
     </div>
-
-    <div class="block" style="margin-bottom:0">
-      <div class="blk-head">
-        <div class="blk-head-left"><h2>入力対象者</h2></div>
-        <div class="actions"><span class="count">{{ rows|length }}件</span></div>
-      </div>
-      {% if rows %}
-      <div class="table-scroll">
-      <table class="result-table" style="width:100%">
-        <colgroup><col><col class="col-dept"><col class="col-flag">
-          <col class="col-status"></colgroup>
-        <thead><tr><th class="tl">氏名</th><th class="tl">部署</th><th>年齢</th>
-          <th>ステータス</th></tr></thead>
-        <tbody>
-        {% for r in rows %}
-        <tr class="ls-row iv-row {{ 'is-on' if sel and r.id == sel.id }}"
-            onclick="location.href='{{ url_for('oh.oh_interview', fy=fy, mid=r.id, name=f.name) }}'">
-          <td class="tl"><b>{{ r.m.name }}</b></td>
-          <td class="tl" title="{{ r.m.dept_name or '' }}">{{ r.m.dept_name or '—' }}</td>
-          <td class="num">{{ r.age if r.age is not none else '－' }}</td>
-          {# ラベルも青系にそろえる（入力済＝青／未入力＝グレー） #}
-          <td>{% if r.iv and r.iv.met_on %}<span class="st-label info">入力済</span>
-              {% else %}<span class="st-label">未入力</span>{% endif %}</td>
-        </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-      </div>
-      {% else %}
-      <div class="empty-box">面談対象者がいません。
-        対象者一覧で産業医が面談対象を承認すると、この画面に表示されます。</div>
-      {% endif %}
+    <div class="hm-hero-meta">
+      <span>加入者ID <b class="code">{{ sel.m.subscriber_id or '—' }}</b></span>
+      <span>{{ sel.m.dept_name or '—' }}／{{ sel.age if sel.age is not none else '—' }}歳</span>
+      <span>ステータス {{ sel.hr_class or '未判定' }}</span>
+      {# 就業区分は面談対象者一覧で産業医が判定済み。ここでは書き換えず、表示だけにする #}
+      {% set cur_work = (sel.iv.work_class if sel.iv else '') or sel.work_class %}
+      <span>就業区分（産業医の判定）
+        <b class="iv-work {{ 'is-set' if cur_work }}" id="ivWorkLabel">{{ cur_work or '未判定' }}</b></span>
+      {% if sel.cand and sel.cand.booked_on %}<span>面談予定 <b>{{ sel.cand.booked_on }}</b></span>{% endif %}
+      <span>抽出理由 {{ sel.reason_text or '（該当なし）' }}</span>
     </div>
   </div>
+  <div class="hm-hero-act">
+    <form method="get" class="hm-hero-fy">
+      <input type="hidden" name="sid" value="{{ sel.id }}">
+      <label for="fy">年度</label>
+      <select id="fy" name="fy" style="width:118px" onchange="this.form.submit()">
+        {% for y in fys %}<option value="{{ y }}" {{ 'selected' if y == fy }}>{{ y }}年度</option>{% endfor %}
+      </select>
+    </form>
+  </div>
+</div>
+{% endif %}
 
-  {# ================= 右：面談結果の入力 ================= #}
-  <div class="block" style="margin-bottom:0">
-    <div class="blk-head">
-      <div class="blk-head-left">
-        <h2>面談結果の入力{{ ' — ' + sel.m.name if sel }}</h2></div>
+<div class="block" style="margin-bottom:0">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>面談結果の入力</h2>
+      {% if sel and sel.iv and sel.iv.met_on %}
+      <span class="st-label info">入力済</span>{% endif %}</div>
+    {% if sel and sel.iv and sel.iv.met_on %}
+    <div class="actions">
+      {# 産業医意見書（面談記録から作る帳票。別タブで開いて印刷・PDF保存） #}
+      <a class="btn-sm" style="text-decoration:none" target="_blank"
+         href="{{ url_for('oh.oh_opinion', mid=sel.id, fy=fy) }}" id="ivOpinion">意見書を出力</a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if not sel %}
+  <div class="empty-box">面談対象の方がいません。対象者一覧で産業医が面談対象を承認すると、ここに入力欄が出ます。</div>
+  {% else %}
+  <form method="post" action="{{ url_for('oh.oh_interview_save') }}" id="ivForm"
+        {{ 'data-readonly="1"' if not CAN_IV }}>
+    <input type="hidden" name="fy" value="{{ fy }}">
+    <input type="hidden" name="member_id" value="{{ sel.id }}">
+    <input type="hidden" name="purpose" value="{{ (sel.iv.purpose if sel.iv else '') or PURPOSES[0] }}">
+
+    <div class="oh-sec">
+      <div class="oh-sec-title">面談実施情報</div>
+      <div class="oh-grid">
+        {# 実施方法はボタンで選ぶ（先頭）。対面／オンライン／電話 #}
+        {% set cur_method = (sel.iv.method if sel.iv and sel.iv.method else METHODS[0]) %}
+        <div class="fld">
+          <label class="fld-label">実施方法</label>
+          <input type="hidden" name="method" id="ivMethod" value="{{ cur_method }}">
+          <div class="iv-chips" id="ivMethodChips">
+            {% for m in METHODS %}
+            <button type="button" class="iv-chip {{ 'is-on' if m == cur_method }}" data-m="{{ m }}"
+                    onclick="ivPickMethod(this)">{{ m }}</button>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="fld">
+          <label class="fld-label" for="ivMet">実施日<span class="req">必須</span></label>
+          {# 実施日の初期値：人事が登録した面談予定日 → 無ければ今日 #}
+          <input type="date" id="ivMet" name="met_on" required style="width:100%"
+                 value="{{ (sel.iv.met_on if sel.iv else '') or (sel.cand.booked_on if sel.cand else '') or today }}">
+        </div>
+        <div class="fld">
+          <label class="fld-label" for="ivNext">次回フォロー予定日</label>
+          <input type="date" id="ivNext" name="next_plan" style="width:100%"
+                 value="{{ (sel.iv.next_plan if sel.iv else '') or '' }}">
+          <p class="fld-help">空欄でもかまいません。</p>
+        </div>
+      </div>
     </div>
 
-    {% if not sel %}
-    <div class="empty-box">左の一覧から対象者を選ぶと、ここに入力欄が表示されます。</div>
-    {% else %}
-    <dl class="iv-kv">
-      <dt>部署 / 年齢</dt>
-      <dd>{{ sel.m.dept_name or '—' }} / {{ sel.age if sel.age is not none else '－' }}</dd>
-      <dt>抽出理由</dt>
-      <dd>{{ sel.reason_text or '（該当なし）' }}</dd>
-    </dl>
+    {# 就業区分は一覧で判定済みの値をそのまま保存する（この画面では変えない。産業医のときだけ送る） #}
+    {% if CAN_IV and IS_DOCTOR %}<input type="hidden" name="work_class" id="ivWork" value="{{ cur_work or '' }}">{% endif %}
 
-    <form method="post" action="{{ url_for('oh.oh_interview_save') }}" id="ivForm"
-          {{ 'data-readonly="1"' if not CAN_IV }}>
-      <input type="hidden" name="fy" value="{{ fy }}">
-      <input type="hidden" name="member_id" value="{{ sel.id }}">
-      <input type="hidden" name="purpose" value="{{ (sel.iv.purpose if sel.iv else '') or PURPOSES[0] }}">
-
-      <p class="iv-sec-title">面談実施情報</p>
-      <div class="mf-grid" style="grid-template-columns:1fr 1fr;gap:14px 18px;">
-        <div class="fld"><label class="fld-label" for="ivMet">実施日<span class="oh-req">必須</span></label>
-          <input type="date" id="ivMet" name="met_on" required style="width:100%"
-                 value="{{ (sel.iv.met_on if sel.iv else '') or today }}"></div>
-        <div class="fld"><label class="fld-label" for="ivMethod">実施方法</label>
-          <select id="ivMethod" name="method" style="width:100%">
-            {% for m in METHODS %}
-            <option value="{{ m }}"
-              {{ 'selected' if sel.iv and sel.iv.method == m }}>{{ m }}</option>
-            {% endfor %}
-          </select></div>
-      </div>
-
-      <p class="iv-sec-title" style="margin-top:18px">就業区分</p>
-      {% set cur_work = (sel.iv.work_class if sel.iv else '') or sel.work_class or WORK_CLASSES[0] %}
-      <input type="hidden" name="work_class" id="ivWork" value="{{ cur_work }}">
-      <div class="iv-chips">
-        {% for w in WORK_CLASSES %}
-        <button type="button" class="iv-chip {{ 'is-on' if w == cur_work }}"
-                data-w="{{ w }}" onclick="ivPickWork(this)">{{ w }}</button>
-        {% endfor %}
-      </div>
-
-      <div class="fld" style="margin-top:18px">
-        <label class="fld-label" for="ivMeasure">措置内容</label>
+    <div class="oh-sec" style="margin-top:14px">
+      <div class="oh-sec-title">{{ '指導内容・所見（保健師）' if IS_NURSE else '措置内容・産業医所見' }}</div>
+      <div class="fld">
+        <label class="fld-label" for="ivMeasure">{{ '指導・措置の内容' if IS_NURSE else '措置内容' }}</label>
         <textarea id="ivMeasure" name="measure" rows="4" style="width:100%"
           placeholder="例：時間外労働の制限（月45時間以内）、深夜業の回数制限　等">{{ (sel.iv.measure if sel.iv else '') or '' }}</textarea>
       </div>
-
       <div class="fld" style="margin-top:14px">
-        <label class="fld-label" for="ivNext">次回フォロー予定日</label>
-        <input type="text" id="ivNext" name="next_plan" style="width:240px"
-               value="{{ (sel.iv.next_plan if sel.iv else '') or '' }}"
-               placeholder="例：2026/08/02">
-      </div>
-
-      <div class="fld" style="margin-top:14px">
-        <label class="fld-label" for="ivFind">産業医所見（詳細）</label>
+        <label class="fld-label" for="ivFind">{{ '所見（保健師）' if IS_NURSE else '産業医所見（詳細）' }}</label>
         <textarea id="ivFind" name="findings" rows="4" style="width:100%"
           placeholder="面談で確認した内容、判断根拠など">{{ (sel.iv.findings if sel.iv else '') or '' }}</textarea>
       </div>
+    </div>
 
-      <div class="iv-foot">
-        {% if CAN_IV %}
-        <button class="btn-sm" type="submit" name="draft" value="1">下書き保存</button>
-        <button class="btn-sm primary" type="submit">結果を確定する</button>
-        {% else %}
-        <span class="hint">入力・確定は産業医が行います（人事は内容の確認ができます）。</span>
-        {% endif %}
-      </div>
-      <p class="iv-note hint">確定後は労基署報告の「面接指導 実施状況」に自動集計されます。</p>
-    </form>
-    {% endif %}
-  </div>
+    <div class="iv-foot">
+      {# 左：前の方に戻る／一覧に戻る #}
+      {% if prv %}
+      <a class="btn-sm iv-foot-next" style="text-decoration:none;margin-right:auto" id="ivPrevBtn"
+         href="{{ url_for('oh.oh_interview', fy=fy, sid=prv.id) }}" title="前：{{ prv.m.name }}">前の方に戻る</a>
+      {% else %}
+      <a class="btn-sm iv-foot-next" style="text-decoration:none;margin-right:auto" id="ivPrevBtn"
+         href="{{ LIST_URL }}">一覧に戻る</a>
+      {% endif %}
+      {# 右：確定して次の未入力の方へ（次の方がいなければ、確定して一覧に戻る）。「結果を確定する」は置かない #}
+      {% if CAN_IV %}
+      {% if nxt %}
+      <button class="btn-sm primary iv-next" type="submit" name="go_next" value="1" id="ivNextBtn"
+              title="確定して次：{{ nxt.m.name }}">確定して次の未入力の方へ<span class="iv-next-n">残り{{ n_wait }}名</span></button>
+      {% else %}
+      <button class="btn-sm primary iv-next" type="submit" name="go_next" value="1" id="ivNextBtn"
+              title="未入力の方はいません。確定して一覧に戻ります">確定して一覧に戻る</button>
+      {% endif %}
+      {% else %}
+      <span class="hint">入力・確定は産業医が行います（人事は内容の確認ができます）。</span>
+      {% if nxt %}
+      <a class="btn-sm iv-foot-next" style="text-decoration:none" id="ivNextBtn"
+         href="{{ url_for('oh.oh_interview', fy=fy, sid=nxt.id) }}">次の未入力の方へ<span class="iv-next-n">残り{{ n_wait }}名</span></a>
+      {% endif %}
+      {% endif %}
+    </div>
+  </form>
+  {% endif %}
 </div>
 
 <script>
+/* 実施方法は3つから1つを選びます（選んだ値を hidden に入れて保存します） */
+function ivPickMethod(btn){
+  var box = btn.parentNode;
+  [].forEach.call(box.querySelectorAll('.iv-chip'), function(b){
+    b.classList.toggle('is-on', b === btn);
+  });
+  document.getElementById('ivMethod').value = btn.dataset.m;
+}
 /* 産業医以外は入力できないようにします（画面の構成は同じです） */
 (function(){
   var f = document.getElementById('ivForm');
   if(!f || !f.dataset.readonly) return;
   f.querySelectorAll('input, select, textarea, .iv-chip').forEach(function(el){
     el.disabled = true;
-  });
-})();
-/* 就業区分は3つから1つを選びます（選んだ値を hidden に入れて保存します） */
-function ivPickWork(btn){
-  var box = btn.parentNode;
-  [].forEach.call(box.querySelectorAll('.iv-chip'), function(b){
-    b.classList.toggle('is-on', b === btn);
-  });
-  document.getElementById('ivWork').value = btn.dataset.w;
-}
-/* 氏名は入力が止まったら絞り込みます */
-(function(){
-  var el = document.getElementById('name');
-  if(!el) return;
-  var t = null;
-  el.addEventListener('input', function(){
-    clearTimeout(t);
-    t = setTimeout(function(){ el.form.submit(); }, 600);
-  });
-  el.addEventListener('keydown', function(e){
-    if(e.key === 'Enter'){ e.preventDefault(); el.form.submit(); }
   });
 })();
 </script>

@@ -46,57 +46,57 @@
     <title>検査結果</title>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="9N001000000000001" codeSystem="1.2.392.200119.6.1005" displayName="収縮期血圧"/>
-      <value xsi:type="PQ" value="134" unit="mmHg"
+      <value xsi:type="PQ" value="142" unit="mmHg"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="9N006000000000001" codeSystem="1.2.392.200119.6.1005" displayName="拡張期血圧"/>
-      <value xsi:type="PQ" value="81" unit="mmHg"
+      <value xsi:type="PQ" value="85" unit="mmHg"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="3D045000001927101" codeSystem="1.2.392.200119.6.1005" displayName="ＨｂＡ１ｃ（ＮＧＳＰ）"/>
-      <value xsi:type="PQ" value="6.1" unit="%"
+      <value xsi:type="PQ" value="6.4" unit="%"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="3D010000001926101" codeSystem="1.2.392.200119.6.1005" displayName="空腹時血糖"/>
-      <value xsi:type="PQ" value="111" unit="mg/dL"
+      <value xsi:type="PQ" value="118" unit="mg/dL"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="3F077000002327101" codeSystem="1.2.392.200119.6.1005" displayName="ＬＤＬコレステロール"/>
-      <value xsi:type="PQ" value="130" unit="mg/dL"
+      <value xsi:type="PQ" value="140" unit="mg/dL"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="3F070000002327101" codeSystem="1.2.392.200119.6.1005" displayName="ＨＤＬコレステロール"/>
-      <value xsi:type="PQ" value="57" unit="mg/dL"
+      <value xsi:type="PQ" value="51" unit="mg/dL"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="3F015000002327201" codeSystem="1.2.392.200119.6.1005" displayName="中性脂肪"/>
-      <value xsi:type="PQ" value="193" unit="mg/dL"
+      <value xsi:type="PQ" value="227" unit="mg/dL"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="3B035000002327101" codeSystem="1.2.392.200119.6.1005" displayName="ＡＳＴ（ＧＯＴ）"/>
-      <value xsi:type="PQ" value="30" unit="U/L"
-             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
-    </observation></entry>
-    <entry><observation classCode="OBS" moodCode="EVN">
-      <code code="3B045000002327101" codeSystem="1.2.392.200119.6.1005" displayName="ＡＬＴ（ＧＰＴ）"/>
       <value xsi:type="PQ" value="34" unit="U/L"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
+      <code code="3B045000002327101" codeSystem="1.2.392.200119.6.1005" displayName="ＡＬＴ（ＧＰＴ）"/>
+      <value xsi:type="PQ" value="39" unit="U/L"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
+    </observation></entry>
+    <entry><observation classCode="OBS" moodCode="EVN">
       <code code="3B090000002327101" codeSystem="1.2.392.200119.6.1005" displayName="γ－ＧＴ（γ－ＧＴＰ）"/>
-      <value xsi:type="PQ" value="67" unit="U/L"
+      <value xsi:type="PQ" value="81" unit="U/L"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="9N016000000000001" codeSystem="1.2.392.200119.6.1005" displayName="ＢＭＩ"/>
-      <value xsi:type="PQ" value="23.6" unit="kg/m2"
+      <value xsi:type="PQ" value="24.9" unit="kg/m2"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">

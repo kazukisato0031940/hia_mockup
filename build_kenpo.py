@@ -293,6 +293,8 @@ def build():
 
     # 2) スタイル
     s = s.replace("</style>", HEAD_CSS, 1)
+    # 表示倍率（90%相当）のスタイル。いちばん外側の文書だけが読み込む
+    s = s.replace("</head>", '<link rel="stylesheet" href="/ui/zoom.css">\n</head>', 1)
 
     # 3) サイドバーの寸法（HIA総合管理と統一）
     s = s.replace(".sidebar {\n  width: 72px;", ".sidebar {\n  width: 88px;", 1)
@@ -340,9 +342,12 @@ def build():
 
     # 5.4) レイアウトの高さを画面に合わせる（原本は1080px固定だった）
     s = s.replace(".app-container { display:flex; min-height:calc(1080px - 52px); }",
-                  ".app-container { display:flex; min-height:calc(100vh - 52px); }")
+                  ".app-container { display:flex; min-height:calc(100vh / var(--ui-zoom,1) - 52px); }")
     s = s.replace("system-ui,sans-serif; min-height:1080px; }",
-                  "system-ui,sans-serif; min-height:100vh; }")
+                  "system-ui,sans-serif; min-height:calc(100vh / var(--ui-zoom,1)); }")
+    # 表示倍率（--ui-zoom）の分だけ 100vh が短くなるので割り戻す
+    s = s.replace("  height: calc(100vh - 52px);\n  overflow-y: auto;",
+                  "  height: calc(100vh / var(--ui-zoom,1) - 52px);\n  overflow-y: auto;", 1)
 
     # 5.5) 4文字のラベルは1行で表示する
     s = s.replace('<span class="sb-cat-label">健康<br>診断</span>',
@@ -571,9 +576,7 @@ textarea { min-height: 40px; box-sizing: border-box; }
 }
 </style>""", 1)
 
-    # ---- サイドバーの横幅を96pxにする ----
-    s = s.replace(".sidebar {\n  width: 88px;", ".sidebar {\n  width: 96px;")
-    s = s.replace('<div style="height:88px;"></div>', '<div style="height:96px;"></div>')
+    # ---- サイドバーの横幅は 88px（原本のまま）----
 
     io.open(OUT, "w", encoding="utf-8").write(s)
     return orig, len(s), s

@@ -1,0 +1,166 @@
+{% extends LAYOUT %}{% block body %}
+{% set place = (comps | selectattr('id', 'equalto', cid) | map(attribute='name') | first)
+               if cid else '健保共通' %}
+<div class="frag-head">
+  <h1 class="page-title">判定マスタ 編集：{{ item.name }}</h1>
+  <a class="btn-back" style="text-decoration:none"
+     href="{{ url_for('criteria', company_id=cid, fy=fy) }}">戻る</a>
+</div>
+<p class="page-lead">年度ごとに、判定区分・性別・下限値・上限値の組を登録します。</p>
+
+{# 対象の検査項目（HIA総合管理の検査マスタと同じ項目情報を並べます） #}
+<div class="block">
+  <div class="blk-head"><div class="blk-head-left"><h2>対象検査項目</h2></div></div>
+  <p class="mp-meta">
+    <span>区分番号 <b>{{ item.sec_no or '—' }}　{{ SECTION_NAME.get(item.sec_no, '') }}</b></span>
+    <span>代表コード <b class="code">{{ item.code }}</b></span>
+    <span>検査項目名 <b>{{ item.name }}</b></span>
+    <span>XMLデータ型 <b>{{ item.xml_type or '—' }}</b></span>
+    <span>単位 <b>{{ item.unit or '—' }}</b></span>
+    <span>必須 <b>{{ '必須' if item.required else '任意' }}</b></span>
+  </p>
+</div>
+
+<form method="post">
+<input type="hidden" name="company_id" value="{{ cid or '' }}">
+<input type="hidden" name="fy" value="{{ fy }}">
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>判定基準</h2>
+      <span class="totals-text">判定区分・性別・下限値・上限値を組で登録／企業と年度を切り替えて編集できます</span></div>
+    <div class="actions">
+      <label for="cr-comp" class="cr-pick-label">対象の企業</label>
+      <select id="cr-comp" class="cr-pick">
+        <option value="">健保共通</option>
+        {% for c in comps %}
+        <option value="{{ c.id }}" {{ 'selected' if cid == c.id }}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+      <label for="cr-fy" class="cr-pick-label">対象年度</label>
+      <select id="cr-fy" class="cr-pick" style="min-width:120px">
+        {% for y in years %}
+        <option value="{{ y }}" {{ 'selected' if fy == y }}>{{ y }}年度</option>
+        {% endfor %}
+      </select>
+      <button type="button" class="btn-sm" onclick="jcAdd()">項目追加</button>
+    </div>
+  </div>
+  <div class="table-scroll">
+  <table class="result-table" style="table-layout:auto">
+    <colgroup>
+      <col class="col-no"><col class="col-text"><col class="col-flag">
+      <col class="col-num"><col class="col-num"><col class="col-flag">
+    </colgroup>
+    <thead><tr><th>No</th><th class="tl">判定区分</th><th>性別</th>
+      <th>下限値（以上）</th><th>上限値（以下）</th><th>操作</th></tr></thead>
+    <tbody id="jcRows">
+    {% for r in rows %}
+    <tr class="jc-row">
+      <td class="num jc-no">{{ loop.index }}</td>
+      <td class="tl"><select name="judge" style="width:100%">
+        {% for v, l in JUDGE_CODES %}
+        <option value="{{ v }}" {{ 'selected' if r.judge == v }}>{{ l }}</option>
+        {% endfor %}</select></td>
+      <td><select name="sex" style="width:100%">
+        {% for sx in JUDGE_SEXES %}
+        <option value="{{ sx }}" {{ 'selected' if r.sex == sx }}>{{ sx }}</option>
+        {% endfor %}</select></td>
+      <td><input type="text" name="lo" value="{{ r.lo or '' }}" class="jc-val"
+                 placeholder="空欄＝下限なし"></td>
+      <td><input type="text" name="hi" value="{{ r.hi or '' }}" class="jc-val"
+                 placeholder="空欄＝上限なし"></td>
+      <td><button type="button" class="btn-sm btn-del" onclick="jcDel(this)">削除</button></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="empty-box" id="jcEmpty" style="{{ 'display:none' if rows }}">
+    判定基準がまだありません。「項目追加」で行を足してください。</div>
+  <p class="hint">下限値・上限値は<b>数値</b>で入力します（空欄にすると、その側の制限なし）。
+    判定は<b>下限値以上・上限値以下</b>（上限値と同じ値もその判定に含みます）で行います。
+    単位は {{ item.unit or '—' }} です。血圧のように収縮期・拡張期で分ける項目は、
+    項目ごとに基準を登録します。</p>
+</div>
+
+{% if cid %}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>健保共通の基準（参考）</h2>
+      <span class="count">{{ common|length }}件</span></div>
+  </div>
+  {% if common %}
+  <div class="table-scroll">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr><th class="tl">判定区分</th><th>性別</th>
+      <th>下限値（以上）</th><th>上限値（以下）</th></tr></thead>
+    <tbody>
+    {% for r in common %}
+    <tr><td class="tl">{{ r.judge }}</td><td>{{ r.sex }}</td>
+      <td class="num">{{ r.lo or '—' }}</td><td class="num">{{ r.hi or '—' }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="hint">この企業の基準を1件も登録しない場合は、上の共通の基準が使われます。</p>
+  {% else %}<div class="empty-box">健保共通の基準は登録されていません。</div>{% endif %}
+</div>
+{% endif %}
+
+<div class="actions" style="justify-content:center;gap:12px">
+  <a class="btn-back" style="text-decoration:none"
+     href="{{ url_for('criteria', company_id=cid, fy=fy) }}">キャンセル</a>
+  <button class="btn-submit btn-regsave" style="min-width:200px">更新</button>
+</div>
+</form>
+
+<template id="jcTpl">
+  <tr class="jc-row">
+    <td class="num jc-no"></td>
+    <td class="tl"><select name="judge" style="width:100%">
+      {% for v, l in JUDGE_CODES %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+    </select></td>
+    <td><select name="sex" style="width:100%">
+      {% for sx in JUDGE_SEXES %}<option value="{{ sx }}">{{ sx }}</option>{% endfor %}
+    </select></td>
+    <td><input type="text" name="lo" class="jc-val" placeholder="空欄＝下限なし"></td>
+    <td><input type="text" name="hi" class="jc-val" placeholder="空欄＝上限なし"></td>
+    <td><button type="button" class="btn-sm btn-del" onclick="jcDel(this)">削除</button></td>
+  </tr>
+</template>
+
+<script>
+/* カード右上の企業・年度を切り替えたら、その条件の判定基準を開き直す */
+(function(){
+  function go(){
+    var c = document.getElementById('cr-comp').value;
+    var y = document.getElementById('cr-fy').value;
+    location.href = '{{ url_for("criteria_edit", item_id=item.id) }}'
+      + '?company_id=' + encodeURIComponent(c) + '&fy=' + encodeURIComponent(y);
+  }
+  ['cr-comp', 'cr-fy'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener('change', go);
+  });
+})();
+/* 判定基準の行を足す・消す（Noは常に1から振り直す） */
+function jcNo(){
+  var rows = document.querySelectorAll('#jcRows .jc-row');
+  rows.forEach(function(tr, i){ tr.querySelector('.jc-no').textContent = i + 1; });
+  var empty = document.getElementById('jcEmpty');
+  if(empty) empty.style.display = rows.length ? 'none' : '';
+  if(window.reportHeight) window.reportHeight();
+}
+function jcAdd(){
+  var tpl = document.getElementById('jcTpl');
+  document.getElementById('jcRows').appendChild(tpl.content.cloneNode(true));
+  jcNo();
+}
+function jcDel(btn){
+  btn.closest('tr').remove();
+  jcNo();
+}
+jcNo();
+</script>
+{% endblock %}

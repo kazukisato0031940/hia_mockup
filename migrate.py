@@ -60,14 +60,331 @@ def apply_sanmen(con, log):
     if "excluded" not in cols(con, "member"):
         con.execute("ALTER TABLE member ADD COLUMN excluded INTEGER NOT NULL DEFAULT 0")
         log.append("member に excluded（健診の対象から除外）を追加")
+    # 加入者のメモ欄と、加入者ごとの写真（採血結果などの画像）
+    if "memo" not in cols(con, "member"):
+        con.execute("ALTER TABLE member ADD COLUMN memo TEXT")
+        log.append("member に memo（メモ）を追加")
+    if "member_photo" not in tables(con):
+        con.execute("""
+            CREATE TABLE member_photo (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              member_id   INTEGER NOT NULL REFERENCES member(id),
+              kind        TEXT,
+              filename    TEXT NOT NULL,
+              orig_name   TEXT,
+              mime        TEXT,
+              bytes       INTEGER NOT NULL DEFAULT 0,
+              taken_on    TEXT,
+              note        TEXT,
+              uploaded_by TEXT,
+              created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            )""")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_mphoto_member"
+                    " ON member_photo(member_id)")
+        log.append("member_photo（加入者ごとの写真）のテーブルを追加")
+    # 判定マスタ（検査項目と、健保共通・企業ごとの判定基準）
+    if "judge_item" not in tables(con):
+        con.execute("""
+            CREATE TABLE judge_item (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              code       TEXT NOT NULL UNIQUE,
+              name       TEXT NOT NULL,
+              unit       TEXT,
+              sort       INTEGER NOT NULL DEFAULT 0,
+              created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            )""")
+        log.append("judge_item（判定マスタの検査項目）のテーブルを追加")
+    if "judge_criteria" not in tables(con):
+        con.execute("""
+            CREATE TABLE judge_criteria (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              kenpo_id   INTEGER NOT NULL REFERENCES kenpo(id),
+              company_id INTEGER REFERENCES company(id),
+              item_id    INTEGER NOT NULL REFERENCES judge_item(id),
+              fiscal_year TEXT NOT NULL,
+              judge      TEXT NOT NULL,
+              sex        TEXT NOT NULL DEFAULT '共通',
+              lo         TEXT,
+              hi         TEXT,
+              sort       INTEGER NOT NULL DEFAULT 0,
+              updated_at TEXT
+            )""")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_jc_key"
+                    " ON judge_criteria(kenpo_id, company_id, item_id, fiscal_year)")
+        log.append("judge_criteria（判定基準）のテーブルを追加")
+    # 判定マスタの検査項目は、HIA総合管理の検査マスタと同じ構造にそろえる
+    # （区分番号・必須・代表コード・検査項目名・XMLデータ型・単位）
+    for col, decl in (("sec_no", "TEXT"), ("xml_type", "TEXT"),
+                      ("required", "INTEGER NOT NULL DEFAULT 0")):
+        add_col(con, "judge_item", col, decl, log)
+    seed_judge_items(con, log)
+    seed_judge_defaults(con, log)
+    fix_judge_upper_inclusive(con, log)
+    fix_hr_class_values(con, log)
+    # 対応区分ごとの進め方で使う日付（対応期限・対応完了日・次回フォロー予定日）
+    if "oh_candidate" in tables(con):
+        for col in ("due_on", "done_on", "follow_on", "booked_on"):
+            add_col(con, "oh_candidate", col, "TEXT", log)
+    # 対応の履歴（メモ・対応区分の変更を1件ずつ記録する）
+    if "oh_memo" in tables(con):
+        add_col(con, "oh_memo", "kind", "TEXT NOT NULL DEFAULT 'メモ'", log)
+        for col in ("hr_class", "due_on", "done_on", "follow_on"):
+            add_col(con, "oh_memo", col, "TEXT", log)
+    # メールのやり取りの向き（out＝担当者から／in＝加入者本人から）
+    if "oh_mail_log" in tables(con):
+        add_col(con, "oh_mail_log", "direction", "TEXT NOT NULL DEFAULT 'out'", log)
+    # 定期健康診断結果報告書（様式第6号）の報告項目
+    if "form6_report" not in tables(con):
+        con.execute("""
+            CREATE TABLE form6_report (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              kenpo_id    INTEGER NOT NULL REFERENCES kenpo(id),
+              company_id  INTEGER REFERENCES company(id),
+              target_year TEXT NOT NULL,
+              labor_insurance_no TEXT,
+              industry_type      TEXT,
+              workplace_name     TEXT,
+              workplace_address  TEXT,
+              examination_date   TEXT,
+              institution_name   TEXT,
+              institution_address TEXT,
+              employees_count    INTEGER,
+              physician_name     TEXT,
+              physician_address  TEXT,
+              employer_name_title TEXT,
+              updated_at  TEXT,
+              UNIQUE (kenpo_id, company_id, target_year)
+            )""")
+        log.append("form6_report（定期健康診断結果報告書の報告項目）のテーブルを追加")
+    for col in ("workplace_zip", "workplace_tel", "report_count"):
+        add_col(con, "form6_report", col, "TEXT", log)
+    # 操作ログに「操作した画面のURL（ディレクトリ）」を残す
+    if "path" not in cols(con, "audit_log"):
+        con.execute("ALTER TABLE audit_log ADD COLUMN path TEXT")
+        log.append("audit_log に path（操作した画面のURL）を追加")
     # 加入者向けサイトの本人確認（認証）で使う項目のパターン
     if "auth_pattern" not in cols(con, "kenpo"):
         con.execute("ALTER TABLE kenpo ADD COLUMN auth_pattern TEXT NOT NULL DEFAULT 'A'")
         log.append("kenpo に auth_pattern（認証方式）を追加")
+    # 加入者向けサイト（クローズサイト）に表示する同意文
+    if "consent_text" not in cols(con, "kenpo"):
+        con.execute("ALTER TABLE kenpo ADD COLUMN consent_text TEXT NOT NULL DEFAULT ''")
+        log.append("kenpo に consent_text（クローズサイトに表示する同意文）を追加")
     added = sorted(t for t in tables(con) - before if t.startswith("oh_"))
     if added:
         log.append(f"産業医面談管理のテーブルを追加（{len(added)}件）")
     con.commit()
+
+
+# 判定マスタの検査項目（特定健診XMLの項目マスタ）。HIA総合管理の検査マスタと同じ内容
+JUDGE_ITEMS_CSV = os.path.join(BASE, "judge_items.csv")
+# HIA総合管理の判定マスタに入っている判定基準（健保側に設定が無いときの既定値）
+JUDGE_DEFAULTS_CSV = os.path.join(BASE, "judge_defaults.csv")
+# 区分番号 → 区分名（特定健診XML 健診項目コード表の区分。HIA総合管理と同じ定義）
+JUDGE_SECTIONS = [
+    ("01", "受診情報"), ("02", "基本情報・診察"), ("03", "身体計測"), ("04", "血圧"),
+    ("05", "血中脂質検査"), ("06", "肝機能検査"), ("07", "血糖検査"),
+    ("08", "尿・腎機能検査"), ("09", "血液学的検査"), ("10", "心電図検査"),
+    ("11", "眼底検査"), ("12", "その他の検査"), ("13", "医師の判断"),
+    ("14", "問診（質問票）"), ("15", "メタボリックシンドローム判定"), ("16", "保健指導"),
+]
+
+
+def seed_judge_items(con, log):
+    """検査項目マスタを judge_items.csv の内容にそろえる（何度実行しても安全）"""
+    if not os.path.exists(JUDGE_ITEMS_CSV):
+        return
+    import csv
+    with open(JUDGE_ITEMS_CSV, encoding="utf-8") as f:
+        rows = [r for r in csv.reader(f)][1:]
+    have = {r[0] for r in con.execute("SELECT code FROM judge_item")}
+    n_new = n_upd = 0
+    for i, (sec, code, name, xml, unit, req) in enumerate(rows, start=1):
+        if code in have:
+            con.execute("UPDATE judge_item SET sec_no=?, name=?, xml_type=?, unit=?,"
+                        " required=?, sort=? WHERE code=?",
+                        (sec, name, xml, unit, 1 if req else 0, i * 10, code))
+            n_upd += 1
+        else:
+            con.execute("INSERT INTO judge_item (code, name, unit, sort, sec_no,"
+                        " xml_type, required) VALUES (?,?,?,?,?,?,?)",
+                        (code, name, unit, i * 10, sec, xml, 1 if req else 0))
+            n_new += 1
+    # 旧バージョンで入れた仮の項目（HEIGHT などのコード）は片づける
+    old_codes = [r[0] for r in con.execute(
+        "SELECT code FROM judge_item WHERE length(code) < 10")]
+    for code in old_codes:
+        con.execute("DELETE FROM judge_criteria WHERE item_id IN"
+                    " (SELECT id FROM judge_item WHERE code=?)", (code,))
+        con.execute("DELETE FROM judge_item WHERE code=?", (code,))
+    if n_new:
+        log.append(f"判定マスタの検査項目を{n_new}件登録"
+                   + (f"（旧データ{len(old_codes)}件を整理）" if old_codes else ""))
+
+
+def seed_judge_defaults(con, log):
+    """判定マスタの既定値を持つ（何度実行しても安全）
+
+    既定値は日本人間ドック学会の「判定区分」（2026年4月1日改定）の数値です。
+    A（異常なし）・B（軽度異常）・C（要再検査・生活改善）・D（要精密検査・治療）の
+    4区分で、性別で値が変わる項目（腹囲・血清クレアチニン・血色素量）は
+    男性・女性それぞれに登録します。
+    最終的な受診の要否や就業上の判断は、産業医・医師が行います。
+    """
+    if "judge_default" not in tables(con):
+        con.execute("""
+            CREATE TABLE judge_default (
+              id        INTEGER PRIMARY KEY AUTOINCREMENT,
+              item_code TEXT NOT NULL,
+              judge     TEXT NOT NULL,
+              sex       TEXT NOT NULL DEFAULT '共通',
+              lo        TEXT,
+              hi        TEXT,
+              sort      INTEGER NOT NULL DEFAULT 0
+            )""")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_jd_code ON judge_default(item_code)")
+        log.append("judge_default（HIA総合管理の判定基準の既定値）のテーブルを追加")
+    if not os.path.exists(JUDGE_DEFAULTS_CSV):
+        return
+    have = con.execute("SELECT COUNT(*) c FROM judge_default").fetchone()["c"]
+    done = con.execute("SELECT value FROM setting WHERE key=?",
+                       (DOCK_JUDGE_FLAG,)).fetchone() if "setting" in tables(con) else None
+    if have and done:
+        return
+    import csv
+    with open(JUDGE_DEFAULTS_CSV, encoding="utf-8") as f:
+        rows = [r for r in csv.reader(f)][1:]
+    # 既定値は入れ直します（健保・企業ごとに登録した判定基準は変えません）
+    con.execute("DELETE FROM judge_default")
+    for code, _name, judge, sex, lo, hi, sort in rows:
+        con.execute("INSERT INTO judge_default (item_code, judge, sex, lo, hi, sort)"
+                    " VALUES (?,?,?,?,?,?)",
+                    (code, judge, sex or "共通", lo or None, hi or None, int(sort or 0)))
+    # 健保共通として反映済みの基準は、いったん消して既定値から入れ直します
+    # （企業ごとに登録した基準はそのまま残します）
+    if have and "judge_criteria" in tables(con):
+        n_old = con.execute("SELECT COUNT(*) c FROM judge_criteria"
+                            " WHERE company_id IS NULL").fetchone()["c"]
+        if n_old:
+            con.execute("DELETE FROM judge_criteria WHERE company_id IS NULL")
+            log.append(f"健保共通の判定基準{n_old}件を既定値から入れ直し")
+    if "setting" in tables(con):
+        con.execute("INSERT INTO setting (key, value) VALUES (?,?)"
+                    " ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (DOCK_JUDGE_FLAG, "done"))
+    log.append(f"判定基準の既定値を{len(rows)}件登録"
+               "（日本人間ドック学会の判定区分 2026年4月1日改定）")
+
+
+FIX_HI_FLAG = "migrate:judge_hi_inclusive"
+# 判定マスタの既定値を日本人間ドック学会の判定区分（2026年4月1日改定）に入れ替えた印
+DOCK_JUDGE_FLAG = "migrate:judge_default_dock2026"
+
+
+# 対応区分は「未判定／産業医判定済／要精査・加療指示／保健師対応中／再検査対応済み」の
+# 5区分です。以前のデータにある区分名を、いまの区分に読み替えます。
+HR_CLASS_FIX = {"経過観察": "通常勤務", "産業医判定済": "通常勤務",
+                "要精査・加療指示": "保健師対応中"}
+
+
+def fix_hr_class_values(con, log):
+    """対応区分に古い区分名が残っている場合、いまの区分に置き換える
+
+    産業医の判定結果（就業区分）がそのまま対応区分になる形にしたため、
+    「産業医判定済」は登録済みの就業区分（無ければ通常勤務）へ読み替えます。
+    """
+    if "oh_candidate" not in tables(con):
+        return
+    n = con.execute("SELECT count(*) FROM oh_candidate WHERE hr_class='産業医判定済'"
+                    " AND IFNULL(work_class,'')<>''").fetchone()[0]
+    if n:
+        con.execute("UPDATE oh_candidate SET hr_class=work_class"
+                    " WHERE hr_class='産業医判定済' AND IFNULL(work_class,'')<>''")
+        log.append(f"対応区分「産業医判定済」を就業区分に置き換えました（{n}件）")
+    for old, new in HR_CLASS_FIX.items():
+        n = con.execute("SELECT count(*) FROM oh_candidate WHERE hr_class=?",
+                        (old,)).fetchone()[0]
+        if not n:
+            continue
+        con.execute("UPDATE oh_candidate SET hr_class=? WHERE hr_class=?", (new, old))
+        log.append(f"対応区分「{old}」を「{new}」に置き換えました（{n}件）")
+
+
+def fix_judge_upper_inclusive(con, log):
+    """判定マスタの上限値を「未満」から「以下」に直す（1回だけ実行）
+
+    以前は「下限値以上・上限値未満」で判定していたため、区分がとなり合う行では
+    上限値と次の行の下限値が同じ値（例：A ～130／B 130～140）になっていました。
+    上限値を「以下」に改めたので、この形のデータは上限値を1目盛り下げて
+    （例：A ～129／B 130～139）重なりを解消します。
+    """
+    from decimal import Decimal, InvalidOperation
+
+    row = con.execute("SELECT value FROM setting WHERE key=?", (FIX_HI_FLAG,)).fetchone()
+    if row:
+        return
+
+    def dec(v):
+        v = (v or "").strip()
+        if not v:
+            return None
+        try:
+            return Decimal(v)
+        except InvalidOperation:
+            return None
+
+    def fmt(d, prec):
+        """もとの表記の小数桁にあわせて文字列に戻す"""
+        return f"{d:.{prec}f}" if prec else str(int(d))
+
+    n_fix = 0
+    for table, keys in (("judge_default", ("item_code", "sex")),
+                        ("judge_criteria", ("item_id", "kenpo_id", "company_id",
+                                            "fiscal_year", "sex"))):
+        if table not in tables(con):
+            continue
+        rows = [dict(r) for r in con.execute(f"SELECT * FROM {table}")]
+        groups = {}
+        for r in rows:
+            groups.setdefault(tuple(r.get(k) for k in keys), []).append(r)
+        for g in groups.values():
+            for r in g:
+                hi = dec(r.get("hi"))
+                # 「ほかの行の下限値」と同じ上限値だけを直します
+                # （下限値＝上限値の行＝1つの値だけを指す基準は、そのままにします）
+                los = {dec(x.get("lo")) for x in g
+                       if x["id"] != r["id"] and dec(x.get("lo")) is not None}
+                if hi is None or hi not in los:
+                    continue        # 次の区分の下限値と重なっていない行はそのまま
+                # 小数桁のいちばん細かい目盛りで1つ下げる
+                prec = max(-hi.as_tuple().exponent, 0)
+                for x in g:
+                    for k in ("lo", "hi"):
+                        d = dec(x.get(k))
+                        if d is not None:
+                            prec = max(prec, -d.as_tuple().exponent)
+                step = Decimal(1).scaleb(-prec)
+                con.execute(f"UPDATE {table} SET hi=? WHERE id=?",
+                            (fmt(hi - step, prec), r["id"]))
+                n_fix += 1
+    con.execute("INSERT INTO setting (key, value) VALUES (?,?)"
+                " ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (FIX_HI_FLAG, "done"))
+    if n_fix:
+        log.append(f"判定マスタの上限値を「以下」に合わせて調整（{n_fix} 件）")
+
+
+
+def ensure_sample_accounts(con, log):
+    """ロールごとのサンプルアカウント（seed_samples.py）。無いものだけ作る。
+    プログラムを差し替えても消えないよう、起動時に毎回そろえる"""
+    try:
+        from seed_samples import ensure_samples
+        made = [m for m in ensure_samples(con, overwrite=False) if m[0] == "作成"]
+        if made:
+            log.append(f"サンプルアカウントを作成（{len(made)}件：{'、'.join(m[1] for m in made)}）")
+    except Exception as e:  # noqa - サンプルが作れなくても起動は止めない
+        log.append(f"サンプルアカウントの確認をスキップ（{e}）")
 
 
 def ensure_schema(db_path=DB, verbose=False):
@@ -82,6 +399,7 @@ def ensure_schema(db_path=DB, verbose=False):
             con.executescript(f.read())
         con.commit()
         apply_sanmen(con, log)
+        ensure_sample_accounts(con, log)
         con.close()
         return ["データベースを新規作成しました"] + log
 
@@ -95,6 +413,8 @@ def ensure_schema(db_path=DB, verbose=False):
     add_col(con, "account", "updated_at", "TEXT", log)
     # 企業担当者のサブロール（産業医・人事）
     add_col(con, "account", "sub_role", "TEXT NOT NULL DEFAULT ''", log)
+    # 加入者本人のログイン（role='member'）が指す加入者
+    add_col(con, "account", "member_id", "INTEGER", log)
     # 旧構成（産業医・人事を独立したロールにしていたもの）を
     # 「企業担当者＋サブロール」へ付け替える
     for old_role in ("doctor", "hr"):
@@ -358,14 +678,21 @@ def ensure_schema(db_path=DB, verbose=False):
         log.append("account に dept_id（担当部署）を追加")
 
     # ---------- 5.45 加入者の追加項目（実際の登録フォーマットに合わせる） ----------
+    # 「配付先コード」は「請求先コード」に名称を変更しました（列名も billing_code に変更）
+    mcols = cols(con, "member")
+    if "delivery_code" in mcols and "billing_code" not in mcols:
+        con.execute("ALTER TABLE member RENAME COLUMN delivery_code TO billing_code")
+        log.append("member の delivery_code を billing_code（請求先コード）に変更")
     for col, label in (("cert_mark", "被保険者証記号"), ("cert_branch", "被保険者証枝番"),
                        ("attr", "被保険者属性名"), ("relation", "続柄名称"),
                        ("qualified_at", "資格取得日"), ("lost_at", "資格喪失日"),
                        ("zip", "郵便番号"), ("address", "住所"),
                        ("address2", "住所（建物名）"), ("tel", "電話番号"),
-                       ("email", "メールアドレス"), ("delivery_code", "配付先コード"),
-                       ("employee_code", "社員コード"), ("connect_id", "connectID"),
-                       ("personal_id", "個人ID"), ("subscriber_id", "加入者ID")):
+                       ("email", "メールアドレス"), ("billing_code", "請求先コード"),
+                       ("employee_code", "社員番号"),
+                       ("kenpo_member_id", "健保別加入者管理ID"),
+                       ("connect_id", "connectID"),
+                       ("subscriber_id", "加入者ID")):
         if col not in cols(con, "member"):
             con.execute(f"ALTER TABLE member ADD COLUMN {col} TEXT")
             log.append(f"member に {col}（{label}）を追加")
@@ -518,10 +845,12 @@ def ensure_schema(db_path=DB, verbose=False):
               PRIMARY KEY (role_key, feature)
             )""")
         log.append("機能制御のテーブル（role_feature）を追加")
-        con.commit()
+    con.commit()
 
     # ---------- 10. 産業医面談管理のテーブル ----------
     apply_sanmen(con, log)
+    # ---------- 11. ロールごとのサンプルアカウント（無いものだけ作る） ----------
+    ensure_sample_accounts(con, log)
     con.execute("PRAGMA foreign_keys = ON")
     ok = con.execute("PRAGMA foreign_key_check").fetchall()
     if ok:

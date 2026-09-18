@@ -1,19 +1,55 @@
-.claude/
+# ===== 個人情報・機密情報（絶対にコミットしない） =====
+# 健診データベース本体とバックアップ
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.db.bak
+hia.db.premerge.*
+hia_initial.db
+backup/
+
+# 送信済みメール文面（氏名・メールアドレスを含む）
+outbox/
+
+# アップロードファイル（会員写真など）
+uploads/
+
+# セッション署名鍵（環境ごとに自動生成。秘密情報のため追跡しない）
+secret.key
+*.pem
+.env
+.env.*
+
+# ===== ローカル成果物 =====
+# 要件定義・設計資料、モックアップ
+docs/
+mockups/
+
+# サーバログ
 server_out.log
 server_err.log
 server.out.log
 server.err.log
+*.log
 
-# ローカルの作業用ファイル（DBバックアップ・送信済みメール等）
-backup/
-outbox/
-*.db.bak
-hia.db.premerge.*
-hia_initial.db
+# ===== ツール =====
+.claude/
 
-# 要件定義・設計資料、モックアップ（ローカル成果物のため追跡しない）
-docs/
-mockups/
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
 
-# セッション署名鍵（環境ごとに自動生成。秘密情報のため追跡しない）
-secret.key
+# ===== エディタ・OS =====
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*.swp

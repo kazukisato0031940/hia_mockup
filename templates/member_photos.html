@@ -1,0 +1,204 @@
+{% extends LAYOUT %}{% block body %}
+{# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
+{% if not EMBED %}
+<h1 class="page-title">写真の取込（個人ごと）</h1>
+<p class="page-lead">採血結果などの写真を、加入者1人ずつ取り込みます。取り込んだ写真は
+  加入者マスタ（加入者情報の編集画面）でも閲覧できます。</p>
+{% endif %}
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>加入者を探す</h2>
+      <span class="count">登録済みの写真 {{ n_all }}件</span></div>
+  </div>
+  <form method="get" class="search-row">
+    <div class="search-group" style="flex:1">
+      <label for="q">加入者ID・社員番号・被保険者証番号・氏名・カナ</label>
+      <input type="text" id="q" name="q" value="{{ q }}" style="width:100%"
+             placeholder="例：00000001／E0001／見本" autofocus></div>
+    <div class="search-group"><label>&nbsp;</label>
+      <button class="btn-sm primary">検索する</button></div>
+  </form>
+  <p class="hint">写真は<b>個人ごと</b>に取り込みます。まず対象の加入者を選んでください
+    （表示されるのは、あなたの権限範囲の加入者だけです）。</p>
+
+  {% if q %}
+  {% if rows %}
+  <div class="table-scroll">
+  <table class="result-table" style="table-layout:auto">
+    <colgroup>
+      <col class="col-num"><col class="col-num"><col class="col-name">
+      <col class="col-long"><col class="col-flag"><col class="col-ops">
+    </colgroup>
+    <thead><tr><th class="tl">加入者ID</th><th class="tl">社員番号</th>
+      <th class="tl">氏名</th><th class="tl">所属</th><th>写真</th>
+      <th class="ops">操作</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr class="ls-row {{ 'is-on' if sel and sel.id == r.id }}">
+      <td class="tl code">{{ r.subscriber_id or '—' }}</td>
+      <td class="tl code">{{ r.employee_code or '—' }}</td>
+      <td class="tl"><b>{{ r.name }}</b>
+        <div class="hint" style="font-size:10.5px">{{ r.kana or '' }}</div></td>
+      <td class="tl">{{ r.company_name or '未紐づけ' }}{% if r.office_name %}／{{ r.office_name }}{% endif %}</td>
+      <td class="num">{{ counts.get(r.id, 0) }}</td>
+      <td class="ops">
+        <a class="btn-sm primary" style="text-decoration:none"
+           href="{{ url_for('member_photos_page', q=q, mid=r.id) }}">この人に取り込む</a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div class="empty-box">条件に一致する加入者がいません。</div>{% endif %}
+  {% endif %}
+</div>
+
+{% if sel %}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>{{ sel.name }} さんの写真</h2>
+      <span class="count">{{ photos|length }}件</span></div>
+    <div class="actions">
+      <a class="btn-sm" style="text-decoration:none"
+         href="{{ url_for('member_edit', mid=sel.id) }}">加入者マスタで開く</a>
+    </div>
+  </div>
+  <p class="mp-meta">
+    <span>加入者ID <b>{{ sel.subscriber_id or '—' }}</b></span>
+    <span>社員番号 <b>{{ sel.employee_code or '—' }}</b></span>
+    <span>被保険者証 <b>{{ sel.cert_mark or '—' }} - {{ sel.member_no }}</b></span>
+    <span>所属 <b>{{ sel.company_name or '未紐づけ' }}{% if sel.office_name %}／{{ sel.office_name }}{% endif %}</b></span>
+  </p>
+
+  <form method="post" action="{{ url_for('member_photo_upload', mid=sel.id) }}"
+        enctype="multipart/form-data" id="ph-form">
+    <input type="hidden" name="back"
+           value="{{ url_for('member_photos_page', q=q, mid=sel.id) }}">
+    <div class="search-row" style="margin-bottom:10px">
+      <div class="search-group"><label for="kind">区分</label>
+        <select id="kind" name="kind">
+          <option value="">未設定</option>
+          {% for k in kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}
+        </select></div>
+      <div class="search-group"><label for="taken_on">検査日・撮影日</label>
+        <input type="date" id="taken_on" name="taken_on"></div>
+      <div class="search-group" style="flex:1"><label for="note">補足</label>
+        <input type="text" id="note" name="note" style="width:100%"
+               placeholder="例：再検査分"></div>
+    </div>
+    <div class="drop" id="ph-drop" tabindex="0"
+         onclick="document.getElementById('ph-file').click()"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('ph-file').click();}">
+      <span class="drop-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h2.2l1.2-2h8.2l1.2 2h2.2A1.5 1.5 0 0 1 21 7.5v10A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/>
+          <circle cx="12" cy="12.5" r="3.5"/>
+        </svg>
+      </span>
+      <div class="drop-main">ここに写真をドラッグ＆ドロップ</div>
+      <div class="drop-sub">またはクリックしてファイルを選択（何枚でも選べます）</div>
+      <div class="drop-tags">
+        <span>{{ exts | join('　') }}</span><span>1枚 {{ max_mb }}MBまで</span></div>
+      <input type="file" id="ph-file" name="photos" multiple accept="image/*,.pdf">
+    </div>
+    <div class="drop-file" id="ph-info">
+      <span class="df-ico" aria-hidden="true">IMG</span>
+      <span class="df-body"><span class="fn" id="ph-name"></span>
+        <span class="fs" id="ph-size"></span></span>
+      <button type="button" class="df-x" onclick="phClear()" title="取り消す"
+              aria-label="取り消す">&times;</button>
+    </div>
+    <div class="actions" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn-submit" id="ph-go" disabled>取り込む</button>
+    </div>
+  </form>
+
+  {% if photos %}
+  <div class="ph-grid">
+    {% for p in photos %}
+    <figure class="ph-card">
+      <a href="{{ url_for('member_photo_file', mid=sel.id, pid=p.id) }}" target="_blank"
+         rel="noopener">
+        {% if p.mime == 'application/pdf' %}<span class="ph-pdf">PDF</span>
+        {% else %}
+        <img src="{{ url_for('member_photo_file', mid=sel.id, pid=p.id) }}"
+             alt="{{ p.kind or '写真' }}" loading="lazy">
+        {% endif %}
+      </a>
+      <figcaption>
+        <b>{{ p.kind or '区分未設定' }}</b>
+        <span>{{ p.taken_on or p.created_at[:10] }}</span>
+        {% if p.note %}<span class="ph-note">{{ p.note }}</span>{% endif %}
+        <span class="hint">{{ '%.0f'|format(p.bytes / 1024) }} KB</span>
+      </figcaption>
+      {% if CAN_MASTER %}
+      <form method="post" class="ph-del"
+            action="{{ url_for('member_photo_delete', mid=sel.id, pid=p.id) }}"
+            onsubmit="return confirm('この写真を削除します。よろしいですか？')">
+        <input type="hidden" name="back"
+               value="{{ url_for('member_photos_page', q=q, mid=sel.id) }}">
+        <button class="btn-sm btn-del">削除</button>
+      </form>
+      {% endif %}
+    </figure>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-box">この加入者の写真はまだありません。</div>
+  {% endif %}
+  <p class="hint">写真は個人情報です。画面共有・印刷・持ち出しにはご注意ください。
+    取込・削除の操作は操作ログに記録されます。</p>
+</div>
+{% endif %}
+
+<script>
+/* 選んだ写真の名前と枚数を出す（ドラッグ＆ドロップにも対応） */
+function phClear(){
+  document.getElementById('ph-file').value = '';
+  document.getElementById('ph-info').classList.remove('on');
+  document.getElementById('ph-go').disabled = true;
+  if(window.reportHeight) window.reportHeight();
+}
+(function(){
+  var input = document.getElementById('ph-file');
+  var drop = document.getElementById('ph-drop');
+  if(!input || !drop) return;
+  function show(list){
+    if(!list || !list.length){ phClear(); return; }
+    var n = list.length, kb = 0;
+    for(var i = 0; i < n; i++) kb += list[i].size;
+    document.getElementById('ph-name').textContent =
+      n === 1 ? list[0].name : list[0].name + ' ほか' + (n - 1) + '件';
+    document.getElementById('ph-size').textContent =
+      '（' + (kb / 1024).toFixed(1) + ' KB／' + n + '件）';
+    document.getElementById('ph-info').classList.add('on');
+    document.getElementById('ph-go').disabled = false;
+    if(window.reportHeight) window.reportHeight();
+  }
+  input.addEventListener('change', function(){ show(this.files); });
+  ['dragenter','dragover'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation();
+      drop.classList.add('over'); });
+  });
+  ['dragleave','dragend'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation();
+      drop.classList.remove('over'); });
+  });
+  drop.addEventListener('drop', function(e){
+    e.preventDefault(); e.stopPropagation(); drop.classList.remove('over');
+    if(e.dataTransfer.files && e.dataTransfer.files.length){
+      try{ input.files = e.dataTransfer.files; }catch(err){}
+      show(e.dataTransfer.files);
+    }
+  });
+  ['dragover','drop'].forEach(function(ev){
+    window.addEventListener(ev, function(e){
+      if(!e.target.closest || !e.target.closest('.drop')) e.preventDefault();
+    });
+  });
+})();
+</script>
+{% endblock %}

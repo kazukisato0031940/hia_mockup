@@ -1,0 +1,544 @@
+{% extends LAYOUT %}
+{% from "_sanmen_flow.html" import jtag, clip, guide %}
+{% block body %}
+{% set CAN_SEL = CAN_MAIL or CAN_MED or CAN_HR %}
+{% if not EMBED %}
+<h1 class="page-title">加入者健康一覧</h1>
+<p class="page-lead">加入者マスタとは別に、加入者一人ひとりの健康状態（健診・時間外労働・
+  ストレスチェック・面談）を横に並べて確認します。氏名をクリックすると
+  その方のマイページを開きます。</p>
+{% endif %}
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>検索条件</h2></div>
+    <div class="actions">
+      <a class="btn-sm" style="text-decoration:none"
+         href="{{ url_for('hm.hm_dash', **f_query) }}">ダッシュボードで見る</a>
+    </div>
+  </div>
+  {# 2段。上段＝加入者ID・氏名・部署・年度、下段＝ステータス（ボタン）・健診判定（ボタン） #}
+  <form method="get" class="oh-search2" id="hmSearch">
+    <div class="oh-search2-row">
+      <input type="text" id="mid" name="mid" value="{{ f.mid }}" style="width:220px"
+             placeholder="加入者ID・社員番号（例：00000001）">
+      <input type="text" id="name" name="name" value="{{ f.name }}" style="width:240px"
+             list="hmNames" placeholder="氏名・カナ（サジェスト）">
+      <select id="dept" name="dept" style="width:200px">
+        <option value="">部署・事業所：すべて</option>
+        {% for d in rows | map(attribute='dept') | select | unique | sort %}
+        <option value="{{ d }}" {{ 'selected' if f.dept == d }}>{{ d }}</option>{% endfor %}
+      </select>
+      <select id="fy" name="fy" style="width:130px">
+        {% for y in fys %}<option value="{{ y }}" {{ 'selected' if y == fy }}>{{ y }}年度</option>{% endfor %}
+      </select>
+    </div>
+    <div class="oh-search2-row">
+      <div class="search-group"><label>ステータス</label>
+        {# 選んでいるボタンをもう一度押すと解除します（「すべて」のボタンは置きません） #}
+        <div class="oh-jchips" id="hmCondChips">
+          {# 保健師は 就業制限・要休業（保健指導の対象）だけ #}
+          {% for st in (NURSE_HR_CLASSES if IS_NURSE else HR_CLASSES) %}
+          <label class="oh-jchip {{ 'is-on' if f.hr_class == st }}">
+            <input type="radio" name="hr_class" value="{{ st }}"
+                   onclick="hiaToggleChip(this)"
+                   {{ 'checked' if f.hr_class == st }}>{{ st }}</label>
+          {% endfor %}
+        </div>
+        {# ダッシュボードから渡された絞り込みは、外せるように出しておきます #}
+        {% if f.cond %}
+        <input type="hidden" name="cond" value="{{ f.cond }}">
+        {% endif %}</div>
+      <div class="search-group"><label>健診判定（複数選択可）</label>
+        <div class="oh-jchips">
+          {% for j in JUDGES %}
+          <label class="oh-jchip {{ 'is-on' if j in f.judges }}">
+            <input type="checkbox" name="judge" value="{{ j }}"
+                   {{ 'checked' if j in f.judges }}>{{ j }} {{ JUDGE_LABEL[j] }}</label>
+          {% endfor %}
+        </div></div>
+    </div>
+  </form>
+  <datalist id="hmNames">
+    {% for r in rows %}<option value="{{ r.name }}"></option>{% endfor %}
+  </datalist>
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>加入者の健康一覧</h2>
+      <span class="count">{{ total }}件</span>
+      {% if CAN_SEL %}<span class="hint" id="hmSelCount">0名選択中</span>{% endif %}</div>
+    <div class="actions">
+      {% if (CAN_MED or CAN_HR) and not IS_NURSE %}
+      {# 面談対象者一覧の同名ボタンと同じ配色（btn-sm primary）にそろえています。保健師には置かない #}
+      <button class="btn-sm primary" type="button" onclick="hmBulk()">
+        選択メンバーを一括処理</button>
+      {% endif %}
+      {% if CAN_MAIL %}
+      <button class="btn-sm primary" type="button" onclick="hmMailBulk()">案内を送付</button>
+      {% endif %}
+      <a class="btn-sm" style="text-decoration:none"
+         href="{{ url_for('hm.hm_export', **f_query) }}">対象者出力</a>
+      {# 対応の履歴（保健指導・受診勧奨・フォロー完了など）の実績をCSVで出す。業務フロー 7・8 #}
+      <a class="btn-sm" style="text-decoration:none"
+         href="{{ url_for('hm.hm_export_records', **f_query) }}"
+         title="対応の履歴（支援実績）をCSVで出力します">対応履歴出力</a>
+    </div>
+  </div>
+
+  {% if rows %}
+  <div class="table-scroll">
+  {# 出す列に合わせて表の最小幅を決めます（列幅の標準の合計＋選択92px＋操作260px） #}
+  {% set COLW = {'col-num':120, 'col-name':120, 'col-sex':88, 'col-text':200,
+                 'col-date':100, 'col-flag':80, 'col-val':104, 'col-cnt':72,
+                 'col-text300':300, 'col-long':200, 'col-status-w':240} %}
+  {% set ns = namespace(w=260 + (92 if CAN_SEL else 0)) %}
+  {% for c, lb, cls in LIST_COLS %}{% set ns.w = ns.w + COLW.get(cls, 120) %}{% endfor %}
+  <table class="result-table hm-table" style="min-width:{{ ns.w + 1 }}px">
+    <thead><tr>
+      {% set TIP = {'judge': '健診の総合判定（A〜E）と異常値の件数（受診日はマウスオーバー）',
+                    'reason': '健診有所見・長時間労働・高ストレスの内容（最大2行）',
+                    'status': '対応区分（検索条件の「ステータス」と同じ区分）'} %}
+      {% if CAN_SEL %}
+      <th class="col-chk"><input type="checkbox" onclick="hmAll(this)"
+                                 title="すべて選択"></th>
+      {% endif %}
+      {% for c, lb, cls in LIST_COLS %}
+      <th class="{{ 'tl ' if c in ('emp','empno','name','reason','memo') }}{{ cls }}"
+          {% if TIP.get(c) %}title="{{ TIP[c] }}"{% endif %}>{{ lb }}</th>
+      {% endfor %}
+      <th class="ops">操作</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr class="ls-row">
+      {% if CAN_SEL %}
+      <td class="hm-narrow">
+        <input type="checkbox" class="hm-chk" value="{{ r.id }}"
+               data-name="{{ r.name }}" data-mail="{{ 1 if r.email else 0 }}"
+               data-judge="{{ r.judge or '' }}"
+               data-ot="{{ r.ot.hours if r.ot else 0 }}"
+               onclick="hmCount()"></td>
+      {% endif %}
+      <td class="tl code">{{ r.emp or '—' }}</td>
+      <td class="tl code">{{ r.empno or '—' }}</td>
+      <td class="tl">
+        <a href="{{ url_for('hm.hm_member', mid=r.id, fy=fy) }}"><b>{{ r.name }}</b></a>
+        <div class="hint" style="font-size:10.5px">{{ r.kana }}</div></td>
+      <td>{{ r.age if r.age is not none else '—' }}歳<span class="hint">／{{ r.sex or '—' }}</span></td>
+      <td>{% if r.judge %}<span class="oh-jtext"
+            title="{{ JUDGE_LABEL[r.judge] }}（受診日 {{ r.exam_date or '—' }}／異常値 {{ r.abn }}件）">{{ r.judge }}</span>
+        {% if r.abn %}<div class="hm-abn" title="C〜E判定の検査値">異常{{ r.abn }}</div>{% endif %}
+        {% else %}<span class="hint">未受診</span>{% endif %}</td>
+      <td class="tl col-text300-cell">{{ clip(r.reason_text, '抽出理由（全文）', 295) }}</td>
+      <td class="tl oh-memo-cell">{{ clip(r.memo, 'メモ（全文）', 195) }}</td>
+      {# ステータスは次の操作ができるボタンにします（人事の運用の流れ）。区分名だけを出し、横幅はそろえます。
+         未判定＝産業医への依頼の有無を小窓で決める／産業医の判定結果＝案内を送付。
+         操作のない区分はラベルのまま出します。 #}
+      <td class="oh-status-cell">
+        {% set g = HR_CLASS_GUIDE.get(r.hr_class) %}
+        {% if CAN_HR and g and g.action == '産業医へ依頼' %}
+        <button class="btn-sm hm-st-btn" type="button"
+                onclick="hmAskDoctor(this)"
+                data-id="{{ r.id }}" data-name="{{ r.name }}"
+                data-judge="{{ r.judge or '' }}" data-reason="{{ r.reason_text or '' }}"
+                title="産業医へ判定を依頼するかを決めます"
+                >{{ r.hr_class }}</button>
+        {% elif CAN_HR and CAN_MAIL and not IS_NURSE and g and g.action == '案内を送付' %}
+        {# 保健師のステータスは文字だけ（面談結果入力は操作列のボタンから） #}
+        <button class="btn-sm hm-st-btn is-judged" type="button"
+                onclick="hmMailOne({{ r.id }})"
+                {% if not r.email %}disabled
+                title="メールアドレスが未登録のため送信できません"
+                {% else %}title="{{ r.name }} さんへ結果の案内を送ります（送付後は保健師対応中になります）"
+                {% endif %}>{{ r.hr_class }}</button>
+        {% else %}
+        <span class="oh-st oh-st-appr" {% if g %}title="{{ g.short }}"{% endif %}>{{ r.hr_class }}</span>
+        {% endif %}
+      </td>
+      <td class="ops">
+        {# ボタンの名称・配色はほかの一覧（対象者一覧・マスタ）とそろえています #}
+        <a class="btn-sm primary btn-detail-blue" style="text-decoration:none"
+           href="{{ url_for('hm.hm_member', mid=r.id, fy=fy) }}">詳細表示</a>
+        {% if IS_NURSE and CAN_IV_VIEW %}
+        {# 保健師：個別の「案内」は置かず、面談結果入力へ（記録すると対応済みになります） #}
+        <a class="btn-sm btn-guide-blue" style="text-decoration:none"
+           href="{{ url_for('oh.oh_interview', fy=fy, sid=r.id) }}"
+           title="{{ r.name }} さんの面談結果を入力します（確定すると対応済みになります）">面談結果入力</a>
+        {% elif CAN_MAIL %}
+        <button class="btn-sm btn-guide-blue" type="button" onclick="hmMailOne({{ r.id }})"
+                {% if not r.email %}disabled
+                title="メールアドレスが未登録のため送信できません"
+                {% else %}title="{{ r.name }} さんへ案内を送ります（送付済み {{ sent_map.get(r.id, 0) }}件）"
+                {% endif %}>案内を送付</button>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-box">条件に一致する加入者がいません。</div>
+  {% endif %}
+  {% if CAN_MAIL %}
+  <p class="hint">{% if IS_NURSE %}面談（保健指導）の結果は、その行の「面談結果入力」から記録します（確定するとステータスは対応済みになります）。案内メールは左端で加入者を選んで右上の「案内を送付」から送れます。{% else %}案内メールは、左端で加入者を選んで右上の「案内を送付」から、
+    1人だけならその行の「案内」ボタンから送れます。{% endif %}
+    {% if not mail_on %}<b>送信設定（SMTP）が未登録のため、送信内容は outbox に
+    控えとして保存されます。</b>{% endif %}</p>
+  {% endif %}
+  <p class="hint">この一覧は<b>加入者マスタとは別</b>に、加入者の健康を管理するための
+    画面です（登録・変更はマスタ管理の「加入者情報」で行います）。
+    検査値・判定は参考情報です。受診の必要性や就業上の措置の最終判断は
+    産業医・医師が行います。{% if CAN_MAIL %}<br>メールのテンプレートの編集と配信履歴は
+    「メール設定」でご確認ください。{% endif %}</p>
+</div>
+
+
+
+{% if CAN_MED or CAN_HR %}
+{# 産業医へ判定を依頼する（ステータスの「未判定」ボタンから使います） #}
+{# ============ 未判定：産業医への依頼の有無 ============
+   依頼する → 産業医依頼中。依頼しない → 対応済み（再検査対応済み）にして流れを終える #}
+<div class="modal-back" id="hmAskModal">
+  <div class="modal-card" style="max-width:560px">
+    <div class="modal-head">
+      <h2 id="hmAskTitle">産業医への依頼</h2>
+      <button class="modal-x" type="button" onclick="hmAskClose()">×</button>
+    </div>
+    <form method="post" action="{{ url_for('hm.hm_ask_doctor') }}" id="hmAskForm">
+      <input type="hidden" name="fy" value="{{ fy }}">
+      <input type="hidden" name="back" value="{{ request.full_path }}">
+      <input type="hidden" name="member_id" id="hmAskId" value="">
+      <input type="hidden" name="decision" id="hmAskDecision" value="ask">
+      <div class="modal-body">
+        <p class="note" id="hmAskSummary" style="margin-top:0;"></p>
+        <p style="margin:0;font-size:14px;font-weight:700;color:var(--text-main)">産業医へ判定を依頼しますか？</p>
+        <p class="fld-help" style="margin-top:6px">依頼する → 産業医依頼中（産業医が就業区分を判定します）。
+          依頼しない → {{ HR_DONE }}（対応を終えたものとして記録します）。</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-sm" type="button" onclick="hmAskClose()">閉じる</button>
+        <button class="btn-sm" type="submit" id="hmAskNo"
+                onclick="document.getElementById('hmAskDecision').value='no'">依頼しない（対応済み）</button>
+        <button class="btn-sm primary" type="submit" id="hmAskYes"
+                onclick="document.getElementById('hmAskDecision').value='ask'">依頼する</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ============ 一括処理（面談対象者一覧の「選択メンバーを一括処理」と同じ内容） ============ #}
+<div class="modal-back" id="hmBulkModal">
+  <div class="modal-card" style="max-width:900px">
+    <div class="modal-head">
+      <h2 id="hmBulkTitle">一括処理</h2>
+      <button class="modal-x" type="button" onclick="hmBulkClose()">×</button>
+    </div>
+    <form method="post" action="{{ url_for('oh.oh_save') }}">
+      <input type="hidden" name="fy" value="{{ fy }}">
+      <input type="hidden" name="back" value="{{ request.full_path }}">
+      <input type="hidden" name="action" id="hmAction" value="save">
+      <div id="hmBulkIds"></div>
+      <div class="modal-body">
+        <p class="note" id="hmBulkSummary" style="margin-top:0"></p>
+
+        {% if CAN_MED %}
+        <div class="oh-med">
+          <h3>医学的判断（産業医のみ）</h3>
+          <div class="oh-grid">
+            <div class="fld">
+              <label class="fld-label">就業区分</label>
+              <input type="hidden" id="hmWork" name="work_class" value="">
+              <div class="iv-chips" id="hmWorkChips">
+                <button type="button" class="iv-chip is-on" data-w=""
+                        onclick="hmPickWork(this)">変更しない</button>
+                {% for w in WORK_CLASSES %}
+                <button type="button" class="iv-chip" data-w="{{ w }}"
+                        onclick="hmPickWork(this)">{{ w }}</button>
+                {% endfor %}
+              </div>
+              <p class="fld-help">通常勤務／就業制限／要休業。設定すると面談対象として扱います。</p>
+            </div>
+            <div class="fld">
+              <label class="fld-label">面談対象の承認</label>
+              <div style="display:flex;gap:8px">
+                <button class="btn-sm primary" type="submit"
+                        onclick="document.getElementById('hmAction').value='approve'">承認する</button>
+                <button class="btn-sm" type="submit"
+                        onclick="document.getElementById('hmAction').value='unapprove'">承認を取消</button>
+              </div>
+              <p class="fld-help">承認すると「面談対象（承認済）」となり、メール配信へ進めます。</p>
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <p class="note" style="background:#f7fafc">
+          承認・就業区分・面談不要の設定は<b>産業医のみ</b>が行います。
+          この画面から送信された場合もサーバ側で反映しません。</p>
+        {% endif %}
+
+        {% if CAN_HR %}
+        <div class="fld">
+          <label class="fld-label" for="hmHr">対応区分（人事）</label>
+          <select id="hmHr" name="hr_class" onchange="hmGuide(this.value)">
+            <option value="">変更しない</option>
+            {% for st in HR_CLASSES %}<option value="{{ st }}">{{ st }}</option>{% endfor %}
+          </select>
+          <p class="fld-help">「産業医判定済」は産業医の承認・就業判定から自動で反映されます。</p>
+        </div>
+        {% endif %}
+
+        {# 選んだ対応区分で、人事・産業医・保健師が行うことを出します #}
+        <div class="fld" id="hmGuideBox" hidden>
+          <label class="fld-label">このステータスで行うこと</label>
+          <div class="hcg is-one" id="hmGuide">{{ guide(HR_CLASS_GUIDE, GUIDE_ROLES) }}</div>
+        </div>
+
+        <div class="oh-grid">
+          <div class="fld">
+            <label class="fld-label" for="hmDue">対応期限</label>
+            <input type="date" id="hmDue" name="due_on">
+            <p class="fld-help">判定期限・受診の報告期限など。</p>
+          </div>
+          <div class="fld">
+            <label class="fld-label" for="hmFollow">次回フォロー予定日</label>
+            <input type="date" id="hmFollow" name="follow_on">
+            <p class="fld-help">保健指導・面談のフォロー予定。</p>
+          </div>
+          <div class="fld">
+            <label class="fld-label" for="hmDone">対応完了日</label>
+            <input type="date" id="hmDone" name="done_on">
+            <p class="fld-help">再検査の受診・結果提出まで終わった日。</p>
+          </div>
+        </div>
+
+        <div class="fld">
+          <label class="fld-label" for="hmMemo">メモ（記入者・日時つきで履歴に追加します）</label>
+          <textarea id="hmMemo" name="memo" rows="3" style="width:100%"
+                    placeholder="例）本人と連絡済み。来週の面談を調整中。"></textarea>
+          <p class="fld-help">産業医・人事の双方が追記できます。最新のメモを一覧に表示します。</p>
+        </div>
+
+        {% if CAN_MED %}
+        <div class="fld">
+          <label class="fld-label" for="hmEx">面談不要（対象外）にする理由</label>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <input type="text" id="hmEx" name="exclude_reason" style="flex:1"
+                   placeholder="例）主治医の管理下にあり、就業上の措置は不要">
+            <button class="btn-sm" type="submit"
+                    onclick="document.getElementById('hmAction').value='exclude'">対象外にする</button>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="modal-foot">
+        <span class="hint" style="margin-right:auto">
+          就業判定・措置の最終判断は産業医・医師が行います。</span>
+        <button class="btn-sm" type="button" onclick="hmBulkClose()">閉じる</button>
+        <button class="btn-sm primary btn-regsave" type="submit"
+                onclick="document.getElementById('hmAction').value='save'">更新</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if CAN_MAIL %}
+{# ============ メール作成（個人別・一括の共通モーダル） ============ #}
+<div class="modal-back" id="hmMailModal">
+  <div class="modal-card" style="max-width:860px">
+    <div class="modal-head">
+      <h2 id="hmMailTitle">メールを作成</h2>
+      <button class="modal-x" type="button" onclick="hmClose()">×</button>
+    </div>
+    <form method="post" action="{{ url_for('hm.hm_mail_send') }}" id="hmMailForm">
+      <input type="hidden" name="fy" value="{{ fy }}">
+      <input type="hidden" name="cond" value="{{ f.cond }}">
+      <input type="hidden" name="mid" value="{{ f.mid }}">
+      <input type="hidden" name="name" value="{{ f.name }}">
+      <input type="hidden" name="dept" value="{{ f.dept }}">
+      {% for j in f.judges %}<input type="hidden" name="judge" value="{{ j }}">{% endfor %}
+      <div id="hmMailIds"></div>
+      <div class="modal-body">
+        <p class="note" id="hmMailTo" style="margin-top:0"></p>
+        <div class="search-row" style="margin-bottom:12px">
+          <div class="search-group"><label for="hmTpl">テンプレート</label>
+            <select id="hmTpl" name="template_id" style="width:250px"
+                    onchange="hmApplyTpl()">
+              {% for t in tpls %}
+              <option value="{{ t.id }}" data-subject="{{ t.subject }}"
+                      data-body="{{ t.body }}">{{ t.name }}</option>
+              {% endfor %}
+            </select></div>
+          <div class="search-group"><label for="hmDl">期限</label>
+            <input type="date" id="hmDl" name="deadline" style="width:150px"></div>
+          <div class="search-group" style="flex:1"><label for="hmUrl">健康マイページのURL</label>
+            <input type="text" id="hmUrl" name="mypage_url" style="width:100%"
+                   placeholder="例：https://…/health/me"></div>
+        </div>
+        <div class="fld" style="margin-bottom:10px">
+          <label class="fld-label" for="hmDesk">担当窓口（本文の {{ '{{担当窓口}}' }} に入ります）</label>
+          <input type="text" id="hmDesk" name="desk" style="width:100%"
+                 placeholder="例：健康管理室（内線1234）"></div>
+        <div class="fld" style="margin-bottom:10px">
+          <label class="fld-label" for="hmSubject">件名</label>
+          <input type="text" id="hmSubject" name="subject" style="width:100%"></div>
+        <div class="fld">
+          <label class="fld-label" for="hmBody">本文</label>
+          <textarea id="hmBody" name="body" rows="12" style="width:100%"></textarea></div>
+        <p class="hint">差し込み項目：{% for k in MAIL_FIELDS %}<code>{{ k }}</code>{% if not loop.last %}　{% endif %}{% endfor %}<br>
+          送信内容は送信履歴に残ります（件名のみ。本文は残しません）。
+          検査値・判定は本文に書かず、健康マイページでご確認いただく形をおすすめします。
+          {% if not mail_on %}<br><b>送信設定（SMTP）が未登録のため、実際には送信されず
+          outbox に控えが保存されます。</b>{% endif %}</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-sm" type="button" onclick="hmClose()">閉じる</button>
+        <button class="btn-sm primary btn-regsave" type="submit" id="hmSend">送信する</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<script>
+/* 条件を変えたらすぐ検索する（ボタンを押さなくてもよい） */
+(function(){
+  var f = document.getElementById('hmSearch');
+  if(!f) return;
+  f.querySelectorAll('select, input[type=radio], input[type=checkbox]')
+   .forEach(function(el){ el.addEventListener('change', function(){ f.submit(); }); });
+  f.querySelectorAll('input[type=text]').forEach(function(el){
+    el.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ f.submit(); } });
+  });
+})();
+{% if CAN_SEL %}
+/* ---- 選択と一括処理・一括メール ---- */
+function hmBoxes(){ return [].slice.call(document.querySelectorAll('.hm-chk')); }
+function hmSel(){ return hmBoxes().filter(function(c){ return c.checked; }); }
+function hmCount(){
+  var n = hmSel().length;
+  var el = document.getElementById('hmSelCount');
+  if(el) el.textContent = n + '名選択中';
+}
+function hmAll(el){
+  hmBoxes().forEach(function(c){ c.checked = el.checked; });
+  hmCount();
+}
+function hmClose(){ document.getElementById('hmMailModal').classList.remove('open'); }
+function hmOpen(){
+  var b = document.getElementById('hmMailModal');
+  b.classList.add('open');
+  if(window.hiaCenterModal) window.hiaCenterModal(b.querySelector('.modal-card'));
+}
+function hmSetIds(ids){
+  var box = document.getElementById('hmMailIds');
+  box.innerHTML = '';
+  ids.forEach(function(v){
+    var i = document.createElement('input');
+    i.type = 'hidden'; i.name = 'member_ids'; i.value = v;
+    box.appendChild(i);
+  });
+}
+/* テンプレートの内容を件名・本文へ写す（そのあと自由に直せます） */
+function hmApplyTpl(){
+  var s = document.getElementById('hmTpl');
+  var o = s && s.selectedOptions ? s.selectedOptions[0] : null;
+  if(!o) return;
+  document.getElementById('hmSubject').value = o.dataset.subject || '';
+  document.getElementById('hmBody').value = o.dataset.body || '';
+}
+/* 未判定のステータスを押すと、産業医へ判定を依頼します（産業医依頼中にします） */
+/* 未判定：産業医へ依頼するかを小窓で決める（依頼しないときは対応済みにする） */
+function hmAskDoctor(btn){
+  var d = btn.dataset;
+  document.getElementById('hmAskId').value = d.id;
+  document.getElementById('hmAskDecision').value = 'ask';
+  document.getElementById('hmAskTitle').textContent = d.name + ' さん：産業医への依頼';
+  document.getElementById('hmAskSummary').innerHTML =
+    '健診判定：<b>' + (d.judge || '—') + '</b>　ステータス：<b>未判定</b>' +
+    '<br>抽出理由：' + (d.reason || '（該当なし）');
+  var b = document.getElementById('hmAskModal');
+  b.classList.add('open');
+  if(window.hiaCenterModal) window.hiaCenterModal(b.querySelector('.modal-card'));
+}
+function hmAskClose(){ document.getElementById('hmAskModal').classList.remove('open'); }
+function hmMailOne(id){
+  var c = hmBoxes().filter(function(x){ return x.value === String(id); })[0];
+  var nm = c ? c.dataset.name : '';
+  hmSetIds([String(id)]);
+  document.getElementById('hmMailTitle').textContent = 'メールを作成（個人別）';
+  document.getElementById('hmMailTo').innerHTML =
+    '<b>' + nm + '</b> さん 1名に送ります。';
+  hmApplyTpl();
+  hmOpen();
+}
+function hmMailBulk(){
+  var sel = hmSel();
+  if(!sel.length){ alert('送信する加入者を選んでください。'); return; }
+  var noMail = sel.filter(function(c){ return c.dataset.mail !== '1'; });
+  hmSetIds(sel.map(function(c){ return c.value; }));
+  document.getElementById('hmMailTitle').textContent = 'メールを作成（一括）';
+  document.getElementById('hmMailTo').innerHTML =
+    '選択した <b>' + sel.length + '名</b> に送ります。'
+    + (noMail.length ? '（うち ' + noMail.length
+        + '名はメールアドレスが未登録のため送信できません）' : '');
+  hmApplyTpl();
+  hmOpen();
+}
+hmCount();
+{% if CAN_MAIL %}hmApplyTpl();{% endif %}
+{% endif %}
+
+{% if CAN_MED or CAN_HR %}
+/* ---- 一括処理（面談対象者一覧と同じ内容を、この一覧からも行えます） ---- */
+/* 対応区分を選ぶと、その区分で人事・産業医・保健師が行うことを出す */
+function hmGuide(v){
+  var box = document.getElementById('hmGuideBox');
+  if(!box) return;
+  var any = false;
+  box.querySelectorAll('.hcg-item').forEach(function(el){
+    var on = (el.dataset.hc === v);
+    el.hidden = !on;
+    if(on) any = true;
+  });
+  box.hidden = !any;
+}
+function hmBulkClose(){ document.getElementById('hmBulkModal').classList.remove('open'); }
+function hmPickWork(btn){
+  var box = document.getElementById('hmWorkChips');
+  [].forEach.call(box.querySelectorAll('.iv-chip'), function(b){ b.classList.remove('is-on'); });
+  btn.classList.add('is-on');
+  document.getElementById('hmWork').value = btn.dataset.w || '';
+}
+function hmBulk(){
+  var sel = hmSel();
+  if(!sel.length){ alert('対象者を1名以上選択してください。'); return; }
+  var box = document.getElementById('hmBulkIds');
+  box.innerHTML = '';
+  sel.forEach(function(c){
+    var i = document.createElement('input');
+    i.type = 'hidden'; i.name = 'member_ids'; i.value = c.value;
+    box.appendChild(i);
+  });
+  document.getElementById('hmBulkTitle').textContent = '一括処理（' + sel.length + '名）';
+  document.getElementById('hmBulkSummary').innerHTML =
+    '選択した<b>' + sel.length + '名</b>にまとめて反映します。'
+    + '「変更しない」のままの項目は変更されません。';
+  var w = document.getElementById('hmWorkChips');
+  if(w){ hmPickWork(w.querySelector('.iv-chip')); }
+  var h = document.getElementById('hmHr'); if(h) h.value = '';
+  hmGuide('');
+  ['hmDue', 'hmFollow', 'hmDone'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.value = '';
+  });
+  document.getElementById('hmMemo').value = '';
+  var b = document.getElementById('hmBulkModal');
+  b.classList.add('open');
+  if(window.hiaCenterModal) window.hiaCenterModal(b.querySelector('.modal-card'));
+}
+{% endif %}
+</script>
+{% endblock %}

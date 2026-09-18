@@ -3,7 +3,7 @@
 {% block body %}
 {% if not EMBED %}
 <h1 class="page-title">疾患予測</h1>
-<p class="page-lead">健診結果をもとに、加入者ひとりずつの将来のリスクを予測します。</p>
+<p class="page-lead">健診結果をもとに、加入者ひとりずつの将来のリスクを予測し、リスク区分・年代・疾病・企業ごとの集計と加入者ごとの結果を1つの画面で確認します。</p>
 {% endif %}
 
 <div class="link-bar">
@@ -19,7 +19,6 @@
   <div class="actions">
     {% if kenpos %}
     <form method="get" style="display:flex;gap:8px;align-items:center;margin:0">
-      <input type="hidden" name="view" value="{{ view }}">
       <label class="fld-label" style="margin:0;">健康保険組合</label>
       <select name="kenpo_id" class="w-m" onchange="this.form.submit()">
         {% for k in kenpos %}
@@ -28,8 +27,6 @@
       </select>
     </form>
     {% endif %}
-    <a class="btn-sm" href="{{ url_for('risk_kenshin') }}" style="text-decoration:none">健診結果の連携</a>
-    <a class="btn-sm" href="{{ url_for('risk_nsips') }}" style="text-decoration:none">NSIPS連携状況</a>
   </div>
 </div>
 
@@ -62,9 +59,9 @@
     <div class="src-box {{ 'on' if last_ken and last_ken.status == 'ok' }}">
       <span class="src-t">健診結果（必須）</span>
       {% if last_ken and last_ken.status == 'ok' %}
-      <span class="src-v">{{ last_ken.fiscal_year }}年度／{{ last_ken.imported }}名を取込済み</span>
+      <span class="src-v">{{ last_ken.fiscal_year }}年度／{{ last_ken.imported }}名を連携済み</span>
       {% else %}
-      <span class="src-v">未取込。先に「健診結果の連携」で取込んでください</span>
+      <span class="src-v">まだ連携されていません（健診システムから自動で連携されます）</span>
       {% endif %}
     </div>
     <div class="src-box {{ 'on' if last_sync and last_sync.status == 'ok' }}">
@@ -83,16 +80,6 @@
 </div>
 
 {% if run %}
-<div class="view-tabs">
-  <a class="view-tab {{ 'on' if view != 'group' }}"
-     href="{{ url_for('risk_list', view='member', name=f.name, cname=f.cname,
-                      disease=f.disease, level=f.level) }}">個人単位</a>
-  <a class="view-tab {{ 'on' if view == 'group' }}"
-     href="{{ url_for('risk_list', view='group', name=f.name, cname=f.cname,
-                      disease=f.disease, level=f.level) }}">属性単位</a>
-  <span class="hint" style="margin-left:12px">
-    {{ '加入者ひとりずつの結果です' if view != 'group' else '年代・性別・疾病・企業ごとにまとめた結果です' }}</span>
-</div>
 
 <div class="rk-row">
   {% for lv in ['高', '中', '低'] %}
@@ -109,7 +96,6 @@
   </div>
 </div>
 
-{% if view != 'group' %}
 <div class="chart-row">
   <div class="block chart-card">
     <h2>リスク区分の内訳</h2>
@@ -122,31 +108,9 @@
     {{ histchart(hist) }}
   </div>
 </div>
-{% endif %}
 
-<div class="block">
-  <h2>検索条件</h2>
-  <form method="get" class="search-row" style="margin-top:10px">
-    <div class="search-group"><label for="name">氏名・カナ</label>
-      <input type="text" id="name" name="name" value="{{ f.name }}" style="width:180px"></div>
-    <div class="search-group"><label for="cname">企業名</label>
-      <input type="text" id="cname" name="cname" value="{{ f.cname }}" style="width:180px"></div>
-    <div class="search-group"><label for="disease">疾病</label>
-      <select id="disease" name="disease" style="width:180px">
-        <option value="">最もリスクの高い疾病</option>
-        {% for d in diseases %}<option value="{{ d }}" {{ 'selected' if f.disease == d }}>{{ d }}</option>{% endfor %}
-      </select></div>
-    <div class="search-group"><label for="level">リスク区分</label>
-      <select id="level" name="level" style="width:120px">
-        <option value="">すべて</option>
-        {% for x in ['高', '中', '低'] %}<option value="{{ x }}" {{ 'selected' if f.level == x }}>{{ x }}</option>{% endfor %}
-      </select></div>
-    <button class="btn-sm primary">絞り込む</button>
-    <a class="btn-sm" href="{{ url_for('risk_list') }}" style="text-decoration:none">条件をクリア</a>
-  </form>
-</div>
 
-{% if view == 'group' and g %}
+{% if g %}
 <div class="chart-row">
   <div class="block chart-card">
     <h2>年代・性別ごとの高リスク者数</h2>
@@ -173,7 +137,8 @@
   </div>
 </div>
 
-<div class="block">
+<div class="chart-row">
+<div class="block chart-card">
   <div class="blk-head">
     <div class="blk-head-left">
       <h2>年代・性別ごとの内訳</h2>
@@ -181,7 +146,7 @@
     </div>
   </div>
   <table class="result-table">
-    <colgroup><col style="width:130px"><col style="width:90px"><col style="width:90px">
+    <colgroup><col class="col-flag"><col style="width:90px"><col style="width:90px">
       <col style="width:90px"><col style="width:120px"><col></colgroup>
     <thead><tr><th class="tl">年代</th><th>人数</th><th>男</th><th>女</th>
       <th>高リスク</th><th>平均スコア</th></tr></thead>
@@ -200,7 +165,7 @@
   </table>
 </div>
 
-<div class="block">
+<div class="block chart-card">
   <div class="blk-head">
     <div class="blk-head-left">
       <h2>疾病ごとの内訳</h2><span class="count">{{ g.diseases|length }}疾病</span>
@@ -227,7 +192,30 @@
     </tbody>
   </table>
 </div>
+</div>
 {% endif %}
+
+<div class="block">
+  <h2>検索条件</h2>
+  <form method="get" class="search-row" style="margin-top:10px">
+    <div class="search-group"><label for="name">氏名・カナ</label>
+      <input type="text" id="name" name="name" value="{{ f.name }}" style="width:180px"></div>
+    <div class="search-group"><label for="cname">企業名</label>
+      <input type="text" id="cname" name="cname" value="{{ f.cname }}" style="width:180px"></div>
+    <div class="search-group"><label for="disease">疾病</label>
+      <select id="disease" name="disease" style="width:180px">
+        <option value="">最もリスクの高い疾病</option>
+        {% for d in diseases %}<option value="{{ d }}" {{ 'selected' if f.disease == d }}>{{ d }}</option>{% endfor %}
+      </select></div>
+    <div class="search-group"><label for="level">リスク区分</label>
+      <select id="level" name="level" style="width:120px">
+        <option value="">すべて</option>
+        {% for x in ['高', '中', '低'] %}<option value="{{ x }}" {{ 'selected' if f.level == x }}>{{ x }}</option>{% endfor %}
+      </select></div>
+    <button class="btn-sm primary">絞り込む</button>
+    <a class="btn-sm" href="{{ url_for('risk_list') }}" style="text-decoration:none">条件をクリア</a>
+  </form>
+</div>
 
 <div class="block">
   <div class="blk-head">
@@ -275,8 +263,8 @@
       <td><span class="st risk-tag risk-{{ r.level }}">{{ r.level }}</span>
         <span class="hint">{{ r.priority }}</span></td>
       <td class="ops">
-        <a class="btn-sm" href="{{ url_for('risk_member', mid=r.member_id) }}"
-           style="text-decoration:none">内訳</a></td>
+        <a class="btn-sm primary btn-detail-blue" href="{{ url_for('hm.hm_member', mid=r.member_id, tab='risk') }}"
+           style="text-decoration:none">詳細表示</a></td>
     </tr>
     {% endfor %}
     </tbody>
@@ -287,15 +275,4 @@
   {% endif %}
 </div>
 {% endif %}
-
-<div class="block note-card">
-  <h2>取り扱いの注意</h2>
-  <ul class="note-list">
-    <li>予測結果は<b>参考情報</b>です。保健指導の要否や医学的な解釈は、
-      <b>医師・保健師等の専門家</b>が最終的に判断してください。</li>
-    <li>この画面には加入者の氏名が表示されます。<b>閲覧範囲内の加入者だけ</b>が対象で、
-      表示・出力の操作はすべて操作ログに記録されます。</li>
-    <li>CSV出力には氏名・被保険者証番号が含まれます。取り扱いにご注意ください。</li>
-  </ul>
-</div>
 {% endblock %}

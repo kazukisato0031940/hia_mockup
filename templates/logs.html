@@ -2,13 +2,13 @@
 {# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
 {% if not EMBED %}
 <h1 class="page-title">操作ログ</h1>
-<p class="page-lead">認証・マスタ・取込・出力の記録です。追記のみで、変更・削除はできません。</p>
+<p class="page-lead">ログイン・画面の表示・マスタの変更・CSVの取込・CSVの出力の記録です。追記のみで、変更・削除はできません。</p>
 {% endif %}
 
 <div class="block">
   <h2>検索条件</h2>
   <form method="get" class="search-row">
-    {% if acc.role == 'system_admin' %}
+    {% if KM_LOG %}
     <div class="search-group"><label for="shell">画面</label>
       <select id="shell" name="shell">
         <option value="">すべて</option>
@@ -16,12 +16,16 @@
         <option value="kenpo" {{ 'selected' if shell=='kenpo' }}>HIA健保管理（健保・企業）</option>
       </select></div>
     {% endif %}
+    {# 区分は当社（HIA総合管理）側だけで使います。
+       HIA健保管理側は健保管理の操作しか出さないため、区分の絞り込みは置きません #}
+    {% if KM_LOG %}
     <div class="search-group"><label for="category">区分</label>
       <select id="category" name="category">
         <option value="">すべて</option>
-        {% for v,l in [('auth','auth（認証）'),('account','account（アカウント）'),('master','master（マスタ）'),('import','import（取込）'),('download','download（出力）')] %}
+        {% for v,l in [('view','view（画面の表示）'),('auth','auth（認証）'),('account','account（アカウント）'),('master','master（マスタの変更）'),('import','import（CSVの取込）'),('download','download（CSVの出力）')] %}
         <option value="{{ v }}" {{ 'selected' if cat==v }}>{{ l }}</option>{% endfor %}
       </select></div>
+    {% endif %}
     <div class="search-group"><label for="from">開始日</label><input type="date" id="from" name="from" value="{{ dfrom }}"></div>
     <div class="search-group"><label for="to">終了日</label><input type="date" id="to" name="to" value="{{ dto }}"></div>
     <div class="search-group" style="flex:1"><label for="q">実行者・操作・対象・詳細</label>
@@ -29,84 +33,60 @@
     <input type="hidden" name="focus" id="lg-focus" value="{{ request.args.get('focus','') }}">
   </form>
   <p class="hint">
-    {% if acc.role == 'system_admin' %}両画面のログを1つのデータベースに集約しています。{% else %}表示されるのは、あなたの権限範囲に関わるログだけです。{% endif %}
-    記録は追記のみで、変更・削除はデータベース側で拒否されます。</p>
+    {% if KM_LOG %}両画面のログを1つのデータベースに集約しています。
+    {% else %}<b>HIA健保管理での操作だけ</b>を出しています（HIA総合管理（当社）側の操作は出しません）。
+    表示されるのは、あなたの権限範囲に関わるログだけです。{% endif %}
+    記録は追記のみで、変更・削除はデータベース側で拒否されます。
+    <b>view</b> はどの画面を開いたか、<b>import</b> はCSVの取込、<b>download</b> はCSVのダウンロードの記録です。
+    <b>ディレクトリ</b>は操作した画面のURLです（詳細はマウスを乗せると出ます。CSVには詳細の列もあります）。
+    同じ画面を続けて開いたときは{{ VIEW_LOG_GAP }}秒までを1件にまとめています。</p>
 </div>
 
 <div class="block">
-  <div class="blk-head"><h2>記録</h2>
-    <span class="count">該当 {{ '{:,}'.format(total) }} 件（新しい順に最大300件）</span></div>
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>記録</h2>
+      <span class="count">該当 {{ '{:,}'.format(total) }} 件（画面には新しい順に最大300件）</span></div>
+    <div class="actions">
+      <a class="btn-sm" style="text-decoration:none"
+         href="{{ url_for('logs_export', category=cat, shell=shell, q=kw, **{'from': dfrom, 'to': dto}) }}"
+         title="いま絞り込んでいる条件に一致するログを全件出力します">この条件でCSV出力</a>
+      <a class="btn-sm primary" style="text-decoration:none"
+         href="{{ url_for('logs_export', all=1) }}"
+         title="絞り込みを無視して、権限の範囲すべてのログを出力します">すべてCSV出力</a>
+    </div>
+  </div>
   {% if rows %}
   <div class="table-scroll">
   <table class="result-table" style="table-layout:auto">
     <!-- 列幅は「列幅の標準」（.col-*）に合わせています。
-         「操作内容」「対象」「詳細」は長文なので残り幅を受けます -->
+         「操作内容」「対象」「ディレクトリ」は長文なので残り幅を受けます -->
     <colgroup>
-      <col class="col-date"><col class="col-status"><col class="col-flag">
-      <col class="col-long"><col class="col-flag"><col class="col-name">
-      <col class="col-num"><col class="col-long"><col class="col-long">
+      <col class="col-date">{% if KM_LOG %}<col class="col-status">{% endif %}<col class="col-flag">
+      <col class="col-long"><col class="col-flag"><col class="col-user">
+      <col class="col-num"><col class="col-text"><col class="col-long">
     </colgroup>
-    <thead><tr><th>日時</th><th>画面</th><th>区分</th>
+    <thead><tr><th>日時</th>{% if KM_LOG %}<th>画面</th>{% endif %}<th>区分</th>
       <th class="tl">操作内容</th><th>結果</th><th class="tl">実行者</th>
-      <th>IPアドレス</th><th class="tl">対象</th><th class="tl">詳細</th></tr></thead>
+      <th>IPアドレス</th><th class="tl">対象</th>
+      <th class="tl">ディレクトリ</th></tr></thead>
     <tbody>
     {% for r in rows %}
     <tr class="{{ 'bad' if r.result!='success' }}">
       <td class="ts">{{ r.ts }}</td>
-      <td>{{ {'km':'総合管理','kenpo':'健保管理'}.get(r.shell, '—') }}</td>
+      {% if KM_LOG %}<td>{{ {'km':'総合管理','kenpo':'健保管理'}.get(r.shell, '—') }}</td>{% endif %}
       <td><span class="st-label">{{ r.category }}</span></td>
       <td class="tl">{{ r.action }}</td>
       <td class="res-{{ r.result }}"><span class="st-label {{ 'ok' if r.result == 'success' else ('ng' if r.result == 'failure' else 'warn') }}">{{ {'success':'成功','failure':'失敗','blocked':'ブロック'}.get(r.result, r.result) }}</span></td>
       <td class="tl code">{{ r.actor_email or '—' }}</td><td class="code">{{ r.ip }}</td>
-      <td class="tl">{{ r.target or '—' }}</td><td class="tl wrap">{{ r.detail or '' }}</td>
+      <td class="tl col-text-cell"{% if r.target %} title="{{ r.target }}"{% endif %}>{{ r.target or '—' }}</td>
+      <td class="tl lg-dir"{% if r.detail %} title="{{ r.detail }}"{% endif %}>
+        {% if r.path %}<span class="dir-path">{{ r.path }}</span>{% else %}—{% endif %}</td>
     </tr>
     {% endfor %}
     </tbody>
   </table>
   </div>
   {% else %}<div class="empty-box">条件に一致するログがありません。</div>{% endif %}
-</div>
-
-{# ============ 配信ログ（メール配信管理から移しました） ============ #}
-<div class="block">
-  <div class="blk-head">
-    <div class="blk-head-left"><h2>配信ログ</h2>
-      <span class="count">直近{{ mails|length }}件</span></div>
-    <div class="actions">
-      <a class="btn-sm" href="{{ url_for('logs_mail_export') }}"
-         style="text-decoration:none">CSV出力</a>
-    </div>
-  </div>
-  {% if mails %}
-  <div class="table-scroll">
-  <table class="result-table" style="table-layout:auto">
-    <colgroup>
-      <col class="col-dt"><col class="col-status"><col class="col-long">
-      <col class="col-flag"><col class="col-flag"><col class="col-flag">
-      <col class="col-flag"><col class="col-long">
-    </colgroup>
-    <thead><tr><th>配信日時</th><th>メール種別</th><th class="tl">テンプレート名</th>
-      <th>宛先数</th><th>成功</th><th>失敗</th><th>スキップ</th>
-      <th class="tl">実行者</th></tr></thead>
-    <tbody>
-    {% for m in mails %}
-    <tr class="ls-row">
-      <td class="ts">{{ m.sent_at }}</td>
-      <td><span class="st-label info">{{ m.kind }}</span></td>
-      <td class="tl" title="{{ m.tpl }}">{{ m.tpl }}</td>
-      <td class="num">{{ m.n }}</td>
-      <td class="num">{{ m.ok }}</td>
-      <td class="num">{{ m.ng }}</td>
-      <td class="num">{{ m.sk }}</td>
-      <td class="tl code">{{ m.actor or '—' }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  <p class="hint">1回の配信（同じ日時・種別・テンプレート）を1行にまとめ、件数だけを出しています。
-    宛先の氏名やメールアドレスは表示しません。</p>
-  {% else %}<div class="empty-box">配信ログはまだありません。</div>{% endif %}
 </div>
 
 <script>

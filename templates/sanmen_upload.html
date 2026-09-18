@@ -50,7 +50,11 @@
     </div>
   </div>
   <p class="note" style="margin-bottom:14px;">
-    社員コードで加入者と突合し、受診日・総合判定（A〜E）を登録します。
+    社員番号で加入者と突合し、受診日・検査値・総合判定（A〜E）を登録します。
+    <b>検査値の列（BMI・血圧・HbA1cなど）を入れると、取込のときに
+    HIA健保管理の判定マスタの条件で項目ごとに判定し、総合判定も自動で付けます</b>
+    （企業ごとの基準があればそれを使い、健保共通の基準が無い項目は
+    HIA総合管理の判定マスタの内容を反映します）。総合判定の列を入れた場合はその値を使います。
     旧表記（異常なし・要注意・要医療など）は<b>学会区分へ自動でマッピング</b>します。</p>
   <form method="post" action="{{ url_for('oh.oh_upload_do', kind='kenshin') }}"
         enctype="multipart/form-data" style="margin:0">
@@ -74,6 +78,60 @@
     <input type="hidden" name="fy" value="{{ fy }}">
     <button class="btn-sm">連携済みの健診結果から総合判定を作成する（{{ n_link }}件）</button>
   </form>
+</div>
+{% endif %}
+
+{% if only in ('', 'kenshin') and ksum %}
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>取込結果の集計</h2>
+      <span class="count">{{ fy }}年度・定期／受診 {{ ksum.n }}名</span></div>
+    <div class="actions">
+      <form method="post" action="{{ url_for('oh.oh_upload_reflect') }}" style="display:inline">
+        <input type="hidden" name="fy" value="{{ fy }}">
+        <button class="btn-sm">判定マスタを反映</button>
+      </form>
+      <a class="btn-sm primary" style="text-decoration:none"
+         href="{{ url_for('oh.oh_upload_summary', fy=fy) }}">集計をCSV出力</a>
+    </div>
+  </div>
+  <p class="note">HIA健保管理の<b>判定マスタの条件</b>で付けた判定を集計しています
+    （企業ごとの基準がある項目はその基準、無い項目は健保共通の基準。
+    健保共通も無い項目は「判定マスタを反映」でHIA総合管理の内容を取り込めます）。
+    判定区分は参考情報で、受診の必要性の判断は産業医・医師が行います。</p>
+  <div class="rk-row" style="margin-bottom:14px">
+    <div class="rk-box"><span class="rk-label">受診者数</span>
+      <span class="rk-value">{{ ksum.n }}</span><span class="rk-unit">名</span></div>
+    <div class="rk-box"><span class="rk-label">有所見（C以上）</span>
+      <span class="rk-value">{{ ksum.finding }}</span><span class="rk-unit">名</span></div>
+    {% for j in JUDGES %}
+    <div class="rk-box"><span class="rk-label">{{ j }} {{ JUDGE_LABEL[j] }}</span>
+      <span class="rk-value">{{ ksum.judges[j] }}</span><span class="rk-unit">名</span></div>
+    {% endfor %}
+  </div>
+  {% if ksum.per_item %}
+  <div class="table-scroll">
+  <table class="result-table" style="table-layout:auto">
+    <colgroup><col class="col-long"><col class="col-flag"><col class="col-flag">
+      <col class="col-long"></colgroup>
+    <thead><tr><th class="tl">検査項目</th><th>判定した件数</th>
+      <th>有所見（C以上）</th><th class="tl">判定の内訳</th></tr></thead>
+    <tbody>
+    {% for name, d in ksum.per_item %}
+    <tr><td class="tl"><b>{{ name }}</b></td>
+      <td class="num">{{ d.n }}</td>
+      <td class="num">{% if d.finding %}<b class="risk-高">{{ d.finding }}</b>
+        {% else %}0{% endif %}</td>
+      <td class="tl">{% for j, n in d.judges.items() %}<span class="jc-line">{{ j }}：{{ n }}件</span>{% endfor %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-box">検査値つきの健診結果がまだありません
+    （テンプレートCSVの検査値の列に値を入れて取り込むと、ここに項目ごとの判定が出ます）。</div>
+  {% endif %}
 </div>
 {% endif %}
 

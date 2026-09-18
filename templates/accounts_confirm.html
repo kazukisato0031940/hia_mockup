@@ -12,7 +12,6 @@
   {% for i in (scopes.office if scopes else []) %}<input type="hidden" name="office_ids" value="{{ i }}">{% endfor %}
   {% for i in (scopes.dept if scopes else []) %}<input type="hidden" name="dept_ids" value="{{ i }}">{% endfor %}
   <input type="hidden" name="can_download" value="{{ 1 if can_dl else 0 }}">
-  <input type="hidden" name="is_primary" value="{{ 1 if is_primary else 0 }}">
   <input type="hidden" name="confirmed" value="1">
 
 <div class="perm-card {{ 'wide' if view_scope != 'own_company' }}">
@@ -22,7 +21,6 @@
     {% if srole %}<span class="st st-dl">{{ SUB_ROLE_LABELS[srole] }}</span>{% endif %}
     <span class="st {{ 'st-all' if view_scope != 'own_company' else 'st-own' }}">閲覧範囲：{{ SCOPE_LABELS[view_scope] }}{% if companies %}（{{ companies|length }}社）{% endif %}</span>
     {% if scope_label and scope_label != '指定なし' %}<span class="st st-own">担当範囲：{{ scope_label }}</span>{% endif %}
-    {% if is_primary %}<span class="st st-role">代表者</span>{% endif %}
     <span class="st {{ 'st-dl' if can_dl else 'st-disabled' }}">CSV出力{{ '可' if can_dl else '不可' }}</span>
   </div>
   <div class="perm-grid">

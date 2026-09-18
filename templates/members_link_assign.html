@@ -1,6 +1,11 @@
 {% extends LAYOUT %}{% block body %}
-<h1 class="page-title">加入者の紐づけ</h1>
-<p class="page-lead">左の加入者を右へドラッグ（またはダブルクリック）して紐づけます。</p>
+<div class="frag-head">
+  <div>
+    <h1 class="page-title">加入者の紐づけ</h1>
+    <p class="page-lead">左の加入者を右へドラッグ（またはダブルクリック）して紐づけます。</p>
+  </div>
+  <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">戻る</a>
+</div>
 
 <div class="link-bar">
   <div class="link-bar-info">
