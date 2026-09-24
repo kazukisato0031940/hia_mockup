@@ -2,13 +2,8 @@
 {% for r in rows %}
 <tr class="ls-row" data-cname="{{ r.company_name }}" data-oname="{{ r.office_name }}"
     data-code="{{ r.code }}" data-name="{{ r.name }}">
-  <td class="tl"><span class="ellip w210" title="{{ r.company_name }}">{{ r.company_name }}</span></td>
-  <td class="code">{{ r.office_ext or r.office_code }}</td>
-  <td class="tl"><span class="ellip w190" title="{{ r.office_name }}">{{ r.office_name }}</span></td>
   <td class="code">{{ r.ext_code or '—' }}</td>
-  <td class="code"><span class="hint">{{ r.code }}</span></td>
-  <td class="tl"><span class="ellip w210" title="{{ r.name }}">{{ r.name }}</span>
-    {% if r.kana %}<br><span class="hint">{{ r.kana }}</span>{% endif %}</td>
+  <td class="tl col-long" title="{{ r.name }}">{{ r.name }}</td>
   <td class="num">{{ counts.get(r.id, 0) }}</td>
   <td class="ops">
     {% if not CAN_MASTER %}<span class="hint">閲覧のみ</span>{% else %}

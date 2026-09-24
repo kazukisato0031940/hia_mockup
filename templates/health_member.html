@@ -1,0 +1,889 @@
+{% extends LAYOUT %}
+{% from "_sanmen_flow.html" import jtag %}
+{% block body %}
+{# 見出しはこの画面が持ちます（枠の外の見出しは自動で消えます）。
+   だれの画面かがすぐ分かるよう、氏名をそのまま h1 にします。 #}
+{# 見出しの行の右端に「戻る」を置きます（ほかの画面の戻るボタンと同じ位置）。 #}
+<div class="frag-head">
+  <h1 class="page-title">{{ m.name }} さん</h1>
+  {% if not mine %}
+  <a class="btn-back" style="text-decoration:none"
+     href="{{ url_for('hm.hm_list', fy=fy) }}">戻る</a>
+  {% endif %}
+</div>
+<p class="page-lead">
+  {% if mine %}ご自身の健診結果・ストレスチェック・取り込んだ写真・ご担当窓口とのやり取りを
+  確認できます。
+  {% else %}{{ m.name }} さんの健診結果・時間外労働・ストレスチェック・面談の記録を
+  1つの画面にまとめています。{% endif %}</p>
+
+{# ============ 見出し帯（だれの画面か・年度の切り替え） ============ #}
+<div class="hm-hero">
+  <div class="hm-hero-id">
+    <div class="hm-hero-name">
+      <b>{{ m.name }}</b>
+      <span class="hm-hero-kana">{{ m.kana or '' }}</span>
+      {% if judge %}<span class="hm-hero-j j-{{ judge }}"
+        title="{{ JUDGE_LABEL[judge] }}">総合判定 {{ judge }}</span>{% endif %}
+    </div>
+    <div class="hm-hero-meta">
+      <span>加入者ID <b class="code">{{ m.subscriber_id or '—' }}</b></span>
+      <span>社員番号 <b class="code">{{ m.employee_code or '—' }}</b></span>
+      <span>{{ age if age is not none else '—' }}歳／{{ m.sex or '—' }}</span>
+      <span>{{ m.company_name or '未紐づけ' }}{% if m.office_name %}／{{ m.office_name }}{% endif %}{% if m.dept_name %}／{{ m.dept_name }}{% endif %}</span>
+      <span>深夜業 {{ '対象' if m.night_work else '対象外' }}</span>
+      <span>就業区分 {{ (cand.work_class if cand and cand.work_class else '—') }}
+        ／対応区分 {{ (cand.hr_class if cand else '未判定') }}</span>
+    </div>
+  </div>
+  <div class="hm-hero-act">
+    <form method="get" class="hm-hero-fy">
+      <label for="fy">年度</label>
+      <select id="fy" name="fy" style="width:118px" onchange="this.form.submit()">
+        {% for y in fys %}<option value="{{ y }}" {{ 'selected' if y == fy }}>{{ y }}年度</option>{% endfor %}
+      </select>
+    </form>
+    {% if not mine %}
+    {% if CAN_ACCOUNTS %}
+      {% if login %}
+      <span class="hm-login-on" title="{{ login.email }}">本人ログイン
+        {{ '発行済み' if login.status == 'active' else 'PW未設定' }}</span>
+      {# メールが使えない環境でも案内リンクを渡せるように、編集画面へ送ります #}
+      {% if login.status != 'active' %}
+      <a class="btn-sm" style="text-decoration:none" target="_top"
+         href="{{ url_for('accounts_edit', aid=login.id, link=1) }}"
+         title="案内リンクを画面に表示します">案内リンクを表示</a>
+      {% endif %}
+      {% else %}
+      <form method="post" action="{{ url_for('hm.hm_member_account', mid=m.id) }}"
+            onsubmit="return confirm('この加入者ご本人のログイン（加入者本人ロール）を発行し、案内メールを送ります。よろしいですか？')">
+        <input type="hidden" name="fy" value="{{ fy }}">
+        <button class="btn-sm">本人ログインを発行</button>
+      </form>
+      {% endif %}
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+{# ============ 左右2カラム（6：4）。カードはサブタブで切り替えます
+   左＝検査値など（読み込む情報）／右＝要約・推移・やり取り・メモ ============ #}
+{# サブタブ。中身のあるタブだけを出し、押したタブのカードだけを表示します #}
+<div class="hm-tabs" id="hmTabs" role="tablist">
+  {% for key, label in [('kenshin', '健診・検査値'),
+                        ('risk', '疾患予測'),
+                        ('flu', 'インフル補助'),
+                        ('work', 'ストレスチェック' if mine else '労働時間・ストレス'),
+                        ('iv', '面談・対応'), ('doc', 'やり取り・写真'),
+                        ('me', '登録情報')] %}
+  <button type="button" class="hm-tab" role="tab" data-tab="{{ key }}"
+          onclick="hmTab('{{ key }}')" hidden>{{ label }}</button>
+  {% endfor %}
+</div>
+
+<div class="hm-cols">
+<div class="hm-col-main">
+  {# ご本人の画面：登録情報の確認 #}
+  {% if mine %}
+  <div class="block" data-tab="me">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>ご自身の登録情報</h2></div>
+  </div>
+  <div class="oh-grid">
+    <div><span class="fld-label">加入者ID</span>
+      <div class="code">{{ m.subscriber_id or '—' }}</div></div>
+    <div><span class="fld-label">社員番号</span>
+      <div class="code">{{ m.employee_code or '—' }}</div></div>
+    <div><span class="fld-label">氏名（カナ）</span>
+      <div>{{ m.name }}<span class="hint">　{{ m.kana or '' }}</span></div></div>
+    <div><span class="fld-label">性別・年齢</span>
+      <div>{{ m.sex or '—' }}／{{ age if age is not none else '—' }}歳</div></div>
+    <div><span class="fld-label">企業・事業所・部署</span>
+      <div>{{ m.company_name or '—' }}{% if m.office_name %}／{{ m.office_name }}{% endif %}{% if m.dept_name %}／{{ m.dept_name }}{% endif %}</div></div>
+    <div><span class="fld-label">メールアドレス</span>
+      <div>{{ m.email or '—' }}</div></div>
+    <div><span class="fld-label">電話番号</span>
+      <div>{{ m.tel or '—' }}</div></div>
+    <div><span class="fld-label">深夜業従事</span>
+      <div>{{ '対象' if m.night_work else '対象外' }}</div></div>
+  </div>
+  <p class="hint">登録内容の変更（住所・連絡先など）は、ご担当窓口へご連絡ください。
+    この画面から変更することはできません。</p>
+  </div>
+  {% endif %}
+
+  {# 疾患予測の内訳（担当者向け）。一覧の「詳細表示」からはこのタブを開きます #}
+  {% if risk %}
+  <div class="block" data-tab="risk" id="hmRisk">
+    <div class="blk-head">
+      <div class="blk-head-left"><h2>{{ risk.run.horizon if risk.run else 3 }}年後のリスク</h2>
+        {% if risk.run %}<span class="count">{{ risk.run.run_at[:10] }} 予測</span>
+        <span class="hint">{{ '日立API' if risk.run.engine == 'hitachi' else '社内試算' }}</span>{% endif %}</div>
+    </div>
+    {% if risk.scores %}
+    <div class="table-scroll"><table class="result-table" id="hmRiskScores">
+      <colgroup><col style="width:180px"><col><col style="width:110px"><col style="width:120px"></colgroup>
+      <thead><tr><th class="tl">疾病</th><th>リスクスコア</th><th>リスク区分</th><th>保健指導優先度</th></tr></thead>
+      <tbody>
+      {% for s in risk.scores %}
+      <tr class="ls-row">
+        <td class="tl">{{ s.disease }}</td>
+        <td class="num"><span class="score-bar" style="width:160px"><span class="score-fill" style="width:{{ s.score }}%"></span></span>
+          <b>{{ '%.1f'|format(s.score) }}</b></td>
+        <td><span class="st risk-tag risk-{{ s.level }}">{{ s.level }}</span></td>
+        <td><b>{{ s.priority }}</b></td>
+      </tr>
+      {% endfor %}
+      </tbody></table></div>
+    {% else %}
+    <div class="empty-box">予測結果がありません。サイドバー「疾患予測」→「疾患予測」の「予測の実行」で「予測を実行する」を押してください。</div>
+    {% endif %}
+    <p class="hint" style="margin:10px 0 0">スコアは健診結果の判定（要医療は重く、要注意は軽めに加点）に年代・性別と服薬状況を加えて算出した<b>参考情報</b>です。
+      保健指導の要否は医師・保健師等の専門家が判断してください。</p>
+  </div>
+
+  <div class="block" data-tab="risk" id="hmRiskKen">
+    <div class="blk-head">
+      <div class="blk-head-left"><h2>健診結果の判定（予測に使った値）</h2>
+        {% if risk.ks %}<span class="count">{{ risk.ks.fiscal_year }}年度</span>{% endif %}</div>
+    </div>
+    {% if risk.kens %}
+    <div class="table-scroll"><table class="result-table">
+      <colgroup><col style="width:140px"><col style="width:110px"><col></colgroup>
+      <thead><tr><th class="tl">検査項目</th><th>判定</th><th class="tl">検査値</th></tr></thead>
+      <tbody>
+      {% for k in risk.kens %}
+      <tr class="ls-row">
+        <td class="tl">{{ k.item }}</td>
+        <td><span class="st risk-tag risk-{{ '高' if k.judge == 'medical' else ('中' if k.judge == 'caution' else '低') }}">
+          {{ '要医療' if k.judge == 'medical' else ('要注意' if k.judge == 'caution' else '基準内') }}</span></td>
+        <td class="tl"><span class="hint">{{ k.detail or '—' }}</span></td>
+      </tr>
+      {% endfor %}
+      </tbody></table></div>
+    {% else %}
+    <div class="empty-box">この方の健診結果はまだ連携されていません（健診システムから自動で連携されます）。</div>
+    {% endif %}
+  </div>
+  {% endif %}{# /risk #}
+
+  {# インフルエンザ補助：予約・接種・申請の状況（担当者向け）。予約一覧の「詳細表示」からはこのタブを開きます #}
+  {% if flu %}
+  <div class="block" data-tab="flu" id="hmFlu">
+    <div class="blk-head">
+      <div class="blk-head-left"><h2>インフルエンザ補助（{{ flu.season }}シーズン）</h2>
+        <span class="st {{ 'st-active' if flu.status == '接種済' else ('st-invited' if flu.status == '予約済' else 'st-disabled') }}">{{ flu.status }}</span></div>
+    </div>
+    <div class="oh-grid">
+      <div><span class="fld-label">区分</span><div>{{ flu.rel }}{% if flu.relation != '本人' %}<span class="hint">（{{ flu.relation }}）</span>{% endif %}</div></div>
+      <div><span class="fld-label">予約日</span><div>{{ flu.resv_date or '—' }}</div></div>
+      <div><span class="fld-label">接種日</span><div>{{ flu.shot_date or '—' }}</div></div>
+      <div><span class="fld-label">実施医療機関</span><div>{{ flu.clinic or '—' }}</div></div>
+      <div><span class="fld-label">接種費用</span><div>{% if flu.status == '接種済' %}{{ '{:,}'.format(flu.fee) }}円{% else %}—{% endif %}</div></div>
+      <div><span class="fld-label">助成額（上限 {{ '{:,}'.format(flu.max) }}円）</span><div>{% if flu.subsidy %}<b>{{ '{:,}'.format(flu.subsidy) }}円</b>{% else %}—{% endif %}</div></div>
+      <div><span class="fld-label">申請状況</span><div>{{ flu.applied }}</div></div>
+    </div>
+    <p class="hint" style="margin:10px 0 0">
+      {% if flu.status == '未予約' %}まだ予約がありません。「インフルエンザ補助 予約一覧」の「案内を送付」から接種のご案内を送れます。
+      {% elif flu.status == '予約済' %}予約済みです。接種後に医療機関からの実績が取り込まれると「接種済」になります。
+      {% else %}接種済みです。申請は「申請一覧」で確認できます。{% endif %}</p>
+  </div>
+  <div class="block" data-tab="flu" id="hmFluHist">
+    <div class="blk-head"><div class="blk-head-left"><h2>過去シーズンの履歴</h2><span class="count">{{ flu.hist|length }}シーズン</span></div></div>
+    <table class="result-table">
+      <thead><tr><th style="width:110px">シーズン</th><th style="width:100px">状況</th><th class="tl">実施医療機関</th><th style="width:110px">助成額</th></tr></thead>
+      <tbody>
+      {% for h in flu.hist %}
+      <tr class="ls-row"><td>{{ h.season }}</td><td>{{ h.status }}</td><td class="tl">{{ h.clinic }}</td>
+        <td>{% if h.subsidy %}{{ '{:,}'.format(h.subsidy) }}円{% else %}—{% endif %}</td></tr>
+      {% endfor %}
+      </tbody></table>
+  </div>
+  {% endif %}{# /flu #}
+
+  {# 検査値は労働安全衛生規則 第44条（定期健康診断）の項目・区分で並べます。
+     取り込んだ値が無い項目も「—」で残し、実施の有無が分かるようにしています。 #}
+  <div class="block" data-tab="kenshin">
+    <div class="blk-head">
+      <div class="blk-head-left"><h2>検査値（{{ fy }}年度）</h2>
+        <span class="count">{{ items | length }}項目</span>
+        {% if ken %}<span class="hint">受診日 {{ ken.exam_date or '—' }}</span>{% endif %}</div>
+    </div>
+    <p class="hint" style="margin:-4px 0 12px">
+      労働安全衛生規則 第44条（定期健康診断）で定める項目の区分で並べています。</p>
+    {% macro vrow(r) %}
+      <td class="tl">{{ r.label }}</td>
+      <td class="num"><span class="{{ 'hm-bad' if r.it and r.it.judge in ('C','D','E') }}">{{ (r.it.value if r.it else '') or '—' }}</span></td>
+      <td>{{ (r.it.unit if r.it else '') or '' }}</td>
+      <td>{% if r.it %}{{ jtag(r.it.judge, JUDGE_LABEL) }}{% else %}<span class="hint">—</span>{% endif %}</td>
+      <td class="num">{{ (r.prev.value if r.prev else '') or '—' }}</td>
+      <td class="tl">
+        {% if r.it and r.prev and r.prev.judge and r.it.judge %}
+          {% if r.prev.judge == r.it.judge %}<span class="hint">前年と同じ判定</span>
+          {% elif JUDGES.index(r.it.judge) > JUDGES.index(r.prev.judge) %}
+            <span class="st st-all">前年より悪化（{{ r.prev.judge }} → {{ r.it.judge }}）</span>
+          {% else %}
+            <span class="st st-active">前年より改善（{{ r.prev.judge }} → {{ r.it.judge }}）</span>
+          {% endif %}
+        {% elif r.it %}<span class="hint">前年のデータがありません</span>
+        {% else %}<span class="hint">データなし（未実施・未取込）</span>{% endif %}
+      </td>
+    {% endmacro %}
+    <div class="table-scroll">
+    <table class="result-table hm-law" style="min-width:760px">
+      <colgroup><col class="col-text"><col class="col-val"><col class="col-cnt">
+        <col class="col-flag"><col class="col-val"><col class="col-long"></colgroup>
+      <thead><tr>
+        <th class="tl">検査項目</th><th>今回</th><th>単位</th>
+        <th>判定</th><th>前年</th><th class="tl">前年との比較</th>
+      </tr></thead>
+      <tbody>
+      {% for g in law_groups %}
+        <tr class="hm-law-h"><th class="tl" colspan="6">{{ g.name }}</th></tr>
+        {% for r in g.rows %}<tr class="ls-row">{{ vrow(r) }}</tr>{% endfor %}
+      {% endfor %}
+      {% if law_others %}
+        <tr class="hm-law-h"><th class="tl" colspan="6">そのほかの検査項目</th></tr>
+        {% for r in law_others %}<tr class="ls-row">{{ vrow(r) }}</tr>{% endfor %}
+      {% endif %}
+      </tbody>
+    </table>
+    </div>
+    {% if not items %}
+    <div class="empty-box">{{ fy }}年度の検査値がありません（未受診、または取込前です）。</div>
+    {% endif %}
+    <p class="hint">判定は判定マスタの基準にもとづく参考情報です。
+      再検査・治療の必要性は産業医・医師の判断によります。</p>
+  </div>
+
+</div>{# /hm-col-main #}
+
+<aside class="hm-col-side">
+
+  <div class="block" data-tab="work">
+    <div class="blk-head">
+      <div class="blk-head-left"><h2>ストレスチェック</h2>
+        <span class="count">{{ sts | length }}件</span></div>
+    </div>
+    {% if sts %}
+    <table class="result-table" style="table-layout:auto">
+      <thead><tr><th class="tl">年度</th><th>受検日</th>
+        <th>点数</th><th>判定</th></tr></thead>
+      <tbody>
+      {% for s in sts %}
+      <tr class="ls-row {{ 'is-on' if s.fiscal_year == fy }}">
+        <td class="tl">{{ s.fiscal_year }}年度</td>
+        <td>{{ s.exam_date or '—' }}</td>
+        <td class="num">{{ s.score if s.score is not none else '—' }}</td>
+        <td>{% if s.high %}<span class="st st-all">高</span>
+          {% else %}<span class="hint">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="hint">面談の申出：{% for s in sts %}{% if s.fiscal_year == fy %}{{ 'あり' if s.applied else 'なし' }}{% endif %}{% endfor %}</p>
+    {% else %}
+    <div class="empty-box">ストレスチェックの記録がありません。</div>
+    {% endif %}
+  </div>
+
+  {% if not mine %}
+  <div class="block" data-tab="work">
+    <div class="blk-head">
+      <div class="blk-head-left"><h2>時間外労働（{{ fy }}年度）</h2>
+        <span class="count">{{ ots | length }}か月分</span></div>
+    </div>
+    {% if ots %}
+    <div class="hm-bars">
+      {% set mx = (ots | map(attribute='hours') | select | list | max) or 1 %}
+      {% for o in ots %}
+      <div class="hm-bar-col" title="{{ o.ym }}　{{ o.hours or 0 }}時間">
+        <div class="hm-bar-wrap">
+          <div class="hm-bar {{ 'is-over2' if (o.hours or 0) > OT_LIMIT2 else ('is-over' if (o.hours or 0) > OT_LIMIT) }}"
+               style="height:{{ ((o.hours or 0) / (mx if mx > 0 else 1) * 100) | round(0, 'floor') }}%"></div>
+        </div>
+        <span class="hm-bar-v">{{ o.hours or 0 }}</span>
+        <span class="hm-bar-m">{{ o.ym[-2:] }}月</span>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="hint">月{{ OT_LIMIT }}時間超は面談の対象、月{{ OT_LIMIT2 }}時間超は
+      医師の面接指導が特に必要な水準です（棒の色で区別しています）。</p>
+    {% else %}
+    <div class="empty-box">{{ fy }}年度の労働時間の取込がありません。</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if (mine and CAN_SELF_MAIL) or (not mine and CAN_MAIL) %}
+  <div class="block" data-tab="doc">
+    <div class="blk-head">
+      <div class="blk-head-left"><h2>メールのやり取り</h2>
+        <span class="count">{{ mails | length }}件</span></div>
+      {% if not mine and CAN_MAIL %}
+      <div class="actions">
+        <button class="btn-sm primary" type="button" onclick="hmMailOpen()"
+                {% if not m.email %}disabled title="メールアドレスが未登録のため送信できません"
+                {% else %}title="{{ m.name }} さんへ案内を送ります"{% endif %}
+                >案内を送付</button>
+      </div>
+      {% endif %}
+    </div>
+    {% if mails %}
+    <div class="table-scroll" style="max-height:320px;overflow-y:auto">
+    <table class="result-table" style="table-layout:auto">
+      <thead><tr><th class="col-dt">日時</th><th class="col-flag">向き</th>
+        <th class="tl col-long">件名</th><th class="tl col-text">内容・状況</th></tr></thead>
+      <tbody>
+      {% for l in mails %}
+      <tr class="ls-row">
+        <td class="code">{{ l.sent_at[:16] }}</td>
+        <td>{% if l.direction == 'in' %}<span class="hm-dir in">本人から</span>
+          {% else %}<span class="hm-dir out">お知らせ</span>{% endif %}</td>
+        <td class="tl">{{ l.subject or '—' }}</td>
+        <td class="tl"><span class="hint">{{ l.detail
+          or ('送信しました' if l.result == 'success' else '送信できませんでした') }}</span></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-box">やり取りの記録はまだありません。</div>
+    {% endif %}
+    {% if mine %}
+    <form method="post" action="{{ url_for('hm.hm_me_inquiry') }}"
+          class="hm-inq" style="margin-top:12px">
+      <input type="hidden" name="fy" value="{{ fy }}">
+      <div class="fld" style="margin-bottom:8px">
+        <label class="fld-label" for="inqs">件名</label>
+        <input type="text" id="inqs" name="subject" style="width:100%"
+               placeholder="例：再検査の受診先について"></div>
+      <div class="fld">
+        <label class="fld-label" for="inqb">お問い合わせの内容</label>
+        <textarea id="inqb" name="body" rows="4" style="width:100%"
+                  placeholder="ご質問・ご連絡をご記入ください"></textarea></div>
+      <div class="actions" style="justify-content:flex-end;margin-top:10px">
+        <button class="btn-sm primary btn-regsave">問い合わせを送る</button>
+      </div>
+    </form>
+    <p class="hint">お問い合わせはご担当窓口に届きます。お急ぎの場合はお電話でご連絡ください。
+      症状や治療に関するご相談は、産業医・医師にお伝えします。</p>
+    {% else %}
+    <p class="hint">「本人から」はご本人がマイページから送った問い合わせです。
+      お知らせの本文は履歴に残していません（件名のみ）。</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ============ ご本人による写真の取込 ============ #}
+  {% if mine and CAN_SELF_UPLOAD %}
+  <div class="block" data-tab="doc">
+    <div class="blk-head">
+      <div class="blk-head-left"><h2>写真の取込</h2>
+        <span class="count">{{ photos | length }}枚</span></div>
+    </div>
+    <p class="page-lead" style="margin-top:0">医療機関で受け取った採血結果や健診結果票を
+      写真（またはPDF）で取り込めます。取り込んだものは産業医・ご担当窓口が確認します。</p>
+    <form method="post" action="{{ url_for('hm.hm_me_photo') }}"
+          enctype="multipart/form-data" id="sp-form">
+      <input type="hidden" name="fy" value="{{ fy }}">
+      <div class="search-row" style="margin-bottom:10px">
+        <div class="search-group"><label for="kind">区分</label>
+          <select id="kind" name="kind">
+            <option value="">未設定</option>
+            {% for k in PHOTO_KINDS %}<option value="{{ k }}">{{ k }}</option>{% endfor %}
+          </select></div>
+        <div class="search-group"><label for="taken_on">検査日・撮影日</label>
+          <input type="date" id="taken_on" name="taken_on"></div>
+        <div class="search-group" style="flex:1"><label for="note">補足</label>
+          <input type="text" id="note" name="note" style="width:100%"
+                 placeholder="例：再検査分"></div>
+      </div>
+      <div class="drop" id="sp-drop" tabindex="0"
+           onclick="document.getElementById('sp-file').click()"
+           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('sp-file').click();}">
+        <span class="drop-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h2.2l1.2-2h8.2l1.2 2h2.2A1.5 1.5 0 0 1 21 7.5v10A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/>
+            <circle cx="12" cy="12.5" r="3.5"/>
+          </svg>
+        </span>
+        <div class="drop-main">ここに写真をドラッグ＆ドロップ</div>
+        <div class="drop-sub">またはクリックしてファイルを選択（何枚でも選べます）</div>
+        <div class="drop-tags">
+          <span>{{ PHOTO_EXTS | join('　') }}</span><span>1枚 {{ MAX_PHOTO_MB }}MBまで</span></div>
+        <input type="file" id="sp-file" name="photos" multiple accept="image/*,.pdf">
+      </div>
+      <div class="drop-file" id="sp-info">
+        <span class="df-ico" aria-hidden="true">IMG</span>
+        <span class="df-body"><span class="fn" id="sp-name"></span>
+          <span class="fs" id="sp-size"></span></span>
+        <button type="button" class="df-x" onclick="spClear()" title="取り消す"
+                aria-label="取り消す">&times;</button>
+      </div>
+      <div class="actions" style="justify-content:flex-end;margin-top:12px">
+        <button class="btn-submit" id="sp-go" disabled>取り込む</button>
+      </div>
+    </form>
+    <p class="hint">取り込んだ写真はご自身と、ご担当窓口・産業医だけが見られます。
+      削除が必要な場合はご担当窓口へご連絡ください。</p>
+  </div>
+  {% endif %}
+
+  {# 取り込んだ写真は、取込日時つきの一覧（レコード）にして、
+     行の「プレビュー」でモーダルに出します。 #}
+  <div class="block" data-tab="doc">
+    <div class="blk-head">
+      <div class="blk-head-left"><h2>取り込んだ写真</h2>
+        <span class="count">{{ photos | length }}件</span></div>
+    </div>
+    {% if photos %}
+    <div class="table-scroll" style="max-height:360px;overflow-y:auto">
+    <table class="result-table" style="table-layout:auto">
+      <thead><tr>
+        <th class="tl col-dt">取込日時</th><th class="tl">区分・検査日</th>
+        <th class="col-chk">操作</th>
+      </tr></thead>
+      <tbody>
+      {% for p in photos %}
+      <tr class="ls-row">
+        <td class="tl code">{{ p.created_at[:16] }}
+          <div class="hint">{{ p.uploaded_by or '—' }}</div></td>
+        <td class="tl"><b>{{ p.kind or '区分未設定' }}</b>
+          <div class="hint">検査日 {{ p.taken_on or '—' }}{% if p.note %}／{{ p.note }}{% endif %}</div>
+          <div class="hint">{{ p.orig_name or '' }}</div></td>
+        <td>
+          <button class="btn-sm primary btn-detail-blue" type="button"
+                  onclick="hmPhotoOpen(this)"
+                  data-url="{{ url_for('member_photo_file', mid=m.id, pid=p.id) }}"
+                  data-pdf="{{ 1 if p.mime == 'application/pdf' else 0 }}"
+                  data-kind="{{ p.kind or '区分未設定' }}"
+                  data-at="{{ p.created_at[:16] }}"
+                  data-taken="{{ p.taken_on or '—' }}"
+                  data-note="{{ p.note or '' }}">プレビュー</button>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-box">写真の取込がありません。</div>
+    {% endif %}
+  </div>
+
+  {# ============ 対応の履歴（対応区分・メモ・産業医面談を1つにまとめます） ============
+     レコードごとに「いつ・だれが・何を」を残します。本人の画面には出しません。 #}
+  {% if not mine %}
+  <div class="block" data-tab="iv">
+    <div class="blk-head">
+      <div class="blk-head-left"><h2>対応の履歴</h2>
+        <span class="count">{{ rec_n }}件</span>
+        <span class="hint">いまのステータス：<b>{{ cand.hr_class if cand and cand.hr_class else '未判定' }}</b>{% if cand and cand.due_on %}／対応期限 {{ cand.due_on }}{% endif %}{% if cand and cand.follow_on %}／次回フォロー {{ cand.follow_on }}{% endif %}{% if cand and cand.done_on %}／対応完了 {{ cand.done_on }}{% endif %}</span></div>
+      <div class="actions">
+        <button class="btn-sm primary btn-new" type="button" onclick="hmRecOpen()"
+                >新規作成</button>
+      </div>
+    </div>
+    {% if recs %}
+    <div class="table-scroll" style="max-height:420px;overflow-y:auto">
+    <table class="result-table hm-rec" style="min-width:820px">
+      <colgroup><col class="col-user"><col class="col-status"><col class="col-name">
+        <col class="col-long"><col class="col-user"></colgroup>
+      <thead><tr>
+        <th class="tl">日時</th><th>種類</th><th class="tl">担当者</th>
+        <th class="tl">内容</th><th class="tl">期限・予定</th>
+      </tr></thead>
+      <tbody>
+      {% for r in recs %}
+      <tr class="ls-row">
+        <td class="tl code">{{ r.at[:16] }}
+          <div class="hint">{{ r.fy }}年度</div></td>
+        <td><span class="oh-st {{ 'oh-st-done' if r.kind == '産業医面談' else ('oh-st-appr' if r.kind == '対応区分' else 'oh-st-none') }}">{{ r.kind }}</span></td>
+        <td class="tl">{{ r.who }}<div class="hint">{{ r.role }}</div></td>
+        <td class="tl">
+          {% if r.hr_class %}<b>{{ r.hr_class }}</b>{% if r.body %}<br>{% endif %}{% endif %}
+          {{ r.body }}
+          {% if r.iv %}<div class="hint">
+            {{ r.iv.method or '' }}{% if r.iv.purpose %}／{{ r.iv.purpose }}{% endif %}{% if r.iv.measure %}／措置：{{ r.iv.measure }}{% endif %}</div>{% endif %}
+        </td>
+        <td class="tl">
+          {% if r.due_on %}<div class="hint">期限 {{ r.due_on }}</div>{% endif %}
+          {% if r.follow_on %}<div class="hint">次回 {{ r.follow_on }}</div>{% endif %}
+          {% if r.done_on %}<div class="hint">完了 {{ r.done_on }}</div>{% endif %}
+          {% if not (r.due_on or r.follow_on or r.done_on) %}<span class="hint">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-box">対応の履歴がありません。「新規作成」から記録できます。</div>
+    {% endif %}
+    <p class="hint">対応区分を選ぶと、いまのステータスにも反映します。
+      就業区分・就業上の措置の判定は産業医が行います。</p>
+  </div>
+  {% endif %}
+
+</aside>{# /hm-col-side #}
+</div>{# /hm-cols #}
+
+<script>
+/* サブタブ。カードの data-tab で出し分けます（中身の無いタブは出しません） */
+function hmTab(key){
+  var cards = document.querySelectorAll('.hm-cols .block[data-tab]');
+  cards.forEach(function(el){ el.hidden = (el.dataset.tab !== key); });
+  document.querySelectorAll('#hmTabs .hm-tab').forEach(function(b){
+    b.classList.toggle('is-on', b.dataset.tab === key);
+  });
+  /* 片方のカラムが空になったときは、もう片方を画面いっぱいに使います */
+  ['hm-col-main', 'hm-col-side'].forEach(function(c){
+    var box = document.querySelector('.' + c);
+    if(!box) return;
+    var any = [].some.call(box.querySelectorAll('.block[data-tab]'),
+                           function(el){ return !el.hidden; });
+    box.hidden = !any;
+  });
+  var cols = document.querySelector('.hm-cols');
+  if(cols){
+    var m = document.querySelector('.hm-col-main');
+    var t = document.querySelector('.hm-col-side');
+    cols.classList.toggle('is-one', !!(m && t) && (m.hidden || t.hidden));
+  }
+  try{ sessionStorage.setItem('hmTab', key); }catch(e){}
+}
+(function(){
+  var tabs = [].slice.call(document.querySelectorAll('#hmTabs .hm-tab'));
+  var first = null;
+  tabs.forEach(function(b){
+    var n = document.querySelectorAll(
+      '.hm-cols .block[data-tab="' + b.dataset.tab + '"]').length;
+    b.hidden = !n;
+    if(n && !first) first = b.dataset.tab;
+  });
+  var saved = null;
+  try{ saved = sessionStorage.getItem('hmTab'); }catch(e){}
+  /* 一覧の「詳細表示」などから ?tab= で開くタブが指定されていれば、それを優先します */
+  var want = {{ init_tab|default('')|tojson }};
+  if(want && document.querySelector('#hmTabs .hm-tab[data-tab="' + want + '"]:not([hidden])')) saved = want;
+  var ok = saved && document.querySelector(
+    '#hmTabs .hm-tab[data-tab="' + saved + '"]:not([hidden])');
+  hmTab(ok ? saved : first);
+})();
+</script>
+
+{# ============ 対応の履歴：新規作成（担当者のみ） ============ #}
+{% if not mine %}
+<div class="modal-back" id="hmRecModal">
+  <div class="modal-card" style="max-width:760px">
+    <div class="modal-head">
+      <h2>対応の記録を新規作成</h2>
+      <button class="modal-x" type="button" onclick="hmRecClose()">×</button>
+    </div>
+    <form method="post" action="{{ url_for('hm.hm_record', mid=m.id) }}">
+      <input type="hidden" name="fy" value="{{ fy }}">
+      <div class="modal-body">
+        <p class="note" style="margin-top:0">
+          <b>{{ m.name }}</b> さんの対応を1件のこします。
+          対応区分を選ぶと、いまのステータスにも反映します。</p>
+        <div class="fld" style="margin-bottom:12px">
+          <label class="fld-label">記録の種類</label>
+          {# 記録の種類はロール別の業務フローに合わせる
+             人事：対応区分の変更／就業上の措置／面談日程　保健師（人事も）：保健指導／受診勧奨／フォロー完了
+             産業医：医学的意見 #}
+          <div class="iv-chips" id="hmRecKinds">
+            <input type="hidden" name="kind" id="hmRecKindVal" value="メモ">
+            <button type="button" class="iv-chip is-on" data-k="メモ"
+                    onclick="hmRecKind(this)">メモ</button>
+            {% if CAN_HR %}
+            <button type="button" class="iv-chip" data-k="対応区分"
+                    onclick="hmRecKind(this)">対応区分の変更</button>
+            <button type="button" class="iv-chip" data-k="就業上の措置"
+                    onclick="hmRecKind(this)">就業上の措置</button>
+            <button type="button" class="iv-chip" data-k="面談日程"
+                    onclick="hmRecKind(this)">面談日程</button>
+            {% endif %}
+            {% if CAN_HR or IS_NURSE %}
+            <button type="button" class="iv-chip" data-k="保健指導"
+                    onclick="hmRecKind(this)">保健指導</button>
+            <button type="button" class="iv-chip" data-k="受診勧奨"
+                    onclick="hmRecKind(this)">受診勧奨</button>
+            <button type="button" class="iv-chip" data-k="フォロー完了"
+                    onclick="hmRecKind(this)">フォロー完了</button>
+            {% endif %}
+            {% if CAN_MED %}
+            <button type="button" class="iv-chip" data-k="医学的意見"
+                    onclick="hmRecKind(this)">医学的意見</button>
+            {% endif %}
+          </div>
+          <p class="fld-help" id="hmRecKindHelp" style="margin-top:6px"></p>
+        </div>
+        {% if CAN_HR %}
+        <div class="fld" id="hmRecBookBox" style="margin-bottom:12px" hidden>
+          <label class="fld-label" for="hmRecBooked">面談予定日</label>
+          <input type="date" id="hmRecBooked" name="booked_on">
+          <p class="fld-help">産業医面談の日程。登録すると面談のステータスは「面談予約済」になり、面談結果入力の実施日の初期値になります。
+            {% if cand and cand.booked_on %}いまは {{ cand.booked_on }}{% endif %}</p>
+        </div>
+        {% endif %}
+        {% if CAN_HR %}
+        <div class="fld" style="margin-bottom:12px">
+          <label class="fld-label" for="hmRecHr">対応区分（ステータス）</label>
+          <select id="hmRecHr" name="hr_class">
+            <option value="">変更しない</option>
+            {% for st in HR_CLASSES %}<option value="{{ st }}">{{ st }}</option>{% endfor %}
+          </select>
+          <p class="fld-help">いまは
+            <b>{{ cand.hr_class if cand and cand.hr_class else '未判定' }}</b>です。
+            選ぶと、いまのステータスが変わり、履歴にも残ります。
+            就業区分の判定は産業医が行います。</p>
+        </div>
+        {% endif %}
+        <div class="oh-grid">
+          <div class="fld">
+            <label class="fld-label" for="hmRecDue">対応期限</label>
+            <input type="date" id="hmRecDue" name="due_on">
+            <p class="fld-help">判定期限・受診の報告期限など。
+              {% if cand and cand.due_on %}いまは {{ cand.due_on }}{% endif %}</p>
+          </div>
+          <div class="fld">
+            <label class="fld-label" for="hmRecFollow">次回フォロー予定日</label>
+            <input type="date" id="hmRecFollow" name="follow_on">
+            <p class="fld-help">保健指導・面談のフォロー予定。
+              {% if cand and cand.follow_on %}いまは {{ cand.follow_on }}{% endif %}</p>
+          </div>
+          <div class="fld">
+            <label class="fld-label" for="hmRecDone">対応完了日</label>
+            <input type="date" id="hmRecDone" name="done_on">
+            <p class="fld-help">再検査の受診・結果提出まで終わった日。
+              {% if cand and cand.done_on %}いまは {{ cand.done_on }}{% endif %}</p>
+          </div>
+        </div>
+        <div class="fld">
+          <label class="fld-label" for="hmRecBody">メモ（記入者・日時つきで履歴に残ります）</label>
+          <textarea id="hmRecBody" name="body" rows="4" style="width:100%"
+                    placeholder="例）本人と連絡済み。来週の面談を調整中。"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span class="hint" style="margin-right:auto">
+          就業判定・措置の最終判断は産業医・医師が行います。</span>
+        <button class="btn-sm" type="button" onclick="hmRecClose()">閉じる</button>
+        <button class="btn-sm primary btn-regsave" type="submit">記録する</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+/* 対応の履歴：新規作成のモーダル */
+var HM_REC_HELP = {
+  'メモ': '',
+  '対応区分': '対応区分（ステータス）を選んで記録します。',
+  '就業上の措置': '産業医の意見をもとに検討・実施した就業上の措置（時間外の制限など）を記録します。',
+  '面談日程': '産業医面談の予定日を入れます。面談のステータスが「面談予約済」になります。',
+  '保健指導': '実施した保健指導の内容を記録します。次回フォロー予定日も入れられます。',
+  '受診勧奨': '再検査・受診の勧奨を行ったことを記録します。受診の報告期限は対応期限に入れます。',
+  'フォロー完了': 'フォローを終えたことを記録します。対応完了日が空なら今日の日付が入り、保健師対応中の方は再検査対応済みになります。',
+  '医学的意見': '健診結果・面談をふまえた医学的な意見を記録します（就業区分の判定は面談対象者一覧で行います）。'
+};
+function hmRecKind(btn){
+  document.querySelectorAll('#hmRecKinds .iv-chip').forEach(function(b){
+    b.classList.toggle('is-on', b === btn);
+  });
+  var k = btn.dataset.k;
+  document.getElementById('hmRecKindVal').value = k;
+  var hr = document.getElementById('hmRecHr');
+  if(hr && k !== '対応区分') hr.value = '';
+  var bb = document.getElementById('hmRecBookBox');
+  if(bb) bb.hidden = (k !== '面談日程');
+  var help = document.getElementById('hmRecKindHelp');
+  if(help) help.textContent = HM_REC_HELP[k] || '';
+}
+function hmRecOpen(){
+  var b = document.getElementById('hmRecModal');
+  b.classList.add('open');
+  if(window.hiaCenterModal) window.hiaCenterModal(b.querySelector('.modal-card'));
+}
+function hmRecClose(){
+  document.getElementById('hmRecModal').classList.remove('open');
+}
+</script>
+{% endif %}
+
+{# ============ 案内メールの作成（担当者のみ） ============ #}
+{% if not mine and CAN_MAIL %}
+<div class="modal-back" id="hmMailModal">
+  <div class="modal-card" style="max-width:860px">
+    <div class="modal-head">
+      <h2>メールを作成（{{ m.name }} さん）</h2>
+      <button class="modal-x" type="button" onclick="hmMailClose()">×</button>
+    </div>
+    <form method="post" action="{{ url_for('hm.hm_mail_send') }}">
+      <input type="hidden" name="fy" value="{{ fy }}">
+      <input type="hidden" name="back" value="{{ request.full_path }}">
+      <input type="hidden" name="member_ids" value="{{ m.id }}">
+      <div class="modal-body">
+        <p class="note" style="margin-top:0">
+          <b>{{ m.name }}</b> さん 1名に送ります（{{ m.email or 'メールアドレス未登録' }}）。</p>
+        <div class="search-row" style="margin-bottom:12px">
+          <div class="search-group"><label for="hmmTpl">テンプレート</label>
+            <select id="hmmTpl" name="template_id" style="width:250px"
+                    onchange="hmMailTpl()">
+              {% for t in tpls %}
+              <option value="{{ t.id }}" data-subject="{{ t.subject }}"
+                      data-body="{{ t.body }}">{{ t.name }}</option>
+              {% endfor %}
+            </select></div>
+          <div class="search-group"><label for="hmmDl">期限</label>
+            <input type="date" id="hmmDl" name="deadline" style="width:150px"></div>
+          <div class="search-group" style="flex:1"><label for="hmmUrl">健康マイページのURL</label>
+            <input type="text" id="hmmUrl" name="mypage_url" style="width:100%"
+                   placeholder="例：https://…/health/me"></div>
+        </div>
+        <div class="fld" style="margin-bottom:10px">
+          <label class="fld-label" for="hmmDesk">担当窓口（本文の {{ '{{担当窓口}}' }} に入ります）</label>
+          <input type="text" id="hmmDesk" name="desk" style="width:100%"
+                 placeholder="例：健康管理室（内線1234）"></div>
+        <div class="fld" style="margin-bottom:10px">
+          <label class="fld-label" for="hmmSubject">件名</label>
+          <input type="text" id="hmmSubject" name="subject" style="width:100%"></div>
+        <div class="fld">
+          <label class="fld-label" for="hmmBody">本文</label>
+          <textarea id="hmmBody" name="body" rows="12" style="width:100%"></textarea></div>
+        <p class="hint">差し込み項目：{% for k in MAIL_FIELDS %}<code>{{ k }}</code>{% if not loop.last %}　{% endif %}{% endfor %}<br>
+          送信内容は送信履歴に残ります（件名のみ。本文は残しません）。
+          検査値・判定は本文に書かず、健康マイページでご確認いただく形をおすすめします。
+          {% if not mail_on %}<br><b>送信設定（SMTP）が未登録のため、実際には送信されず
+          outbox に控えが保存されます。</b>{% endif %}</p>
+      </div>
+      <div class="modal-foot">
+        <span class="hint" style="margin-right:auto">
+          産業医の判定結果の方へ送ると、ステータスが「保健師対応中」に進みます。</span>
+        <button class="btn-sm" type="button" onclick="hmMailClose()">閉じる</button>
+        <button class="btn-sm primary btn-regsave" type="submit" id="hmmSend">送信する</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+/* 案内メールのモーダル（加入者健康一覧の「案内」と同じ作り） */
+function hmMailTpl(){
+  var o = document.getElementById('hmmTpl').selectedOptions[0];
+  if(!o) return;
+  document.getElementById('hmmSubject').value = o.dataset.subject || '';
+  document.getElementById('hmmBody').value = o.dataset.body || '';
+}
+function hmMailOpen(){
+  hmMailTpl();
+  var b = document.getElementById('hmMailModal');
+  b.classList.add('open');
+  if(window.hiaCenterModal) window.hiaCenterModal(b.querySelector('.modal-card'));
+}
+function hmMailClose(){
+  document.getElementById('hmMailModal').classList.remove('open');
+}
+</script>
+{% endif %}
+
+{# ============ 写真のプレビュー ============ #}
+<div class="modal-back" id="hmPhotoModal">
+  <div class="modal-card" style="max-width:860px">
+    <div class="modal-head">
+      <h2 id="hmPhotoTitle">取り込んだ写真</h2>
+      <button class="modal-x" type="button" onclick="hmPhotoClose()">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="note" id="hmPhotoMeta" style="margin-top:0"></p>
+      <div class="hm-ph-view" id="hmPhotoView"></div>
+    </div>
+    <div class="modal-foot">
+      <span class="hint" style="margin-right:auto">
+        取り込んだ写真はご本人・ご担当窓口・産業医だけが見られます。</span>
+      <a class="btn-sm" id="hmPhotoOpen" target="_blank" rel="noopener"
+         style="text-decoration:none">別のタブで開く</a>
+      <button class="btn-sm" type="button" onclick="hmPhotoClose()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 取り込んだ写真のプレビュー（画像はそのまま、PDFは枠で表示します） */
+function hmPhotoOpen(btn){
+  var d = btn.dataset;
+  document.getElementById('hmPhotoTitle').textContent = d.kind;
+  document.getElementById('hmPhotoMeta').textContent =
+    '取込日時 ' + d.at + '　／　検査日 ' + d.taken + (d.note ? '　／　' + d.note : '');
+  document.getElementById('hmPhotoView').innerHTML = (d.pdf === '1')
+    ? '<iframe src="' + d.url + '" title="取り込んだPDF"></iframe>'
+    : '<img src="' + d.url + '" alt="' + d.kind + '">';
+  document.getElementById('hmPhotoOpen').href = d.url;
+  var b = document.getElementById('hmPhotoModal');
+  b.classList.add('open');
+  if(window.hiaCenterModal) window.hiaCenterModal(b.querySelector('.modal-card'));
+}
+function hmPhotoClose(){
+  document.getElementById('hmPhotoModal').classList.remove('open');
+  document.getElementById('hmPhotoView').innerHTML = '';
+}
+</script>
+
+{% if mine %}
+<p class="hint">この画面はご本人の健康情報です。内容についてのご相談は、
+  産業医・保健師またはご担当窓口へお問い合わせください。</p>
+{% endif %}
+
+{% if mine and CAN_SELF_UPLOAD %}
+<script>
+/* 選んだ写真の名前と枚数を出す（ドラッグ＆ドロップにも対応） */
+function spClear(){
+  document.getElementById('sp-file').value = '';
+  document.getElementById('sp-info').classList.remove('on');
+  document.getElementById('sp-go').disabled = true;
+  if(window.reportHeight) window.reportHeight();
+}
+(function(){
+  var input = document.getElementById('sp-file');
+  var drop = document.getElementById('sp-drop');
+  if(!input || !drop) return;
+  function show(list){
+    if(!list || !list.length){ spClear(); return; }
+    var n = list.length, kb = 0;
+    for(var i = 0; i < n; i++) kb += list[i].size;
+    document.getElementById('sp-name').textContent =
+      n === 1 ? list[0].name : list[0].name + ' ほか' + (n - 1) + '件';
+    document.getElementById('sp-size').textContent =
+      '（' + (kb / 1024).toFixed(1) + ' KB／' + n + '件）';
+    document.getElementById('sp-info').classList.add('on');
+    document.getElementById('sp-go').disabled = false;
+    if(window.reportHeight) window.reportHeight();
+  }
+  input.addEventListener('change', function(){ show(this.files); });
+  ['dragenter','dragover'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation();
+      drop.classList.add('over'); });
+  });
+  ['dragleave','dragend'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation();
+      drop.classList.remove('over'); });
+  });
+  drop.addEventListener('drop', function(e){
+    e.preventDefault(); e.stopPropagation(); drop.classList.remove('over');
+    if(e.dataTransfer.files && e.dataTransfer.files.length){
+      try{ input.files = e.dataTransfer.files; }catch(err){}
+      show(e.dataTransfer.files);
+    }
+  });
+  ['dragover','drop'].forEach(function(ev){
+    window.addEventListener(ev, function(e){
+      if(!e.target.closest || !e.target.closest('.drop')) e.preventDefault();
+    });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -7,12 +7,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500;700;900&family=Noto+Sans+JP:wght@300;400;500;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/zoom.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;font-family:'Zen Kaku Gothic New','Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,system-ui,sans-serif;}
 
 /* サイドバー固定 */
 .sidebar{
-  position:fixed;top:52px;left:0;width:96px;height:calc(100vh - 52px);
+  position:fixed;top:52px;left:0;width:88px;height:calc(100vh / var(--ui-zoom,1) - 52px);
   background:#2f4f4f;color:#fff;
   padding:14px 0 20px;
   display:flex;flex-direction:column;align-items:center;gap:6px;
@@ -27,12 +28,12 @@
 .sb-label{font-size:11.5px;font-weight:600;letter-spacing:.02em;line-height:1.1;text-align:center;white-space:nowrap;}
 
 /* ボディ全体をサイドバー幅分右にずらす */
-body{background:#f7f8f9;color:#333;margin-left:96px;}
+body{background:#f7f8f9;color:#333;margin-left:88px;}
 
 /* ヘッダー */
-/* ヘッダーは HIA健保管理（青）と同じ体裁。body が 96px 右にずれているので、
+/* ヘッダーは HIA健保管理（青）と同じ体裁。body が 88px 右にずれているので、
    その分だけ左へ戻して画面の左端から始める（タイトルの左位置が青と同じ20pxになる） */
-header{height:52px;background:#fff;border-bottom:1px solid #e8ecf0;display:flex;justify-content:space-between;align-items:center;padding:0 20px;position:sticky;top:0;z-index:200;margin-left:-96px;width:calc(100% + 96px);gap:16px;}
+header{height:52px;background:#fff;border-bottom:1px solid #e8ecf0;display:flex;justify-content:space-between;align-items:center;padding:0 20px;position:sticky;top:0;z-index:200;margin-left:-88px;width:calc(100% + 88px);gap:16px;}
 
 /* メイン */
 main{padding:24px;}
@@ -304,11 +305,6 @@ td.op-cell{padding:0 6px;vertical-align:middle;}
 .mu-type-btn.active{border-color:#7c3aed;background:#ede9fe;color:#7c3aed;}
 .ke-method-btn:hover{border-color:#2f4f4f;color:#2f4f4f;}
 .ke-method-btn.active{background:#2f4f4f;color:#fff;border-color:#2f4f4f;}
-/* 認証方式で使う項目のチップ（健康保険組合情報カード） */
-.auth-items{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 6px;}
-.auth-item{display:inline-block;padding:3px 10px;border-radius:100px;
-  background:#e8f4ec;color:#15803d;font-size:12.5px;font-weight:700;
-  white-space:nowrap;}
 
 .toggle-wrap input[type="checkbox"]{display:none;}
 .toggle-wrap label{position:relative;display:inline-flex;align-items:center;width:52px;height:22px;cursor:pointer;border-radius:22px;background:#ddd;transition:background .2s;overflow:hidden;}
@@ -481,6 +477,15 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
 #ms-critWrap input[type="number"], #ms-critWrap input[type="text"] { text-align: right }
 /* 判定マスタ編集：表を内容の幅にとどめる（値の欄が広がりすぎないように）*/
 .ms-crit-table { width: 100%; table-layout: fixed }
+/* No の欄は中央ぞろえ。操作の欄はボタンがはみ出さないようにする */
+#ms-critWrap td.ms-crit-no { text-align: center; color: #64748b; font-weight: 600 }
+.ms-crit-table th:last-child, #ms-critWrap td:last-child { text-align: center }
+#ms-critWrap td:last-child .tbl-btn { min-width: 0 }
+/* 表がカードからはみ出さないように、狭いときは表だけ横スクロールする */
+.ms-table-scroll { overflow-x: auto; max-width: 100% }
+/* 条件・金額編集：No の欄は中央ぞろえ */
+#ms-condWrap td.ms-cond-no { text-align: center; color: #64748b; font-weight: 600 }
+#ms-condWrap td:last-child, #ms-condWrap td:last-child .tbl-btn { text-align: center; min-width: 0 }
 /* 検査項目＋項目コードの統合表：左5列（結合セル）は上下中央で薄い背景 */
 .ms-item-table th.ms-item-col{width:calc((100% - 580px) / 5);}
 .ms-item-table td.ms-item-cell{vertical-align:middle;background:#fbfcfd;}
@@ -511,12 +516,15 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
 /* サーバ連携バッジは画面の基調色に合わせる */
 .sys-flag{display:inline-block;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;
   background:#e6efee;color:#2f4f4f;vertical-align:middle}
-/* 健康保険組合一覧：組合名は一定の幅で省略表示（全文は title で確認できる） */
+/* 健康保険組合一覧：列の幅
+   登録日・保険者番号・登録企業数・登録医療機関数・公開権限・健診代行権限・保健指導権限・インフル機能の
+   8列は同じ幅（120px）。組合名は 240px に抑え、長い名称は省略表示（全文は title で確認できる）。
+   画面が広いときの余りは table-layout:fixed により各列へ比例配分される（8列は同じ幅のまま） */
+#kl-table th.kl-c{width:120px}
+#kl-table th.kl-name-h{width:240px;text-align:left}
+#kl-table th.kl-op-h{width:260px}
 #kl-table td.kl-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
-#kl-table th:nth-child(4){text-align:left;max-width:220px}
-#kl-table td.kl-name{max-width:220px}
 /* 健康保険組合一覧は1行に収める */
-#kl-table th:last-child,#kl-table td:last-child{width:206px}
 #kl-table td:last-child{white-space:nowrap;padding:6px 8px}
 #kl-table td.op-cell .tbl-btn{width:auto;margin:0 2px;padding:0 10px;
   height:30px;min-height:30px;font-size:11.5px}
@@ -524,7 +532,7 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
   border-color:#2f4f4f}
 #kl-table tbody td{height:44px;padding-top:4px;padding-bottom:4px}
 #kl-table .toggle-wrap{display:inline-flex}
-#kl-table{table-layout:fixed;width:100%}
+#kl-table{table-layout:fixed;width:100%;min-width:1460px}
 /* 社内LANで Google Fonts に到達できない場合のフォールバック */
 /* フォントは全画面で統一（青シェル・iframe内の画面と同じ） */
 *{font-family:'Zen Kaku Gothic New','Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,system-ui,sans-serif}
@@ -2357,16 +2365,47 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
               <span class="totals-text"><span id="kl-count">件数: 0</span></span>
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0;">
-              <button class="tbl-btn tbl-btn-confirm btn-new" style="height:40px;padding:0 22px;min-width:84px;" onclick="navigate('kenpo-edit')">新規作成</button>
+              <button class="tbl-btn tbl-btn-confirm btn-new" style="height:40px;padding:0 22px;min-width:84px;" onclick="KenpoDB.newKenpo()">新規作成</button>
             </div>
           </div>
           <div class="tbl-scroll"><table class="fee-table" id="kl-table" style="table-layout:fixed;width:100%;">
             <thead><tr>
-              <th style="width:104px;">登録日</th><th style="width:104px;">保険者番号</th><th>健康保険組合名</th>
-              <th style="width:90px;">登録企業数</th><th style="width:120px;">登録医療機関数</th><th style="width:90px;">公開権限</th><th style="width:110px;">健診代行権限</th><th style="width:110px;">保健指導権限</th><th style="width:100px;">インフル機能</th><th style="width:260px;">操作</th>
+              <th class="kl-c">登録日</th><th class="kl-c">保険者番号</th><th class="kl-name-h">健康保険組合名</th>
+              <th class="kl-c">登録企業数</th><th class="kl-c">登録医療機関数</th><th class="kl-c">公開権限</th><th class="kl-c">健診代行権限</th><th class="kl-c">保健指導権限</th><th class="kl-c">インフル機能</th><th class="kl-op-h">操作</th>
             </tr></thead>
             <tbody></tbody>
           </table></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- サポートログインの確認（ブラウザの確認ダイアログではなくモーダルで出す） -->
+    <div class="modal-overlay" id="sl-modal">
+      <div class="modal-card" style="max-width:520px;">
+        <div class="modal-header">
+          <span class="modal-title" style="display:inline-flex;align-items:center;gap:8px;">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            サポートログイン
+          </span>
+          <button class="modal-close" onclick="slClose()">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="color:#555;margin:0 0 16px;">この健康保険組合の画面に入ります。よろしいですか？</p>
+          <div style="background:#f9fafb;border:1px solid #e8edf2;border-radius:8px;padding:14px 16px;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+              <span style="color:#888;min-width:90px;">対象</span>
+              <span id="sl-target" style="font-weight:600;color:#222;"></span>
+            </div>
+          </div>
+          <ul style="margin:0;padding-left:18px;color:#555;font-size:13px;line-height:1.9;">
+            <li>サポート対応のための機能です</li>
+            <li>操作はすべて記録されます</li>
+            <li>終了するまで当社の画面には戻れません</li>
+          </ul>
+        </div>
+        <div class="modal-footer" style="justify-content:center;">
+          <button class="btn-cancel" onclick="slClose()">キャンセル</button>
+          <button class="btn-save" id="sl-go" onclick="slGo()">ログインする</button>
         </div>
       </div>
     </div>
@@ -2420,23 +2459,6 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
                   </div>
                 </div>
               </div>
-              <!-- 認証方式（加入者向けサイトの本人確認で使う項目のパターン） -->
-              <div style="margin-top:16px;">
-                <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:10px;">
-                  <span style="font-size:13px;font-weight:600;color:#0f172a;">認証方式</span>
-                  <span style="font-size:11px;color:#94a3b8;line-height:1.5;">加入者向けサイトで本人確認に使う項目の組み合わせを登録します</span>
-                </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                  <button type="button" class="ke-method-btn active" data-group="ke-auth"
-                          data-auth="A" onclick="KE.selectAuth(this)">認証方式A</button>
-                  <button type="button" class="ke-method-btn" data-group="ke-auth"
-                          data-auth="B" onclick="KE.selectAuth(this)">認証方式B</button>
-                </div>
-                <input type="hidden" id="ke-auth" value="A">
-                <div class="auth-items" id="ke-auth-items" style="margin-top:10px;"></div>
-                <div id="ke-auth-note" style="font-size:11px;color:#94a3b8;line-height:1.6;"></div>
-              </div>
-
               <!-- 医療機関情報PDF アップロード -->
               <div style="margin-top:16px;">
                 <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:10px;">
@@ -2495,6 +2517,24 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
               </div>
             </div>
           </div>
+        </div>
+        <!-- クローズサイトに表示する同意文（健保ごとに登録。申請チェックリストと同じ形式。項目が無ければ表示しない） -->
+        <div class="right-panel no-flex" id="ke-consent-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:16px;flex-wrap:wrap;">
+            <div style="display:flex;flex-direction:column;gap:2px;">
+              <h2 class="m0">クローズサイトに表示する同意文</h2>
+              <span class="totals-text">加入者向けサイト（クローズサイト）の本人確認画面で加入者に同意を求める文面（本文を可変で登録。項目が無ければ表示しない）</span>
+            </div>
+            <button type="button" class="tbl-btn btn-additem" style="height:40px;padding:0 22px;min-width:84px;" onclick="KE.addConsentRow()">項目追加</button>
+          </div>
+          <table class="fee-table" style="width:100%;min-width:780px;">
+            <thead><tr>
+              <th>本文</th>
+              <th style="width:100px;">同意必須</th>
+              <th style="width:260px;">操作</th>
+            </tr></thead>
+            <tbody id="ke-consentWrap"></tbody>
+          </table>
         </div>
         <div class="right-panel no-flex">
           <h2>権限設定</h2>
@@ -2571,6 +2611,24 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
       <!-- 健診代行設定タブ -->
       <div class="ke-tab-panel" id="ke-tab-kenshin" style="display:none;">
       <div class="panel-col">
+
+        <!-- サイト公開期間（健診代行）：加入者向けサイトに健診の予約ページを公開する期間 -->
+        <div class="right-panel no-flex" id="ke-ks-site">
+          <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:10px;">
+            <h2 class="m0">サイト公開期間</h2>
+            <span class="totals-text">加入者向けサイトに健診（予約・受診案内）のページを公開する期間。空欄なら期間の制限なし</span>
+          </div>
+          <div class="ms-grid-4">
+            <div class="form-group">
+              <label class="form-label" for="ke-ks-siteStart">開始日</label>
+              <input type="date" class="form-control" id="ke-ks-siteStart">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="ke-ks-siteEnd">終了日</label>
+              <input type="date" class="form-control" id="ke-ks-siteEnd">
+            </div>
+          </div>
+        </div>
 
         <!-- 達成度・単価設定（健診代行） -->
         <div class="right-panel no-flex">
@@ -2826,6 +2884,26 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
                   <label class="form-label">所在地</label>
                   <input type="text" class="form-control" id="fl-employer-addr" placeholder="例：東京都渋谷区〇〇1-2-3 ○○ビル 5F">
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid #e8edf2;margin:22px 0;">
+
+          <!-- サイト公開期間（インフル補助）：加入者向けサイトに申請ページを公開する期間 -->
+          <div id="ke-fl-site">
+            <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:10px;">
+              <h2 class="m0">サイト公開期間</h2>
+              <span class="totals-text">加入者向けサイトにインフルエンザ補助（予約・申請）のページを公開する期間。空欄なら期間の制限なし</span>
+            </div>
+            <div class="ms-grid-4">
+              <div class="form-group">
+                <label class="form-label" for="ke-fl-siteStart">開始日</label>
+                <input type="date" class="form-control" id="ke-fl-siteStart">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="ke-fl-siteEnd">終了日</label>
+                <input type="date" class="form-control" id="ke-fl-siteEnd">
               </div>
             </div>
           </div>
@@ -3266,26 +3344,12 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
       <h2 class="master-sec-title">情報</h2>
       <p class="master-sec-desc">企業・事業所・部署・加入者のマスタです。</p>
       <div class="top-cards theme-master" style="margin-top:4px;">
-        <div class="top-card" onclick="navigate('sys-company')" data-feature="master.view">
+        <div class="top-card" onclick="navigate('sys-org')" data-feature="master.view">
           <div class="top-card-icon">
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h6"/></svg>
           </div>
-          <h3 class="top-card-title">企業情報</h3>
-          <h4 class="top-card-desc">全健保の企業を登録・閲覧・編集・削除。健康保険組合を選んで登録します</h4>
-        </div>
-        <div class="top-card" onclick="navigate('sys-office')" data-feature="master.view">
-          <div class="top-card-icon">
-            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
-          </div>
-          <h3 class="top-card-title">事業所情報</h3>
-          <h4 class="top-card-desc">事業所の登録・閲覧・編集・削除とCSVの一括取込</h4>
-        </div>
-        <div class="top-card" onclick="navigate('sys-dept')" data-feature="master.view">
-          <div class="top-card-icon">
-            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="8" y="14" width="8" height="7" rx="1"/><path d="M6.5 10v2h11v-2M12 12v2"/></svg>
-          </div>
-          <h3 class="top-card-title">部署情報</h3>
-          <h4 class="top-card-desc">部署の登録・閲覧・編集・削除。部署は事業所の下に置きます</h4>
+          <h3 class="top-card-title">企業・事業所・部署</h3>
+          <h4 class="top-card-desc">全健保の企業・事業所・部署を1つの一覧で登録・閲覧・編集・削除</h4>
         </div>
         <div class="top-card" onclick="navigate('sys-member')" data-feature="master.view">
           <div class="top-card-icon">
@@ -3684,19 +3748,23 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
               <button type="button" class="tbl-btn btn-additem" style="height:40px;padding:0 22px;min-width:84px;" onclick="MS.addConditionRow()">項目追加</button>
             </div>
           </div>
+          <!-- 画面が狭いときは、カードからはみ出さずに表だけ横スクロールします -->
+          <div class="ms-table-scroll">
           <table class="fee-table" style="width:100%;min-width:1180px;">
+            <!-- 行は No・健診タイプ・年齢・性別・金額・健保負担額・事業所負担額・操作の8列です -->
             <thead><tr>
-              
+              <th style="width:56px;">No</th>
               <th style="width:125px;">健診タイプ</th>
-              <th style="width:140px;">年齢<span style="display:block;font-weight:400;font-size:10px;color:#888;line-height:1.2;margin-top:2px;">(満年齢・歳)</span></th>
+              <th style="width:172px;">年齢<span style="display:block;font-weight:400;font-size:10px;color:#888;line-height:1.2;margin-top:2px;">(満年齢・歳)</span></th>
               <th style="width:75px;">性別</th>
               <th style="width:160px;">金額</th>
               <th style="width:160px;">健保負担額</th>
-              <th>事業所負担額</th>
-              <th style="width:260px;">操作</th>
+              <th style="width:160px;">事業所負担額</th>
+              <th style="width:110px;">操作</th>
             </tr></thead>
             <tbody id="ms-condWrap"></tbody>
           </table>
+          </div>
         </div>
       </div>
       <!-- 下部アクションバー -->
@@ -3728,13 +3796,14 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
             </div>
           </div>
           <table class="fee-table ms-crit-table">
+            <!-- 行は No・判定区分・性別・下限値・上限値・操作の6列です（見出しと必ず同じ数にします）-->
             <thead><tr>
-              
-              <th style="width:26%;">判定区分</th>
-              <th style="width:12%;">性別</th>
-              <th style="width:23%;">下限値(以上)</th>
-              <th style="width:23%;">上限値(未満)</th>
-              <th style="width:260px;">操作</th>
+              <th style="width:56px;">No</th>
+              <th>判定区分</th>
+              <th style="width:14%;">性別</th>
+              <th style="width:22%;">下限値(以上)</th>
+              <th style="width:22%;">上限値(以下)</th>
+              <th style="width:110px;">操作</th>
             </tr></thead>
             <tbody id="ms-critWrap"></tbody>
           </table>
@@ -3916,7 +3985,7 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M17 11l2 2 4-4"/></svg>
           </div>
           <h3 class="top-card-title">アカウント管理</h3>
-          <h4 class="top-card-desc">アカウントの一覧確認・検索、代表者アカウントの発行、権限の登録・編集・削除</h4>
+          <h4 class="top-card-desc">アカウントの一覧確認・検索、アカウントの発行、権限の登録・編集・削除</h4>
         </div>
         <div class="top-card" onclick="navigate('sys-log')" data-feature="settings.log">
           <div class="top-card-icon">
@@ -3954,33 +4023,13 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     </div>
 
     <!-- ======== 本システム: 企業情報 ======== -->
-    <div class="view" id="view-sys-company">
+    <div class="view" id="view-sys-org">
       <div class="sys-head">
-        <h1>企業情報</h1>
+        <h1>企業・事業所・部署</h1>
         <button class="back-btn" onclick="sysBack('master')">戻る</button>
       </div>
-      <p class="sys-note">全健保の企業を登録・閲覧・編集・削除します。登録時に健康保険組合を選び、事業所（企業）コードは健保が管理する番号を入れます（当社内部コードは自動で割り振ります）。</p>
-      <iframe class="sys-frame" data-src="/companies" title="企業情報"></iframe>
-    </div>
-
-    <!-- ======== 本システム: 事業所情報 ======== -->
-    <div class="view" id="view-sys-office">
-      <div class="sys-head">
-        <h1>事業所情報</h1>
-        <button class="back-btn" onclick="sysBack('master')">戻る</button>
-      </div>
-      <p class="sys-note">事業所の登録・閲覧・編集・削除とCSVの一括取込を行います。事業所コードはシステムが自動採番します。</p>
-      <iframe class="sys-frame" data-src="/offices" title="事業所情報"></iframe>
-    </div>
-
-    <!-- ======== 本システム: 部署情報 ======== -->
-    <div class="view" id="view-sys-dept">
-      <div class="sys-head">
-        <h1>部署情報</h1>
-        <button class="back-btn" onclick="sysBack('master')">戻る</button>
-      </div>
-      <p class="sys-note">部署の登録・閲覧・編集・削除を行います。部署は事業所の下に置き、同じ事業所内で名称・コードは重複できません。</p>
-      <iframe class="sys-frame" data-src="/departments" title="部署情報"></iframe>
+      <p class="sys-note">全健保の企業・事業所・部署を1つの一覧で登録・閲覧・編集・削除します（1行が1レコードで、事業所・部署の行には所属する企業・事業所を列で示します。事業所・部署の追加は企業の「詳細表示」から行います）。企業の登録時に健康保険組合を選び、企業コード・事業所コード・部署コードは健保・企業が管理する番号を入れます（当社内部コードは自動で割り振ります）。</p>
+      <iframe class="sys-frame" data-src="/orgs" title="企業・事業所・部署"></iframe>
     </div>
 
     <!-- ======== 本システム: 加入者情報 ======== -->
@@ -3999,7 +4048,7 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
         <h1>アカウント管理</h1>
         <button class="back-btn" onclick="sysBack('settings')">戻る</button>
       </div>
-      <p class="sys-note">各健保・企業の代表者アカウントを発行し、権限の登録・編集・削除と一覧確認を行います。</p>
+      <p class="sys-note">各健保・企業のアカウントを発行し、権限の登録・編集・削除と一覧確認を行います。</p>
       <iframe class="sys-frame" data-src="/accounts" title="アカウント管理"></iframe>
     </div>
 
@@ -4033,55 +4082,14 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
       <iframe class="sys-frame" data-src="/logs" title="操作ログ管理"></iframe>
     </div>
 
-    <!-- ========== メール設定 ========== -->
+    <!-- ========== メール設定（HIA健保管理の「メール配信」と同じ画面を枠で表示） ========== -->
     <div class="view" id="view-mail-setting">
-      <div class="back-row"><h1>メール設定</h1><button class="back-btn" onclick="navigateBack()">戻る</button></div>
-      <p class="page-desc">通知メールの差出人・SMTPサーバーなどを設定します。</p>
-      <div class="panel-col">
-        <div class="right-panel no-flex">
-          <div class="tbl-scroll">
-            <table style="width:100%;">
-              <thead><tr>
-                <th class="tbl-left">宛先</th>
-                <th class="tbl-left">送信日時</th>
-                <th class="tbl-left">タイトル</th>
-                <th class="tbl-left">登録日 ↓</th>
-                <th style="width:90px;">ステータス</th>
-                <th style="width:60px;"></th>
-              </tr></thead>
-              <tbody>
-                <tr>
-                  <td class="tbl-left" style="font-weight:600;">くすりの窓口社</td>
-                  <td class="tbl-left">2024/04/22 20:10:00</td>
-                  <td class="tbl-left">【健診結果アップロードのご依頼】</td>
-                  <td class="tbl-left">2024/04/22</td>
-                  <td style="text-align:center;"><span style="display:inline-block;padding:3px 10px;border:1px solid #ccc;border-radius:12px;font-size:12px;color:#555;">送信済み</span></td>
-                  <td class="op-cell"><button class="tbl-btn btn-edit" style="width:auto;padding:0 10px;">編集</button></td>
-                </tr>
-                <tr>
-                  <td class="tbl-left" style="font-weight:600;">くすりの窓口社</td>
-                  <td class="tbl-left">2023/11/02 19:10:00</td>
-                  <td class="tbl-left">2023年11月2日HIAリリース完了報告_更新</td>
-                  <td class="tbl-left">2023/11/02</td>
-                  <td style="text-align:center;"><span style="display:inline-block;padding:3px 10px;border:1px solid #ccc;border-radius:12px;font-size:12px;color:#555;">送信済み</span></td>
-                  <td class="op-cell"><button class="tbl-btn btn-edit" style="width:auto;padding:0 10px;">編集</button></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:#666;">
-            <span>1-2（2件中）</span>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <button style="padding:4px 10px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;color:#666;">&lt; 前へ</button>
-              <button style="padding:4px 10px;border:1px solid #2f4f4f;border-radius:4px;background:#2f4f4f;cursor:pointer;color:#fff;">1</button>
-              <button style="padding:4px 10px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;color:#666;">次へ &gt;</button>
-            </div>
-          </div>
-          <div style="display:flex;justify-content:center;margin-top:24px;">
-            <button style="padding:10px 48px;background:#00a99d;color:#fff;border:none;border-radius:6px;cursor:pointer;">新規登録</button>
-          </div>
-        </div>
+      <div class="sys-head">
+        <h1>メール設定</h1>
+        <button class="back-btn" onclick="sysBack('settings')">戻る</button>
       </div>
+      <p class="sys-note">配信テンプレートの編集・配信履歴の確認・リマインドを行います（HIA健保管理の「メール配信」と同じ内容です）。</p>
+      <iframe class="sys-frame" data-src="/oh/mail" title="メール設定"></iframe>
     </div>
 
     <!-- ========== パスワード変更 ========== -->
@@ -4466,9 +4474,7 @@ const VIEWS = {
   'sys-log':'view-sys-log',
   'sys-me':'view-sys-me',
   'sys-features':'view-sys-features',
-  'sys-company':'view-sys-company',
-  'sys-office':'view-sys-office',
-  'sys-dept':'view-sys-dept',
+  'sys-org':'view-sys-org',
   'sys-member':'view-sys-member'
 };
 const CLAIM_VIEWS = new Set(['claim-list','claim-kenpo','hospital-claim','patient-detail','payment-confirm','hospital-payment','meisai-create']);
@@ -4635,8 +4641,11 @@ const SYS = {
   _scrimFit: function(){
     var host = document.getElementById('sys-scrim'), f = SYS._scrimFrame;
     if(!host || !f || !f.isConnected) return;
-    var r = f.getBoundingClientRect();
-    var vw = window.innerWidth, vh = window.innerHeight;
+    /* 外側の文書に表示倍率（zoom）が掛かっていると、位置・表示領域は画面の実寸で返るので倍率で割る */
+    var z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+    var b = f.getBoundingClientRect();
+    var r = {top: b.top / z, bottom: b.bottom / z, left: b.left / z, right: b.right / z};
+    var vw = window.innerWidth / z, vh = window.innerHeight / z;
     var t = Math.max(0, Math.min(Math.round(r.top), vh));
     var bt = Math.max(0, Math.min(Math.round(vh - r.bottom), vh));
     var l = Math.max(0, Math.min(Math.round(r.left), vw));
@@ -4652,8 +4661,9 @@ const SYS = {
   fitHeight(frameEl){
     if(!frameEl) return;
     window.scrollTo(0, 0);                       /* 画面内に収めるため先頭へ */
-    const top = frameEl.getBoundingClientRect().top;
-    const h = Math.max(320, Math.round(window.innerHeight - top - 28));
+    const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;  /* 表示倍率で割って文書の座標に直す */
+    const top = frameEl.getBoundingClientRect().top / z;
+    const h = Math.max(320, Math.round(window.innerHeight / z - top - 28));
     frameEl.style.height = h + 'px';
     SYS._fitTarget = frameEl;
   }
@@ -4678,27 +4688,85 @@ const KenpoDB = {
     el.textContent = text || '';
     el.style.color = ok ? '#15803d' : '#e53e3e';
   },
+  /* 編集中の健保（null なら新規登録）。一覧の「編集」で入る */
+  editingId: null,
+  rows: [],
+  /* 編集画面の入力欄に値を入れる（row が無ければ空にする） */
+  fill(row){
+    const no = document.getElementById('ke-no');
+    const nm = document.getElementById('ke-name');
+    if(no){ no.value = row ? (row.code || '') : ''; }
+    if(nm){ nm.value = row ? (row.name || '') : ''; }
+    if(typeof KE !== 'undefined'){
+      if(KE.updatePath) KE.updatePath();
+      if(KE.setConsent) KE.setConsent(row ? (row.consent_text || '') : []);
+    }
+    /* サイト公開期間（健診代行・インフル補助） */
+    [['ke-ks-siteStart','kenshin_site_start'],['ke-ks-siteEnd','kenshin_site_end'],
+     ['ke-fl-siteStart','flu_site_start'],['ke-fl-siteEnd','flu_site_end']].forEach(function(x){
+      var el = document.getElementById(x[0]);
+      if(el) el.value = row ? (row[x[1]] || '') : '';
+    });
+    const t = document.getElementById('ke-editTitle');
+    if(t) t.textContent = row ? '健康保険組合編集（' + (row.name || '') + '）' : '健康保険組合登録';
+    const sb = document.getElementById('ke-saveBtn');
+    if(sb) sb.textContent = row ? '更新' : '登録';
+  },
+  /* 「新規作成」：空の編集画面を開く */
+  newKenpo(){
+    this.editingId = null;
+    this.msg('', true);
+    navigate('kenpo-edit');
+    this.fill(null);
+    if(typeof KE !== 'undefined' && KE.switchTab) KE.switchTab('basic');
+  },
+  /* 「編集」：データベースの値を読み込んで編集画面を開く */
+  edit(id){
+    this.editingId = Number(id);
+    this.msg('', true);
+    navigate('kenpo-edit');
+    if(typeof KE !== 'undefined' && KE.switchTab) KE.switchTab('basic');
+    const cached = this.rows.find(r => Number(r.id) === this.editingId);
+    if(cached) this.fill(cached);
+    fetch('/api/kenpos/' + this.editingId, {credentials: 'same-origin'})
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if(!d || !d.ok || Number(this.editingId) !== Number(d.row.id)) return;
+        this.fill(d.row);
+      }).catch(() => {});
+  },
   save(btn){
     const no = (document.getElementById('ke-no') || {}).value || '';
     const nm = (document.getElementById('ke-name') || {}).value || '';
-    const auth = (document.getElementById('ke-auth') || {}).value || 'A';
+    const consent = (typeof KE !== 'undefined' && KE.getConsent) ? KE.getConsent() : [];
+    const editing = this.editingId;
     this.msg('', true);
     btn.disabled = true;
-    fetch('/api/kenpos', {
+    fetch(editing ? '/api/kenpos/' + editing : '/api/kenpos', {
       method: 'POST', credentials: 'same-origin',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({code: no, name: nm, auth_pattern: auth})
+      body: JSON.stringify({code: no, name: nm, consent_text: consent,
+        kenshin_site_start: (document.getElementById('ke-ks-siteStart') || {}).value || '',
+        kenshin_site_end: (document.getElementById('ke-ks-siteEnd') || {}).value || '',
+        flu_site_start: (document.getElementById('ke-fl-siteStart') || {}).value || '',
+        flu_site_end: (document.getElementById('ke-fl-siteEnd') || {}).value || ''})
     }).then(r => r.json()).then(d => {
       btn.disabled = false;
       this.msg(d.message, !!d.ok);
       if(d.ok){
-        document.getElementById('ke-no').value = '';
-        document.getElementById('ke-name').value = '';
-        if(typeof KE !== 'undefined' && KE.setAuth) KE.setAuth('A');
+        if(editing){
+          if(d.row){
+            const i = this.rows.findIndex(r => Number(r.id) === Number(editing));
+            if(i >= 0) this.rows[i] = Object.assign({}, this.rows[i], d.row);
+            this.fill(d.row);
+          }
+        }else{
+          this.fill(null);
+        }
       }
     }).catch(() => {
       btn.disabled = false;
-      this.msg('登録できませんでした。通信状態を確認してください。', false);
+      this.msg((editing ? '更新' : '登録') + 'できませんでした。通信状態を確認してください。', false);
     });
   },
   goList(){ navigate('kenpo-list-table'); },
@@ -4726,6 +4794,7 @@ const KenpoDB = {
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if(!d || !d.rows) return;
+        KenpoDB.rows = d.rows;
         tb.innerHTML = '';
         d.rows.forEach((row, i) => {
           const tr = document.createElement('tr');
@@ -4748,7 +4817,7 @@ const KenpoDB = {
           opTd.innerHTML =
             '<button class="tbl-btn kl-support" title="この健保の画面に入ってサポートします"' +
             ' onclick="supportLogin(' + row.id + ')">サポートログイン</button>' +
-            '<button class="tbl-btn tbl-btn-edit" data-go="kenpo-edit">編集</button>';
+            '<button class="tbl-btn tbl-btn-edit" data-go="kenpo-edit" data-id="' + row.id + '">編集</button>';
           tr.appendChild(opTd);
           tb.appendChild(tr);
         });
@@ -4758,7 +4827,8 @@ const KenpoDB = {
           tb.dataset.bound = '1';
           tb.addEventListener('click', function(e){
             const b = e.target.closest('[data-go]');
-            if(b) navigate(b.dataset.go);
+            if(!b) return;
+            if(b.dataset.id){ KenpoDB.edit(b.dataset.id); } else { navigate(b.dataset.go); }
           });
         }
       }).catch(() => {});
@@ -4805,17 +4875,35 @@ function klSetFlag(id, key, el){
 window.klToggle = klToggle;
 window.klSetFlag = klSetFlag;
 
-/* 健康保険組合のサポートログイン（当社スタッフのみ）*/
+/* 健康保険組合のサポートログイン（当社スタッフのみ）。確認はモーダル（#sl-modal）で行う */
+let _slKenpoId = null;
 function supportLogin(kenpoId){
   const tr = [...document.querySelectorAll('#kl-table tbody tr')]
     .find(r => r.dataset.id === String(kenpoId));
-  const name = tr ? tr.dataset.name : '';
-  const msg = ['この健康保険組合の画面に入ります。よろしいですか？', ''].concat(
-    name ? ['対象：' + name] : [],
-    ['・サポート対応のための機能です',
-     '・操作はすべて記録されます',
-     '・終了するまで当社の画面には戻れません']).join(String.fromCharCode(10));
-  if(!confirm(msg)) return;
+  const name = tr ? (tr.dataset.name || '') : '';
+  const code = tr ? (tr.dataset.code || '') : '';
+  _slKenpoId = kenpoId;
+  const tg = document.getElementById('sl-target');
+  if(tg) tg.textContent = name ? (name + (code ? '（保険者番号 ' + code + '）' : '')) : '（健康保険組合）';
+  const ov = document.getElementById('sl-modal');
+  if(!ov){ slGo(); return; }
+  ov.style.display = 'flex';
+  setTimeout(() => ov.classList.add('open'), 10);
+  const go = document.getElementById('sl-go');
+  if(go){ go.disabled = false; setTimeout(() => go.focus(), 60); }
+}
+function slClose(){
+  const ov = document.getElementById('sl-modal');
+  if(!ov) return;
+  ov.classList.remove('open');
+  setTimeout(() => ov.style.display = 'none', 200);
+  _slKenpoId = null;
+}
+function slGo(){
+  const kenpoId = _slKenpoId;
+  if(!kenpoId) return;
+  const go = document.getElementById('sl-go');
+  if(go) go.disabled = true;
   const f = document.createElement('form');
   f.method = 'post'; f.action = '/support/start';
   const i = document.createElement('input');
@@ -4823,6 +4911,17 @@ function supportLogin(kenpoId){
   f.appendChild(i); document.body.appendChild(f); f.submit();
 }
 window.supportLogin = supportLogin;
+window.slClose = slClose;
+window.slGo = slGo;
+/* Esc で閉じる／覆いをクリックで閉じる */
+document.addEventListener('keydown', function(e){
+  const ov = document.getElementById('sl-modal');
+  if(e.key === 'Escape' && ov && ov.classList.contains('open')) slClose();
+});
+document.addEventListener('click', function(e){
+  const ov = document.getElementById('sl-modal');
+  if(ov && e.target === ov) slClose();
+});
 
 function navigate(key){
   if(!key){ return; }
@@ -4851,13 +4950,11 @@ function navigate(key){
   if(key==='kenpo-list-table') KL.render();
   if(key==='settings'||key==='mail-setting'||key==='pw-change'||key==='sys-account'||key==='sys-log'||key==='sys-me'||key==='sys-features'){ document.querySelector('[data-nav="settings"]').classList.add('active'); }
   if(key==='kenpo-list-table'){ KenpoDB.fillList(); }
-  /* 認証方式の選択内容を表示し直す（健康保険組合の編集・新規） */
-  if(key==='kenpo-edit' && typeof KE !== 'undefined' && KE.renderAuth){ KE.renderAuth(); }
-  if(key.indexOf('sys-')===0){ SYS.open(key); }
+  if(key.indexOf('sys-')===0 || key==='mail-setting'){ SYS.open(key); }
   if(key==='kenpo-search'||key==='kenpo-search-2fa'||key==='kenpo-search-result'){ document.querySelector('[data-nav="kenpo-search"]').classList.add('active'); }
   if(CLAIM_VIEWS.has(key)){ document.querySelector('[data-nav="claim-list"]').classList.add('active'); }
   if(key==='chat'||key==='chat-2fa'||key==='chat-yoroku'||key==='chatbot-mgmt'||key==='chatbot-knowledge'){ document.querySelector('[data-nav="chat"]').classList.add('active'); }
-  if(key==='master'||key==='master-criteria'||key==='master-edit'||key==='master-judgment-edit'||key==='master-fee-edit'||key==='master-oid'||key==='sys-judge-group'||key==='sys-company'||key==='sys-office'||key==='sys-dept'||key==='sys-member'){ document.querySelector('[data-nav="master"]').classList.add('active'); }
+  if(key==='master'||key==='master-criteria'||key==='master-edit'||key==='master-judgment-edit'||key==='master-fee-edit'||key==='master-oid'||key==='sys-judge-group'||key==='sys-org'||key==='sys-member'){ document.querySelector('[data-nav="master"]').classList.add('active'); }
   if(key==='master-criteria') MS.render();
   if(key==='master-oid') OID.render();
   if(key==='flu-list'){ FL.switchTab('list'); FL.render(); }
@@ -5103,7 +5200,7 @@ const FL=(()=>{
       <td>${statusBadge(d.status)}</td>
       <td class="op-cell">
         <button class="tbl-btn tbl-btn-edit" title="編集" onclick="FL.openEdit(${d.id})">編集</button>
-        <button class="tbl-btn tbl-btn-delete" title="削除" onclick="FL.del(${d.id})"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+        <button class="tbl-btn tbl-btn-delete" onclick="FL.del(${d.id})">削除</button>
       </td>
     </tr>`).join('');
     if(!list.length){ tb.innerHTML=`<tr><td colspan="9" style="text-align:center;color:#888;padding:24px 0;">該当する設定がありません</td></tr>`; }
@@ -5118,7 +5215,6 @@ const FL=(()=>{
   }
 
   function initEdit(){
-    if(typeof KE !== 'undefined' && KE.renderAuth) KE.renderAuth();
     const t=document.getElementById('ke-editTitle');
     /* 新規作成なら「登録」、編集なら「更新」 */
     const sb=document.getElementById('ke-saveBtn');
@@ -5166,7 +5262,7 @@ const FL=(()=>{
         <option ${req==='任意'?'selected':''}>任意</option>
       </select></td>
       <td><input type="text" class="form-control" style="height:32px;text-align:left;" value="${esc(name)}"></td>
-      <td class="op-cell"><button class="tbl-btn tbl-btn-delete" onclick="this.closest('tr').remove();FL.renumDocs()"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button></td>
+      <td class="op-cell"><button class="tbl-btn tbl-btn-delete" style="height:32px;padding:0 12px;" onclick="this.closest('tr').remove();FL.renumDocs()">削除</button></td>
     </tr>`;
   }
   function addDocRow(){
@@ -5199,7 +5295,7 @@ const FL=(()=>{
       <td><select class="form-control" style="height:32px;">${cats.map(c=>`<option ${c===cat?'selected':''}>${c}</option>`).join('')}</select></td>
       <td><input type="text" class="form-control" style="height:32px;text-align:left;" value="${esc(txt)}"></td>
       <td><div class="toggle-wrap"><input type="checkbox" id="fl-chkReq${i}-${Date.now()}" ${req?'checked':''}><label for="fl-chkReq${i}-${Date.now()}"><span class="thumb"></span></label></div></td>
-      <td class="op-cell"><button class="tbl-btn tbl-btn-delete" onclick="this.closest('tr').remove();FL.renumChecks()"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button></td>
+      <td class="op-cell"><button class="tbl-btn tbl-btn-delete" style="height:32px;padding:0 12px;" onclick="this.closest('tr').remove();FL.renumChecks()">削除</button></td>
     </tr>`;
   }
   function addCheckRow(){
@@ -5237,7 +5333,7 @@ const FL=(()=>{
           <input type="date" class="form-control" style="height:32px;padding:4px 6px;font-size:12px;flex:1;min-width:0;" value="${e(end)}" title="終了日">
         </div>
       </td>
-      <td class="op-cell"><button class="tbl-btn tbl-btn-delete" onclick="this.closest('tr').remove();FL.renumNotices()"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button></td>
+      <td class="op-cell"><button class="tbl-btn tbl-btn-delete" style="height:32px;padding:0 12px;" onclick="this.closest('tr').remove();FL.renumNotices()">削除</button></td>
     </tr>`;
   }
   function addNoticeRow(){
@@ -5272,7 +5368,7 @@ const FL=(()=>{
       <td><textarea class="form-control" style="min-height:54px;height:auto;padding:6px 8px;font-size:13px;text-align:left;resize:vertical;" rows="2">${e(q)}</textarea></td>
       <td><textarea class="form-control" style="min-height:54px;height:auto;padding:6px 8px;font-size:13px;text-align:left;resize:vertical;" rows="2">${e(a)}</textarea></td>
       <td><div class="toggle-wrap"><input type="checkbox" id="${uid}" ${open?'checked':''}><label for="${uid}"><span class="thumb"></span></label></div></td>
-      <td class="op-cell"><button class="tbl-btn tbl-btn-delete" onclick="this.closest('tr').remove();FL.renumFaq()"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button></td>
+      <td class="op-cell"><button class="tbl-btn tbl-btn-delete" style="height:32px;padding:0 12px;" onclick="this.closest('tr').remove();FL.renumFaq()">削除</button></td>
     </tr>`;
   }
   function addFaqRow(){
@@ -6301,7 +6397,7 @@ const HC = (()=>{
             ? `<button class="status-btn ${HC.statusKey(d.status)}" style="min-width:104px;" onclick="HC.toggleStatus(this)">${d.status}</button>`
             : `<span class="st-label ${d.status==='確定済'?'info':''}">${d.status}</span>`}
         </td>
-        <td class="op-cell" style="white-space:nowrap;"><button class="tbl-btn tbl-btn-edit" style="height:40px;padding:0 22px;min-width:84px;" title="詳細・編集" onclick="HC.viewPatients('${d.code}')">編集</button> <button class="tbl-btn tbl-btn-delete" style="height:40px;padding:0 16px;min-width:84px;" title="削除" onclick="HC.delHospital(this,'${esc(d.name)}','${d.code}')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button></td>`;
+        <td class="op-cell" style="white-space:nowrap;"><button class="tbl-btn tbl-btn-edit" style="height:40px;padding:0 22px;min-width:84px;" title="詳細・編集" onclick="HC.viewPatients('${d.code}')">編集</button> <button class="tbl-btn tbl-btn-delete" style="height:40px;padding:0 16px;min-width:84px;" onclick="HC.delHospital(this,'${esc(d.name)}','${d.code}')">削除</button></td>`;
       tb.appendChild(tr);
     });
     document.getElementById('hc-totals').textContent=`人数: ${tp} | コース: ${fmt(tCk)} | オプション: ${fmt(tOp)} | データ: ${fmt(tCr)}`;
@@ -6677,7 +6773,7 @@ const PD=(()=>{
         <td>${fmt(p.dataFee)}</td>
         <td style="font-weight:600;">${fmt(p.totalAmount)}</td>
         <td><span class="st-label ${p.status==='確定済'?'info':''}">${p.status}</span></td>
-        <td class="op-cell" style="white-space:nowrap;"><button class="tbl-btn tbl-btn-edit" style="height:40px;padding:0 22px;min-width:84px;" title="編集" onclick="PD.editPatient('${p.id}')">編集</button> <button class="tbl-btn tbl-btn-delete" style="height:40px;padding:0 16px;min-width:84px;" title="削除" onclick="PD.delPatient(this,'${p.name}','${p.id}')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button></td>`;
+        <td class="op-cell" style="white-space:nowrap;"><button class="tbl-btn tbl-btn-edit" style="height:40px;padding:0 22px;min-width:84px;" title="編集" onclick="PD.editPatient('${p.id}')">編集</button> <button class="tbl-btn tbl-btn-delete" style="height:40px;padding:0 16px;min-width:84px;" onclick="PD.delPatient(this,'${p.name}','${p.id}')">削除</button></td>`;
       tb.appendChild(tr);
     });
     document.getElementById('pd-stats').textContent=`人数: ${arr.length} | コース: ${fmt(exam)} | オプション: ${fmt(opt)} | データ: ${fmt(data2)} | 合計: ${fmt(tot)}`;
@@ -7872,41 +7968,6 @@ const KE=(()=>{
   }
   function selectMethod(btn,group){document.querySelectorAll(`.ke-method-btn[data-group="${group}"]`).forEach(b=>b.classList.remove("active"));btn.classList.add("active");}
 
-  /* 認証方式（加入者向けサイトの本人確認で使う項目のパターン）
-       A：被保険者記号・被保険者番号・カナ・生年月日・性別
-       B：被保険者番号・カナ・生年月日・性別（記号を使わない組合） */
-  const AUTH_PATTERNS = {
-    A: ['被保険者記号', '被保険者番号', 'カナ', '生年月日', '性別'],
-    B: ['被保険者番号', 'カナ', '生年月日', '性別']
-  };
-  const AUTH_NOTES = {
-    A: '被保険者証に記号がある組合はこちら（記号と番号で本人を特定します）',
-    B: '記号を使わない組合はこちら（番号のみで本人を特定します）'
-  };
-  function renderAuth(){
-    const key = (document.getElementById('ke-auth') || {}).value || 'A';
-    const box = document.getElementById('ke-auth-items');
-    const note = document.getElementById('ke-auth-note');
-    if(box){
-      box.innerHTML = (AUTH_PATTERNS[key] || []).map(
-        t => '<span class="auth-item">' + t + '</span>').join('');
-    }
-    if(note) note.textContent = AUTH_NOTES[key] || '';
-    document.querySelectorAll('.ke-method-btn[data-group="ke-auth"]').forEach(b => {
-      b.classList.toggle('active', b.dataset.auth === key);
-    });
-  }
-  function selectAuth(btn){
-    const h = document.getElementById('ke-auth');
-    if(h) h.value = btn.dataset.auth || 'A';
-    renderAuth();
-  }
-  function setAuth(key){
-    const h = document.getElementById('ke-auth');
-    if(h) h.value = (key === 'B' ? 'B' : 'A');
-    renderAuth();
-  }
-
   // サブタブ切替（基本設定 / 健診代行設定 / 保健指導設定 / インフル設定）
   function switchTab(name){
     const tabs=['basic','kenshin','hoken','flu'];
@@ -7951,7 +8012,50 @@ const KE=(()=>{
     });
   }
 
-  return {addSub,selectMethod,selectAuth,setAuth,renderAuth,switchTab,addBillingCourse,addBillingOption,removeBillingRow,updatePath,handlePdfUpload,removePdf,onDragOver,onDragLeave,onDrop};
+  /* クローズサイトに表示する同意文：申請チェックリストと同じ行形式（本文・同意必須・削除） */
+  const CONSENT_MAX_ITEMS = 20;
+  function consentRowHTML(item){
+    const it = item || {};
+    const uid = 'ke-consentReq-' + Math.random().toString(36).slice(2, 8);
+    return `<tr class="ke-consent-row">
+      <td><textarea class="form-control ke-consent-body" style="min-height:54px;height:auto;padding:6px 8px;font-size:13px;text-align:left;resize:vertical;" rows="2" maxlength="256" placeholder="加入者に表示する本文（256文字以内）">${esc(it.body || '')}</textarea></td>
+      <td><div class="toggle-wrap"><input type="checkbox" class="ke-consent-req" id="${uid}" ${it.required === false ? '' : 'checked'}><label for="${uid}"><span class="thumb"></span></label></div></td>
+      <td class="op-cell"><button type="button" class="tbl-btn tbl-btn-delete" style="height:32px;padding:0 12px;" onclick="this.closest('tr').remove()">削除</button></td>
+    </tr>`;
+  }
+  function addConsentRow(){
+    const w = document.getElementById('ke-consentWrap'); if(!w) return;
+    if(w.querySelectorAll('tr').length >= CONSENT_MAX_ITEMS){
+      if(typeof KenpoDB !== 'undefined') KenpoDB.msg('同意文は' + CONSENT_MAX_ITEMS + '項目までです。', false);
+      return;
+    }
+    w.insertAdjacentHTML('beforeend', consentRowHTML({body: '', required: true}));
+    const last = w.querySelector('tr:last-child .ke-consent-body');
+    if(last) last.focus();
+  }
+  /* 保存値（JSONの文字列か配列）→ 行 */
+  function setConsent(v){
+    const w = document.getElementById('ke-consentWrap'); if(!w) return;
+    let list = v;
+    if(typeof v === 'string'){
+      try{ list = v.trim() ? JSON.parse(v) : []; }catch(e){ list = v.trim() ? [{body: v, required: true}] : []; }
+    }
+    if(!Array.isArray(list)) list = [];
+    w.innerHTML = list.map(consentRowHTML).join('');
+  }
+  /* 行 → 配列（本文が空の行は除く） */
+  function getConsent(){
+    const w = document.getElementById('ke-consentWrap'); if(!w) return [];
+    const out = [];
+    w.querySelectorAll('tr.ke-consent-row').forEach(tr => {
+      const body = (tr.querySelector('.ke-consent-body') || {}).value || '';
+      const req = !!((tr.querySelector('.ke-consent-req') || {}).checked);
+      if(!body.trim()) return;
+      out.push({body: body.replace(/\r\n/g, '\n').trim(), required: req});
+    });
+    return out;
+  }
+  return {addSub,selectMethod,switchTab,addBillingCourse,addBillingOption,removeBillingRow,updatePath,handlePdfUpload,removePdf,onDragOver,onDragLeave,onDrop,addConsentRow,setConsent,getConsent};
 })();
 
 /* ============================================================
@@ -8944,9 +9048,11 @@ const MS=(()=>{
       return;
     }
     const thead = tbl.querySelector('thead');
-    const headH = thead ? thead.getBoundingClientRect().height : 0;
-    const top   = trs[0].getBoundingClientRect().top;
-    const bottom = trs[VISIBLE_ROWS - 1].getBoundingClientRect().bottom;
+    /* 寸法は画面の実寸で返るので、表示倍率（zoom）で割って文書の座標に直す */
+    const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+    const headH = thead ? thead.getBoundingClientRect().height / z : 0;
+    const top   = trs[0].getBoundingClientRect().top / z;
+    const bottom = trs[VISIBLE_ROWS - 1].getBoundingClientRect().bottom / z;
     box.style.maxHeight = Math.round(headH + (bottom - top) + 2) + 'px';
     box.scrollTop = 0;
   }

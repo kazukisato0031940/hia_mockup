@@ -1,301 +1,223 @@
 {% extends LAYOUT %}
-{% from "_charts.html" import hbar, stack, vbar, hist as histchart %}
 {% block body %}
+{# 疾患予測ダッシュボード。健診代行・保健指導・産業医面談・健康管理のダッシュボードと同じ形
+   （サマリーカード → グラフ → 内訳 → 表）。8-60 で統一、8-63 で検索条件・加入者ごとの一覧・実行ボタンを外し集計だけに #}
 {% if not EMBED %}
 <h1 class="page-title">疾患予測</h1>
-<p class="page-lead">健診結果をもとに、加入者ひとりずつの将来のリスクを予測します。</p>
+<p class="page-lead">健診結果をもとに予測した加入者の将来のリスクを、リスク区分・年代・性別・疾病・企業ごとに集計して確認します。</p>
 {% endif %}
 
-<div class="link-bar">
-  <div class="link-bar-info">
-    {% if run %}
-    <span class="st st-invited">{{ run.run_at[:16] }} 実行</span>
-    <span class="dest-now ok">{{ '日立API' if run.engine == 'hitachi' else '社内試算' }}／<b>{{ run.horizon }}年後</b></span>
-    <span class="hint">{{ '{:,}'.format(run.n_members) }}名</span>
-    {% else %}
-    <span class="st st-disabled">まだ予測を実行していません</span>
-    {% endif %}
-  </div>
-  <div class="actions">
-    {% if kenpos %}
-    <form method="get" style="display:flex;gap:8px;align-items:center;margin:0">
-      <input type="hidden" name="view" value="{{ view }}">
-      <label class="fld-label" style="margin:0;">健康保険組合</label>
-      <select name="kenpo_id" class="w-m" onchange="this.form.submit()">
-        {% for k in kenpos %}
-        <option value="{{ k.id }}" {{ 'selected' if k.id == kid }}>{{ k.code }}　{{ k.name }}</option>
-        {% endfor %}
-      </select>
-    </form>
-    {% endif %}
-    <a class="btn-sm" href="{{ url_for('risk_kenshin') }}" style="text-decoration:none">健診結果の連携</a>
-    <a class="btn-sm" href="{{ url_for('risk_nsips') }}" style="text-decoration:none">NSIPS連携状況</a>
-  </div>
-</div>
+{% set LV = g.levels if g else {'高': 0, '中': 0, '低': 0} %}
+{% set TOTAL = g.total if g else 0 %}
+{% set BASE = TOTAL or 1 %}
+{% set LC = {'高': '#e53e3e', '中': '#dd6b20', '低': '#38a169'} %}
 
-<div class="block">
-  <div class="blk-head">
-    <div class="blk-head-left"><h2>予測の実行</h2></div>
-    <div class="actions">
-      <form method="post" action="{{ url_for('risk_run_exec') }}"
-            style="display:flex;gap:10px;align-items:center;margin:0">
-        <label class="fld-label" style="margin:0;">予測する年数</label>
-        <select name="horizon" class="w-s" style="width:110px">
-          {% for y in [1, 3, 5, 10] %}
-          <option value="{{ y }}" {{ 'selected' if y == 3 }}>{{ y }}年後</option>
-          {% endfor %}
-        </select>
-        <button class="btn-sm primary">予測を実行する</button>
-      </form>
-    </div>
+{# ================= サマリーカード（他のダッシュボードと同じ形） ================= #}
+<div class="summary-grid">
+  <div class="summary-card" style="border-top-color:#3182ce">
+    <div class="label">予測した加入者</div>
+    <div class="value"><span>{{ '{:,}'.format(run.n_members) if run else '—' }}</span>
+      <span class="total"> 名</span></div>
+    <div class="rate">健診結果を取り込んだ加入者が対象</div>
   </div>
-  <p class="note" style="margin:0;">
-    {% if engine == 'hitachi' %}
-    日立APIの接続設定があるため、契約している予測モデルを使用します。
-    {% else %}
-    日立APIの接続設定がないため、<b>社内の簡易ロジックで試算</b>します。
-    接続先は<b>サーバー側（run.bat）</b>で設定します。設定すると契約モデルに切り替わります。
-    {% endif %}
-    　<b>健診結果を取込んだ加入者だけ</b>が予測の対象です。
-  </p>
-  <div class="src-row">
-    <div class="src-box {{ 'on' if last_ken and last_ken.status == 'ok' }}">
-      <span class="src-t">健診結果（必須）</span>
-      {% if last_ken and last_ken.status == 'ok' %}
-      <span class="src-v">{{ last_ken.fiscal_year }}年度／{{ last_ken.imported }}名を取込済み</span>
-      {% else %}
-      <span class="src-v">未取込。先に「健診結果の連携」で取込んでください</span>
-      {% endif %}
-    </div>
-    <div class="src-box {{ 'on' if last_sync and last_sync.status == 'ok' }}">
-      <span class="src-t">NSIPS（調剤実績・任意）</span>
-      {% if last_sync and last_sync.status == 'ok' %}
-      <span class="src-v">{{ last_sync.finished_at[:16] }} 連携済み</span>
-      {% else %}
-      <span class="src-v">未連携（服薬状況は反映されません）</span>
-      {% endif %}
-    </div>
-    <div class="src-box on">
-      <span class="src-t">加入者の属性</span>
-      <span class="src-v">本システムのマスタ（年代・性別）</span>
-    </div>
-  </div>
-</div>
-
-{% if run %}
-<div class="view-tabs">
-  <a class="view-tab {{ 'on' if view != 'group' }}"
-     href="{{ url_for('risk_list', view='member', name=f.name, cname=f.cname,
-                      disease=f.disease, level=f.level) }}">個人単位</a>
-  <a class="view-tab {{ 'on' if view == 'group' }}"
-     href="{{ url_for('risk_list', view='group', name=f.name, cname=f.cname,
-                      disease=f.disease, level=f.level) }}">属性単位</a>
-  <span class="hint" style="margin-left:12px">
-    {{ '加入者ひとりずつの結果です' if view != 'group' else '年代・性別・疾病・企業ごとにまとめた結果です' }}</span>
-</div>
-
-<div class="rk-row">
   {% for lv in ['高', '中', '低'] %}
-  <div class="rk-box">
-    <span class="rk-label">リスク {{ lv }}</span>
-    <span class="rk-value risk-{{ lv }}">{{ summary.get(lv, 0) }}</span>
-    <span class="rk-unit">名</span>
+  <div class="summary-card" style="border-top-color:{{ LC[lv] }}">
+    <div class="label">リスク {{ lv }}</div>
+    <div class="value"><span>{{ LV.get(lv, 0) if run else '—' }}</span>
+      <span class="total">/ {{ TOTAL if run else '—' }}</span></div>
+    <div class="rate">{% if run %}予測した加入者の {{ '%.1f'|format(LV.get(lv, 0) * 100.0 / BASE) }}%{% else %}—{% endif %}</div>
   </div>
   {% endfor %}
-  <div class="rk-box">
-    <span class="rk-label">予測した加入者</span>
-    <span class="rk-value">{{ '{:,}'.format(run.n_members) }}</span>
-    <span class="rk-unit">名</span>
+  <div class="summary-card" style="border-top-color:#805ad5">
+    <div class="label">最新の予測</div>
+    <div class="value"><span>{{ run.horizon ~ '年後' if run else '—' }}</span></div>
+    <div class="rate">{% if run %}{{ run.run_at[:16] }} 実行／{{ '日立API' if run.engine == 'hitachi' else '社内試算' }}{% if last_sync and last_sync.status == 'ok' %}／NSIPS連携あり{% endif %}{% else %}まだ予測がありません{% endif %}</div>
   </div>
 </div>
 
-{% if view != 'group' %}
-<div class="chart-row">
-  <div class="block chart-card">
-    <h2>リスク区分の内訳</h2>
-    <p class="hint" style="margin:6px 0 10px;">加入者{{ rows|length }}名を、いちばん高い疾病のリスクで分けています。</p>
-    {{ stack(summary) }}
-  </div>
-  <div class="block chart-card">
-    <h2>リスクスコアの分布</h2>
-    <p class="hint" style="margin:6px 0 10px;">10点刻みの人数です。60以上が高リスクです。</p>
-    {{ histchart(hist) }}
-  </div>
-</div>
-{% endif %}
-
-<div class="block">
-  <h2>検索条件</h2>
-  <form method="get" class="search-row" style="margin-top:10px">
-    <div class="search-group"><label for="name">氏名・カナ</label>
-      <input type="text" id="name" name="name" value="{{ f.name }}" style="width:180px"></div>
-    <div class="search-group"><label for="cname">企業名</label>
-      <input type="text" id="cname" name="cname" value="{{ f.cname }}" style="width:180px"></div>
-    <div class="search-group"><label for="disease">疾病</label>
-      <select id="disease" name="disease" style="width:180px">
-        <option value="">最もリスクの高い疾病</option>
-        {% for d in diseases %}<option value="{{ d }}" {{ 'selected' if f.disease == d }}>{{ d }}</option>{% endfor %}
-      </select></div>
-    <div class="search-group"><label for="level">リスク区分</label>
-      <select id="level" name="level" style="width:120px">
-        <option value="">すべて</option>
-        {% for x in ['高', '中', '低'] %}<option value="{{ x }}" {{ 'selected' if f.level == x }}>{{ x }}</option>{% endfor %}
-      </select></div>
-    <button class="btn-sm primary">絞り込む</button>
-    <a class="btn-sm" href="{{ url_for('risk_list') }}" style="text-decoration:none">条件をクリア</a>
+{# 健保の切替（HIA総合管理）。他のダッシュボードで年度を切り替える位置に置く #}
+{% macro kenpo_select() %}
+  {% if kenpos %}
+  <form method="get" style="display:flex;gap:8px;align-items:center;margin:0">
+    <select name="kenpo_id" class="control-select" onchange="this.form.submit()" aria-label="健康保険組合">
+      {% for k in kenpos %}
+      <option value="{{ k.id }}" {{ 'selected' if k.id == kid }}>{{ k.code }}　{{ k.name }}</option>
+      {% endfor %}
+    </select>
   </form>
-</div>
+  {% endif %}
+{% endmacro %}
 
-{% if view == 'group' and g %}
-<div class="chart-row">
-  <div class="block chart-card">
-    <h2>年代・性別ごとの高リスク者数</h2>
-    <p class="hint" style="margin:6px 0 10px;">{{ run.horizon }}年後にリスク「高」と判定された人数です。</p>
-    {{ vbar(g.chart_band_high) }}
+{% if not run %}
+<div class="block-inner" style="margin-bottom:20px">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <h2 style="margin:0">まだ予測がありません</h2>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">{{ kenpo_select() }}</div>
   </div>
-  <div class="block chart-card">
-    <h2>疾病ごとの高リスク者数</h2>
-    <p class="hint" style="margin:6px 0 10px;">8つの生活習慣病それぞれで、リスク「高」の人数です。</p>
-    {{ hbar(g.chart_disease, color='#E53E3E') }}
-  </div>
-</div>
-
-<div class="chart-row">
-  <div class="block chart-card">
-    <h2>年代ごとの平均リスクスコア</h2>
-    <p class="hint" style="margin:6px 0 10px;">その人でいちばん高い疾病のスコアを平均しています。</p>
-    {{ hbar(g.chart_band_avg, unit='点', color='#3182CE', label_w=110) }}
-  </div>
-  <div class="block chart-card">
-    <h2>企業ごとの高リスク者数</h2>
-    <p class="hint" style="margin:6px 0 10px;">保健事業の重点先を決めるときの目安になります。</p>
-    {{ hbar(g.chart_company, color='#DD6B20', label_w=190) }}
-  </div>
-</div>
-
-<div class="block">
-  <div class="blk-head">
-    <div class="blk-head-left">
-      <h2>年代・性別ごとの内訳</h2>
-      <span class="count">{{ g.bands|length }}区分</span>
-    </div>
-  </div>
-  <table class="result-table">
-    <colgroup><col style="width:130px"><col style="width:90px"><col style="width:90px">
-      <col style="width:90px"><col style="width:120px"><col></colgroup>
-    <thead><tr><th class="tl">年代</th><th>人数</th><th>男</th><th>女</th>
-      <th>高リスク</th><th>平均スコア</th></tr></thead>
-    <tbody>
-    {% for r in g.bands %}
-    <tr class="ls-row">
-      <td class="tl">{{ r.band }}</td>
-      <td class="num">{{ r.n }}</td>
-      <td class="num">{{ r.male }}</td>
-      <td class="num">{{ r.female }}</td>
-      <td class="num">{% if r.high %}<b class="risk-高">{{ r.high }}</b>{% else %}0{% endif %}</td>
-      <td class="num">{{ '%.1f'|format(r.avg) }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-<div class="block">
-  <div class="blk-head">
-    <div class="blk-head-left">
-      <h2>疾病ごとの内訳</h2><span class="count">{{ g.diseases|length }}疾病</span>
-    </div>
-  </div>
-  <table class="result-table">
-    <colgroup><col style="width:200px"><col style="width:120px">
-      <col style="width:140px"><col></colgroup>
-    <thead><tr><th class="tl">疾病</th><th>高リスク</th><th>平均スコア</th>
-      <th class="tl">高リスクの割合</th></tr></thead>
-    <tbody>
-    {% for r in g.diseases %}
-    <tr class="ls-row">
-      <td class="tl">{{ r.disease }}</td>
-      <td class="num">{% if r.high %}<b class="risk-高">{{ r.high }}</b>{% else %}0{% endif %}名</td>
-      <td class="num">{{ '%.1f'|format(r.avg) }}</td>
-      <td class="tl">
-        {% set pct = (r.high / g.total * 100) if g.total else 0 %}
-        <span class="score-bar" style="width:120px"><span class="score-fill"
-          style="width:{{ pct }}%"></span></span>
-        {{ '%.0f'|format(pct) }}%</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+  <p class="hint" style="margin:10px 0 0">健診結果を取り込んだ加入者を対象に、健診システムからの連携にあわせて予測します
+    {% if last_ken and last_ken.status == 'ok' %}（健診結果は {{ last_ken.fiscal_year }}年度／{{ last_ken.imported }}名を連携済み）{% else %}（健診結果はまだ連携されていません）{% endif %}。</p>
 </div>
 {% endif %}
 
-<div class="block">
-  <div class="blk-head">
-    <div class="blk-head-left">
-      <h2>加入者ごとの{{ run.horizon }}年後のリスク</h2>
-      <span class="count">{{ rows|length }}名</span>
+{% if run and g %}
+{# ================= グラフ（年代・性別ごとの状況 ＋ リスク区分の内訳） ================= #}
+<div class="charts-flex">
+  <div class="block-inner">
+    <div style="display:flex;justify-content:space-between;align-items:center;
+                margin-bottom:14px;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px">
+        <h2 style="margin:0">年代・性別ごとの状況</h2>
+        <span style="font-size:11px;color:var(--gray-label)">■ {{ run.horizon }}年後の予測</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        {{ kenpo_select() }}
+        <select id="rk-sexSelector" class="control-select" onchange="rkBand()" aria-label="性別">
+          <option value="all">男女あわせて</option>
+          <option value="男">男</option>
+          <option value="女">女</option>
+        </select>
+      </div>
     </div>
-    <div class="actions">
-      <a class="btn-sm" href="{{ url_for('risk_export') }}" style="text-decoration:none">CSVで出力</a>
+    {# 年代ごとに1本の横棒。高・中・低の人数を積み上げ、棒の右に人数を出す #}
+    <div style="height:260px"><canvas id="rk-bandChart"></canvas></div>
+  </div>
+
+  <div class="block-inner">
+    <h2>リスク区分の内訳</h2>
+    <div style="height:190px;display:flex;align-items:center;justify-content:center">
+      <canvas id="rk-levelChart"></canvas></div>
+    <div style="text-align:center;margin-top:10px">
+      <div class="dash-rate-label">高リスクの割合</div>
+      <div class="dash-rate-value" style="color:#e53e3e">{{ '%.1f'|format(LV.get('高', 0) * 100.0 / BASE) }}%</div>
+      <div class="hint" style="margin-top:4px">高 {{ LV.get('高', 0) }}名 ／ 中 {{ LV.get('中', 0) }}名 ／ 低 {{ LV.get('低', 0) }}名</div>
     </div>
   </div>
-  {% if rows %}
-  <div class="table-scroll" style="max-height:520px;overflow-y:auto">
+</div>
+
+{# ================= 内訳（疾病ごと・年代ごと） ================= #}
+<div class="bottom-flex">
+  <div class="block-inner">
+    <h2>疾病ごとの高リスク者数</h2>
+    <p class="hint" style="margin:-8px 0 12px">予測した加入者 {{ TOTAL }}名。8つの生活習慣病それぞれで、リスク「高」の人数です。
+      1人で複数の疾病に該当することがあります。</p>
+    {% set DC = ['#e53e3e', '#dd6b20', '#805ad5', '#3182ce', '#0694a2', '#38a169', '#b7791f', '#718096'] %}
+    <div class="insured-grid">
+      {% for r in g.diseases %}
+      {% set c = DC[loop.index0 % DC|length] %}
+      <div class="insured-card">
+        <div class="ic-label">{{ r.disease }}</div>
+        <div class="ic-rate" style="color:{{ c }}">{{ r.high }}名</div>
+        <div class="ic-sub">対象の {{ '%.0f'|format(r.high * 100.0 / BASE) }}%　平均スコア {{ '%.1f'|format(r.avg) }}</div>
+        <div class="ic-bar"><div class="ic-bar-fg" style="background:{{ c }};
+          width:{{ '%.0f'|format(r.high * 100.0 / BASE) }}%"></div></div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="block-inner">
+    <h2>年代ごとの状況</h2>
+    <p class="hint" style="margin:-8px 0 12px">年代ごとの人数と高リスク者数、その人でいちばん高い疾病のスコアの平均です。</p>
+    <div class="level-bar-wrap" style="margin-top:0">
+      {% for r in g.bands %}
+      <div class="level-row">
+        <span class="level-label">{{ r.band }}<span class="hint" style="font-weight:400;margin-left:4px">{{ r.n }}名</span></span>
+        <div class="bar-bg"><div class="bar-fg" style="background:#e53e3e;
+          width:{{ '%.0f'|format(r.high * 100.0 / (r.n or 1)) }}%"></div></div>
+        <span class="level-val" style="width:150px">高 {{ r.high }}名／平均 {{ '%.1f'|format(r.avg) }}点</span>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="hint" style="margin:14px 0 0">棒はその年代の中で高リスクと判定された人の割合です。
+      予測は参考情報で、保健指導や受診勧奨の判断は保健師・医師などの専門職が行います。加入者ごとの結果はマイページの「疾患予測」タブで確認します。</p>
+  </div>
+</div>
+
+{# ================= 企業ごとの状況 ================= #}
+<div class="block-inner" style="margin-top:20px">
+  <h2>企業ごとの状況</h2>
+  <p class="hint" style="margin:-8px 0 12px">高リスク者の多い企業を上に並べています。保健事業の重点先を決めるときの目安になります。</p>
+  {% if g.companies %}
+  <div class="table-scroll" style="max-height:360px;overflow-y:auto">
   <table class="result-table">
-    <!-- 列幅は「列幅の標準」（.col-*）に合わせています -->
-    <colgroup>
-      <col class="col-num"><col class="col-name"><col class="col-long">
-      <col class="col-long"><col class="col-flag"><col class="col-flag">
-      <col class="col-long"><col class="col-status"><col class="col-status">
-      <col class="col-ops">
-    </colgroup>
-    <thead><tr>
-      <th>被保険者<br>証番号</th><th class="tl">氏名</th><th class="tl">企業名</th>
-      <th class="tl">事業所名</th><th>年代</th><th>性別</th>
-      <th class="tl">{{ f.disease or '最もリスクの高い疾病' }}</th>
-      <th>リスクスコア</th><th>リスク区分</th><th class="ops">操作</th>
-    </tr></thead>
+    <colgroup><col class="col-long"><col class="col-num"><col class="col-num"><col class="col-num"><col class="col-text"></colgroup>
+    <thead><tr><th class="tl">企業</th><th>人数</th><th>高リスク</th><th>平均スコア</th><th class="tl">高リスクの割合</th></tr></thead>
     <tbody>
-    {% for r in rows %}
+    {% for r in g.companies %}
     <tr class="ls-row">
-      <td class="code">{{ r.member_no }}{% if r.cert_branch %}<span class="hint">-{{ r.cert_branch }}</span>{% endif %}</td>
-      <td class="tl"><span class="ellip" title="{{ r.name }}">{{ r.name }}</span></td>
-      <td class="tl">{% if r.company_name %}
-        <span class="ellip" title="{{ r.company_name }}">{{ r.company_name }}</span>
-        {% else %}<span class="hint">未紐づけ</span>{% endif %}</td>
-      <td class="tl">{% if r.office_name %}
-        <span class="ellip" title="{{ r.office_name }}">{{ r.office_name }}</span>
-        {% else %}<span class="hint">未設定</span>{% endif %}</td>
-      <td>{{ r.age_band }}</td>
-      <td>{{ r.sex }}</td>
-      <td class="tl">{{ r.disease }}</td>
-      <td class="num">
-        <span class="score-bar"><span class="score-fill" style="width:{{ r.score }}%"></span></span>
-        <b>{{ '%.1f'|format(r.score) }}</b></td>
-      <td><span class="st risk-tag risk-{{ r.level }}">{{ r.level }}</span>
-        <span class="hint">{{ r.priority }}</span></td>
-      <td class="ops">
-        <a class="btn-sm" href="{{ url_for('risk_member', mid=r.member_id) }}"
-           style="text-decoration:none">内訳</a></td>
+      <td class="tl col-long" title="{{ r.name }}">{% if r.name != '未紐づけ' %}{{ r.name }}{% else %}<span class="hint">未紐づけ</span>{% endif %}</td>
+      <td class="num">{{ r.n }}</td>
+      <td class="num">{% if r.high %}<span class="hm-bad">{{ r.high }}</span>{% else %}<span class="hint">0</span>{% endif %}</td>
+      <td class="num">{{ '%.1f'|format(r.avg) }}</td>
+      <td class="tl">{% set pct = r.high * 100.0 / (r.n or 1) %}
+        <span class="score-bar" style="width:120px"><span class="score-fill" style="width:{{ pct }}%"></span></span>
+        {{ '%.0f'|format(pct) }}%</td>
     </tr>
     {% endfor %}
     </tbody>
   </table>
   </div>
   {% else %}
-  <div class="empty-box">条件に一致する加入者がいません。</div>
+  <div class="empty-box">予測した加入者がいません。</div>
   {% endif %}
 </div>
-{% endif %}
 
-<div class="block note-card">
-  <h2>取り扱いの注意</h2>
-  <ul class="note-list">
-    <li>予測結果は<b>参考情報</b>です。保健指導の要否や医学的な解釈は、
-      <b>医師・保健師等の専門家</b>が最終的に判断してください。</li>
-    <li>この画面には加入者の氏名が表示されます。<b>閲覧範囲内の加入者だけ</b>が対象で、
-      表示・出力の操作はすべて操作ログに記録されます。</li>
-    <li>CSV出力には氏名・被保険者証番号が含まれます。取り扱いにご注意ください。</li>
-  </ul>
-</div>
+<script src="{{ url_for('static', filename='vendor/chart.min.js') }}"></script>
+<script>
+/* ダッシュボードのグラフ（健診代行・保健指導・産業医面談・健康管理と同じ形） */
+var RK_BANDS = {{ g.bands|map(attribute='band')|list|tojson }};
+var RK_LV    = {{ g.bands|map(attribute='lv')|list|tojson }};   /* 年代ごとに {男:{高,中,低}, 女:{高,中,低}} */
+var RK_LEVELS = [{{ LV.get('高', 0) }}, {{ LV.get('中', 0) }}, {{ LV.get('低', 0) }}];
+var RK_COLOR = {'高':'#e53e3e', '中':'#dd6b20', '低':'#38a169'};
+var rkBandChart = null, rkLevelChart = null;
+
+/* 年代ごとに1本の横棒。高・中・低の人数を積み上げ、棒の右端に合計人数を書く */
+function rkBand(){
+  var sex = document.getElementById('rk-sexSelector').value;
+  var cv  = document.getElementById('rk-bandChart');
+  if(!cv || !window.Chart) return;
+  if(rkBandChart) rkBandChart.destroy();
+  function n(i, lv){
+    var d = RK_LV[i] || {};
+    if(sex === 'all') return ((d['男']||{})[lv]||0) + ((d['女']||{})[lv]||0);
+    return ((d[sex]||{})[lv]||0);
+  }
+  var labels = RK_BANDS.map(function(b, i){
+    var t = n(i,'高') + n(i,'中') + n(i,'低');
+    return b + '（' + t + '名）';
+  });
+  var datasets = ['高','中','低'].map(function(lv){
+    return {label:'リスク ' + lv, data:RK_BANDS.map(function(_, i){ return n(i, lv); }),
+            backgroundColor:RK_COLOR[lv], borderRadius:3, maxBarThickness:22, stack:'s'};
+  });
+  var totals = RK_BANDS.map(function(_, i){ return n(i,'高') + n(i,'中') + n(i,'低'); });
+  var maxT = Math.max.apply(null, totals.concat([1]));
+  rkBandChart = new Chart(cv, {
+    type:'bar',
+    data:{labels:labels, datasets:datasets},
+    options:{indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom', labels:{boxWidth:12, font:{size:11}}},
+               tooltip:{callbacks:{label:function(c){ return c.dataset.label + '：' + c.parsed.x + '名'; }}}},
+      scales:{x:{stacked:true, beginAtZero:true, suggestedMax:maxT + 1, ticks:{precision:0, font:{size:11}}, grid:{color:'#edf2f7'},
+                 title:{display:true, text:'人数', font:{size:11}, color:'#718096'}},
+              y:{stacked:true, grid:{display:false}, ticks:{font:{size:12}}}}}
+  });
+}
+
+function rkLevel(){
+  var cv = document.getElementById('rk-levelChart');
+  if(!cv || !window.Chart) return;
+  if(rkLevelChart) rkLevelChart.destroy();
+  rkLevelChart = new Chart(cv, {
+    type:'doughnut',
+    data:{labels:['高','中','低'], datasets:[{data:RK_LEVELS,
+      backgroundColor:['#e53e3e','#dd6b20','#38a169'], borderWidth:0}]},
+    options:{responsive:true, maintainAspectRatio:false, cutout:'62%',
+      plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:10.5}}}}}
+  });
+}
+rkBand();
+rkLevel();
+</script>
+{% endif %}
 {% endblock %}

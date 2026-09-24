@@ -7,7 +7,7 @@ HIA アカウント・マスタ管理
   HIA健保管理 （/app ・青）… 健保担当者・企業担当者が利用
 
 HIA総合管理でできること
-  1. 各健保・企業の代表者アカウントの発行
+  1. 各健保・企業のアカウントの発行
   2. アカウント権限の登録・編集・削除
   3. アカウントの一覧確認
   4. 操作ログの管理（HIA健保管理のログも含む）
@@ -24,8 +24,10 @@ HIA健保管理でできること（健保担当者／企業担当者）
 import csv
 import hashlib
 import io
+import json
 import os
 import re
+from address_split import split_address
 import secrets
 import smtplib
 import sqlite3
@@ -58,12 +60,22 @@ ROLE_LABELS = {
     "system_admin": "当社スタッフ",
     "kenpo_user": "健保担当者",
     "company_user": "企業担当者",
+    # 加入者ご本人のログイン。自分の健康情報の確認・写真の取込・
+    # メールのやり取りだけを行い、ほかの加入者の情報は見られません。
+    "member": "加入者本人",
 }
 # 企業担当者のサブロール（産業医面談管理で使う）
 #   doctor（産業医）… 医学的判断（面談対象の承認・就業区分の判定・面談所見・記名）
 #   hr    （人事）  … 運用事務（取込・メール配信・対応区分・報告書の出力）
-SUB_ROLE_LABELS = {"doctor": "産業医", "hr": "人事"}
-SUB_ROLES = ["doctor", "hr"]
+#   nurse （保健師）… 面談・保健指導・受診勧奨の実施と、対応の記録
+SUB_ROLE_LABELS = {"doctor": "産業医", "hr": "人事", "nurse": "保健師"}
+SUB_ROLES = ["doctor", "hr", "nurse"]
+# アカウントの登録・編集で、サブロールの下に出す説明
+SUB_ROLE_DESC = {
+    "doctor": "面談の承認・就業区分・面談記録・記名",
+    "hr": "取込・メール配信・対応区分・出力",
+    "nurse": "保健指導・対応区分・案内メール（判定は行いません）",
+}
 # サブロールを付けられるロール
 SUB_ROLE_ROLES = ("company_user",)
 
@@ -71,13 +83,16 @@ SUB_ROLE_ROLES = ("company_user",)
 # ロール（＋サブロール）ごとに、使える機能を当社スタッフが切り替えられる。
 # 「固定」の機能は設定で変更できない（医学的判断は産業医のみが行うため）。
 ROLE_KEYS = ["system_admin", "kenpo_user", "company_user",
-             "company_user/doctor", "company_user/hr"]
+             "company_user/doctor", "company_user/hr", "company_user/nurse",
+             "member"]
 ROLE_KEY_LABELS = {
     "system_admin": "当社スタッフ",
     "kenpo_user": "健保担当者",
     "company_user": "企業担当者（サブロールなし）",
     "company_user/doctor": "企業担当者（産業医）",
     "company_user/hr": "企業担当者（人事）",
+    "company_user/nurse": "企業担当者（保健師）",
+    "member": "加入者本人",
 }
 # (キー, 区分, 機能名, 説明, 固定)
 FEATURES = [
@@ -89,12 +104,16 @@ FEATURES = [
      "加入者・企業・事業所のCSV取込", False),
     ("oh.list", "産業医面談", "面談対象者一覧",
      "面談候補の抽出結果の閲覧・メモ・健診結果票", False),
+    ("oh.dashboard", "産業医面談", "面談ダッシュボード",
+     "面談の進み具合・抽出理由・ステータスの内訳の画面を表示", False),
     ("oh.kenshin", "産業医面談", "健診受診管理（定期・深夜）",
      "年度ごとの受診状況・受診率の確認", False),
     ("oh.approve", "産業医面談", "面談対象の承認・就業区分の判定",
      "医学的判断のため産業医のみ（変更できません）", True),
+    ("oh.interview.view", "産業医面談", "面談結果入力の画面を表示",
+     "面談結果入力の画面（カード・URL）を出すかどうか。記録できるのは産業医と保健師です", False),
     ("oh.interview", "産業医面談", "面談結果の記録",
-     "医学的判断のため産業医のみ（変更できません）", True),
+     "産業医と保健師のみ（変更できません）。保健師が記録すると対応済みになります", True),
     ("oh.sign", "産業医面談", "報告書への記名・サイン",
      "医学的判断のため産業医のみ（変更できません）", True),
     ("oh.hr_class", "産業医面談", "対応区分の設定",
@@ -105,6 +124,18 @@ FEATURES = [
      "面談受診勧奨・ストレスチェック受検案内の配信", False),
     ("oh.upload", "産業医面談", "データ取込",
      "健診結果・労働時間・ストレスチェックの取込", False),
+    # ---- 健康管理（加入者マスタとは別に、加入者一人ひとりの健康を管理する画面）----
+    ("health.view", "健康管理", "加入者健康一覧・マイページ",
+     "加入者ごとの健診・時間外・ストレス・面談をまとめて見る一覧と、"
+     "加入者マイページ（メモの追記を含む）", False),
+    ("health.mail", "健康管理", "加入者へのメール送信",
+     "加入者健康一覧から、個人別・一括でメールを送る（テンプレートの編集を含む）", False),
+    ("health.self", "健康管理", "本人のマイページ",
+     "加入者ご本人が自分の健康情報を見る（内部メモは出しません）", False),
+    ("health.self_upload", "健康管理", "本人による写真の取込",
+     "加入者ご本人が、採血結果などの写真を自分のマイページから取り込む", False),
+    ("health.self_mail", "健康管理", "メールのやり取り",
+     "加入者ご本人が、届いたお知らせの履歴を見て問い合わせを送る", False),
     # ---- HIA健保管理（青）の各業務。カテゴリ単位で出し入れする ----
     ("kenpo.kenshin", "HIA健保管理", "健康診断 代行管理",
      "受診進捗のダッシュボード・対象者一覧・健診結果出力・請求書出力", False),
@@ -116,8 +147,8 @@ FEATURES = [
      "レセプト情報の取込と取込履歴", False),
     ("kenpo.member_edit", "HIA健保管理", "加入者情報の変更（健保側）",
      "加入者の基本情報・住所・連絡先の編集", False),
-    ("kenpo.mail", "HIA健保管理", "メール・通知送信",
-     "受診案内テンプレートの作成・管理・送信", False),
+    ("kenpo.mail", "HIA健保管理", "メール設定",
+     "受診案内テンプレートの作成・管理・送信・リマインド（HIA健保管理）", False),
     ("risk", "そのほか", "疾患予測",
      "予測結果一覧・健診結果の連携・NSIPS連携", False),
     ("accounts", "そのほか", "アカウント管理",
@@ -130,15 +161,48 @@ FEATURES = [
     ("settings.contact", "設定・サポート", "お問い合わせ先",
      "サポート窓口の連絡先の画面", False),
     ("settings.log", "設定・サポート", "操作ログ管理",
-     "操作ログの閲覧・絞り込み・CSV出力（配信ログを含む）", False),
+     "操作ログの閲覧・絞り込み・CSV出力（画面の表示・取込・出力の履歴）", False),
     ("settings.mail", "設定・サポート", "メール設定",
-     "送信元・SMTPなどメール送信の設定", False),
+     "配信テンプレート・配信履歴・リマインド（HIA総合管理。HIA健保管理の「メール設定」と同じ画面）", False),
 ]
 FEATURE_KEYS = [f[0] for f in FEATURES]
-# 一部の機能はロールの役割上「対象外」にする（切り替えず、常に利用不可）。
-#   設定・サポートの管理は事務の仕事なので、産業医は対象外。
 _SETTINGS = {"settings.view", "settings.contact", "settings.log", "settings.mail"}
-FEATURE_NA_ROLES = {k: {"company_user/doctor"} for k in _SETTINGS}
+# 担当者が既定で持つ健康管理の機能。「本人のマイページ」は加入者ご本人だけが使うため
+# 担当者の既定には入れません（設定で個別に与えることはできます）
+_HEALTH = {"health.view", "health.mail"}
+# 産業医が使う画面は「面談対象者一覧」と「面談結果入力」だけ。
+# 加入者本人が使えるのは自分のマイページ（確認・写真の取込・メールのやり取り）だけ。
+# それ以外の機能はロールの役割上「対象外」にする（切り替えず、常に利用不可）。
+# 産業医は面談の2画面に加えて、労基署報告（様式第6号・ストレスチェック結果等報告書）を
+# 開いて内容を確認し、記名（サイン）します。出力・提出は人事が行います。
+_DOCTOR_OK = {"oh.list", "oh.approve",
+              "oh.interview.view", "oh.interview", "oh.sign", "oh.report"}
+_MEMBER_OK = {"health.self", "health.self_upload", "health.self_mail"}
+# 人事にとって対象外の機能。
+# 「産業医面談 管理」のカテゴリ（面談ダッシュボード・面談対象者一覧・面談結果入力）は
+# 産業医が使う画面なので、人事には出しません。
+# 人事の運用（対応区分・メモ・一括処理・案内メール）は「健康管理」の
+# 加入者健康一覧・加入者マイページで行います。
+_HR_NA = {"oh.dashboard", "oh.list", "oh.interview.view"}
+# 保健師は「健康管理」で保健指導・受診勧奨を行い、対応の記録を残します。
+# 支援対象者・支援実績（対応の履歴）のCSV出力もできます（ロール別業務フロー 8）。
+# 産業医面談 管理・マスタ・取込・健保側の画面は対象外です。
+# 保健師は面談結果入力（保健指導の面談）も行い、記録すると対応済みになります。
+_NURSE_OK = {"health.view", "health.mail", "oh.hr_class", "download",
+             "oh.interview.view", "oh.interview"}
+FEATURE_NA_ROLES = {}
+for _f in FEATURES:
+    _na = set()
+    if _f[0] not in _DOCTOR_OK:
+        _na.add("company_user/doctor")
+    if _f[0] not in _MEMBER_OK:
+        _na.add("member")
+    if _f[0] not in _NURSE_OK:
+        _na.add("company_user/nurse")
+    if _f[0] in _HR_NA:
+        _na.add("company_user/hr")
+    if _na:
+        FEATURE_NA_ROLES[_f[0]] = _na
 
 
 def feature_na(key, role_key):
@@ -147,42 +211,41 @@ def feature_na(key, role_key):
 FIXED_FEATURES = {f[0] for f in FEATURES if f[4]}
 # 固定の機能を使えるロール（医学的判断は産業医のみ）
 FIXED_FEATURE_ROLE = "company_user/doctor"
+# 固定の機能のうち、産業医以外にも使えるもの（面談結果の記録は保健師も行う）
+FIXED_FEATURE_ROLES = {"oh.interview": {"company_user/doctor", "company_user/nurse"}}
+
+
+def fixed_roles(key):
+    return FIXED_FEATURE_ROLES.get(key, {FIXED_FEATURE_ROLE})
 
 _KENPO = {"kenpo.kenshin", "kenpo.hoken", "kenpo.influenza", "kenpo.receipt",
           "kenpo.member_edit", "kenpo.mail"}
 _OPS = ({"master.view", "master.write", "master.import", "oh.list", "oh.kenshin",
-         "oh.hr_class", "oh.report", "oh.mail", "oh.upload", "risk", "accounts",
-         "download"} | _KENPO | _SETTINGS)
-# 産業医は医学的判断が中心。業務事務（取込・配信・健保側の各業務）は既定で持たない
-_DOCTOR = {"master.view", "oh.list", "oh.kenshin", "oh.report", "oh.approve",
-           "oh.interview", "oh.sign", "risk", "accounts", "download"}
+         "oh.dashboard",
+         "oh.interview.view", "oh.hr_class", "oh.report", "oh.mail", "oh.upload",
+         "risk", "accounts", "download"} | _KENPO | _SETTINGS | _HEALTH)
+# 産業医は「面談対象者一覧」と「面談結果入力」だけを使います（ほかは対象外）
+_DOCTOR = set(_DOCTOR_OK)
 # 既定の機能マトリクス（設定画面の「初期値に戻す」でこの状態になる）
 FEATURE_DEFAULTS = {
     "system_admin": set(_OPS),
     "kenpo_user": set(_OPS),
     "company_user": set(_OPS),
-    "company_user/hr": set(_OPS),
+    # 人事は面談結果入力の画面を出しません（対象外。記録は産業医が行います）
+    "company_user/hr": set(_OPS) - _HR_NA,
     "company_user/doctor": set(_DOCTOR),
+    # 保健師は健康管理（加入者健康一覧・マイページ・案内メール・健診結果の確認）だけ
+    "company_user/nurse": set(_NURSE_OK),
+    # 加入者本人は自分のマイページだけ
+    "member": set(_MEMBER_OK),
 }
 SCOPE_LABELS = {"all": "全健保", "kenpo_all": "自組合全体",
-                "own_company": "担当する範囲"}
+                "own_company": "担当する範囲",
+                # 加入者本人のログインは、自分の情報だけが見える
+                "self": "ご本人のみ"}
 STATUS_LABELS = {"active": "有効", "invited": "PW未設定", "disabled": "無効",
                  "deleted": "削除済み"}
-# 加入者向けサイトの本人確認（認証）で使う項目のパターン。健保ごとに登録する。
-AUTH_PATTERNS = {
-    "A": ["被保険者記号", "被保険者番号", "カナ", "生年月日", "性別"],
-    "B": ["被保険者番号", "カナ", "生年月日", "性別"],
-}
-AUTH_PATTERN_NOTE = {
-    "A": "被保険者証に記号がある組合はこちら（記号と番号で本人を特定します）",
-    "B": "記号を使わない組合はこちら（番号のみで本人を特定します）",
-}
-
-
-def clean_auth_pattern(v, default="A"):
-    # 認証方式の値をそろえる（A か B のどちらか）
-    v = (v or "").strip().upper()
-    return v if v in AUTH_PATTERNS else default
+# 「認証方式（A／B）」の登録は 8-54 で廃止しました（kenpo.auth_pattern 列は互換のため残しています）
 # 各ロールが発行・変更できるロール（自分より広い権限は付与できない）
 ISSUABLE_ROLES = {
     "system_admin": ["system_admin", "kenpo_user", "company_user"],
@@ -317,6 +380,33 @@ def no_store(resp):
     return resp
 
 
+# ---- 画面の表示倍率 ----------------------------------------------------
+# 画面の寸法はブラウザを 90% で見たときに合わせて作ってあります。
+# 100% のままでも同じ見え方になるよう、いちばん外側の文書に zoom を掛けます。
+# 環境変数 HIA_UI_ZOOM で変えられます（例: 1 で等倍。画面テストは 1 で動かします）。
+def ui_zoom():
+    v = (os.environ.get("HIA_UI_ZOOM") or "0.9").strip()
+    try:
+        z = float(v)
+    except ValueError:
+        z = 0.9
+    if not (0.5 <= z <= 1.5):
+        z = 0.9
+    return ("%g" % z)
+
+
+@app.route("/ui/zoom.css")
+def ui_zoom_css():
+    """表示倍率のスタイル。枠（iframe）の中の画面には親の倍率がそのまま伝わるので、
+    このスタイルはいちばん外側の文書だけが読み込みます（frag_base は自分が外側のときだけ）。
+    印刷は用紙に合わせるため等倍に戻します。"""
+    z = ui_zoom()
+    css = ("html{zoom:%s;--ui-zoom:%s}\n@media print{html{zoom:1;--ui-zoom:1}}\n" % (z, z))
+    resp = app.response_class(css, mimetype="text/css")
+    resp.headers["Cache-Control"] = "no-store, must-revalidate"
+    return resp
+
+
 def asset_ver(name="app.css"):
     """スタイルの更新時刻。リンクに付けて、古いCSSが使われるのを防ぎます。"""
     try:
@@ -346,13 +436,14 @@ def log(category, action, result="success", target=None, detail=None):
         detail = (detail + "／" if detail else "") + f"サポートログイン中（{sup['name']}）"
     db.execute(
         "INSERT INTO audit_log (shell, category, action, result, actor_email, actor_id,"
-        " actor_role, kenpo_id, ip, target, detail) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        " actor_role, kenpo_id, ip, target, detail, path)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         (session.get("shell"), category, action, result,
          me["email"] if me else session.get("pending_email"),
          me["id"] if me else None,
          me["role"] if me else None,
          acc["kenpo_id"] if acc else None,
-         client_ip(), target, detail))
+         client_ip(), target, detail, request.path if request else None))
     db.commit()
 
 
@@ -391,7 +482,7 @@ def current_account():
         if kenpo:
             acc = dict(me)
             acc.update(role="kenpo_user", view_scope="kenpo_all", kenpo_id=kenpo["id"],
-                       company_id=None, is_primary=0, can_download=me["can_download"],
+                       company_id=None, can_download=me["can_download"],
                        name=f"{me['name']}（サポート）", support=True,
                        support_kenpo=kenpo["name"])
             g.acc = acc
@@ -429,6 +520,16 @@ def role_full(row):
 def is_doctor(acc=None):
     """医学的判断（面談対象の承認・就業区分・面談記録・報告書への記名）ができるか"""
     return sub_role(acc if acc is not None else current_account()) == "doctor"
+
+
+# 画面の色味（メインカラー）。産業医・人事は「健康」をイメージしやすい
+# ブルーグリーン（青緑）にそろえます。ほかのロールは従来どおりです。
+TONE_SUB_ROLES = ("doctor", "hr", "nurse")
+
+
+def role_tone(acc=None):
+    acc = acc if acc is not None else current_account()
+    return "health" if acc and sub_role(acc) in TONE_SUB_ROLES else ""
 
 
 def role_key(acc=None):
@@ -469,7 +570,7 @@ def feature_allowed(key, acc=None):
     if feature_na(key, rk):
         return False            # 役割上の対象外（設定に関係なく使えません）
     if key in FIXED_FEATURES:
-        return rk == FIXED_FEATURE_ROLE
+        return rk in fixed_roles(key)
     if rk == ALL_FEATURE_ROLE:
         return True
     ov = feature_overrides().get((rk, key))
@@ -532,9 +633,8 @@ def roles_required(*roles):
 # ここに載っているエンドポイントは、機能が「利用不可」のロールでは403で拒否する。
 ENDPOINT_FEATURES = {
     # マスタの閲覧
-    "companies": "master.view", "companies_rows": "master.view",
-    "offices": "master.view", "offices_rows": "master.view",
-    "departments": "master.view", "departments_rows": "master.view",
+    "orgs": "master.view",
+    "companies": "master.view", "offices": "master.view", "departments": "master.view",
     "members": "master.view", "members_rows": "master.view",
     "api_members_by_office": "master.view",
     # マスタの登録・変更・削除
@@ -546,15 +646,20 @@ ENDPOINT_FEATURES = {
     "department_delete": "master.write",
     "member_new": "master.write", "member_edit": "master.write",
     "member_delete": "master.write",
-    "members_link_auto": "master.write", "members_link_page": "master.write",
+    "members_link_page": "master.write",
     "members_link_assign": "master.write", "api_members_link": "master.write",
     "api_members_link_filtered": "master.write",
     "risk_group_edit": "master.write", "risk_group_delete": "master.write",
     # CSVの一括取込
     "members_import": "master.import", "members_import_commit": "master.import",
+    "criteria": "master.view", "criteria_edit": "master.write",
+    "member_photos_page": "master.import", "member_photo_upload": "master.import",
+    "member_photo_delete": "master.write",
     "companies_import": "master.import",
     "companies_import_commit": "master.import",
     "offices_import": "master.import", "offices_import_commit": "master.import",
+    "departments_import": "master.import",
+    "departments_import_commit": "master.import",
     # 疾患予測
     "risk_list": "risk", "risk_member": "risk", "risk_run_exec": "risk",
     "risk_export": "risk", "risk_groups": "risk", "risk_kenshin": "risk",
@@ -562,7 +667,6 @@ ENDPOINT_FEATURES = {
     "risk_nsips": "risk", "risk_nsips_sync": "risk",
     # 設定・サポート
     "logs": "settings.log", "logs_export": "settings.log",
-    "logs_mail_export": "settings.log",
     # アカウント管理
     "accounts": "accounts", "accounts_export": "accounts",
     "accounts_new": "accounts", "accounts_create": "accounts",
@@ -571,6 +675,68 @@ ENDPOINT_FEATURES = {
     "accounts_send_invite": "accounts", "accounts_toggle": "accounts",
     "accounts_delete": "accounts", "accounts_purge": "accounts",
 }
+
+
+# ---------------------------------------------------------------- 画面表示の記録
+# 「どの画面を開いたか」を操作ログに残すための画面名（GETで表示できたときだけ記録）。
+# 一覧の追加読み込み（*_rows）・API・CSV出力・ログイン画面は記録しません
+# （CSV出力と取込は download／import として別に記録しています）。
+VIEW_PAGES = {
+    "spa": "HIA健保管理（トップ）", "spa_km": "HIA総合管理（トップ）",
+    "dashboard": "ダッシュボード", "standalone": "画面一覧",
+    "orgs": "企業・事業所・部署", "companies": "企業情報", "company_new": "企業の登録", "company_edit": "企業の編集",
+    "offices": "事業所情報", "office_new": "事業所の登録", "office_edit": "事業所の編集",
+    "departments": "部署情報", "department_new": "部署の登録",
+    "department_edit": "部署の編集",
+    "members": "加入者情報", "member_new": "加入者の登録", "member_edit": "加入者の編集",
+    "members_link_page": "企業・部署の紐づけ", "member_photos_page": "写真の取込",
+    "criteria": "判定マスタ", "criteria_edit": "判定マスタの編集",
+    "kenpos": "健康保険組合情報", "kenpo_new": "健康保険組合の登録",
+    "kenpo_edit": "健康保険組合の編集",
+    "accounts": "アカウント一覧", "accounts_new": "アカウントの登録",
+    "accounts_edit": "アカウントの編集", "me_account": "マイアカウント",
+    "feature_settings": "機能制御", "logs": "操作ログ管理",
+    "risk_list": "疾患予測", "risk_member": "疾患予測（加入者別）",
+    "risk_groups": "リスクグループ", "risk_group_edit": "リスクグループの編集",
+    "risk_kenshin": "健診データ連携", "risk_nsips": "NSIPSデータ連携",
+    "oh.oh_dashboard": "面談ダッシュボード", "oh.oh_list": "面談対象者一覧",
+    "oh.oh_member": "面談対象者の詳細", "oh.oh_interview": "面談結果入力",
+    "oh.oh_kenshin": "健診結果", "oh.oh_mail": "メール設定",
+    "oh.oh_questions": "ストレスチェック設問", "oh.oh_report": "帳票・報告書",
+    "oh.oh_upload": "データ取込",
+    "hm.hm_dash": "健康管理ダッシュボード",
+    "hm.hm_list": "加入者健康一覧", "hm.hm_member": "加入者マイページ",
+    "hm.hm_me": "健康マイページ（本人）",
+}
+
+# 同じ画面を続けて開いたとき（絞り込みのやり直しなど）は、この秒数までまとめて1件にします
+VIEW_LOG_GAP = 60
+
+
+@app.after_request
+def log_view(resp):
+    """どの画面を開いたかを操作ログに残す"""
+    try:
+        if request.method != "GET" or resp.status_code != 200:
+            return resp
+        name = VIEW_PAGES.get(request.endpoint)
+        if not name or not session.get("account_id"):
+            return resp
+        db = get_db()
+        me = real_account()
+        last = db.execute(
+            "SELECT ts FROM audit_log WHERE category='view' AND target=? AND actor_id=?"
+            " ORDER BY id DESC LIMIT 1", (name, me["id"] if me else None)).fetchone()
+        if last and last["ts"]:
+            gap = db.execute("SELECT (julianday('now','localtime') - julianday(?))*86400 s",
+                             (last["ts"],)).fetchone()["s"]
+            if gap is not None and gap < VIEW_LOG_GAP:
+                return resp
+        # 絞り込みの語句は残しません（画面のURL＝ディレクトリだけを記録します）
+        log("view", f"画面を表示：{name}", "success", target=name)
+    except Exception:
+        pass
+    return resp
 
 
 @app.before_request
@@ -612,17 +778,33 @@ def ip_allowlist():
                     mimetype="text/plain; charset=utf-8")
 
 
+def current_shell():
+    """画面の色味（青＝HIA健保管理／緑＝HIA総合管理）を、いま操作しているアカウントの状態から決める。
+    サポートログイン中は必ず HIA健保管理（青）。当社スタッフ本来の画面は HIA総合管理（緑）。
+    （以前はセッションに覚えた値を使っていたため、別のタブで総合管理を開くと
+    健保管理の枠の中まで緑に変わることがあった）"""
+    if support_kenpo():
+        return "kenpo"
+    me = real_account()
+    if me:
+        return SHELL_OF_ROLE.get(me["role"], "kenpo")
+    return session.get("shell", "kenpo")
+
+
 @app.context_processor
 def inject_globals():
     embed = bool(session.get("embed")) and request.endpoint not in ("dashboard",)
     return {
         "LAYOUT": "frag_base.html" if embed else "base.html",
         "EMBED": embed,
-        "SHELL": session.get("shell", "kenpo"),
+        "SHELL": current_shell(),
+        # 画面の色味（産業医・人事はブルーグリーン）
+        "TONE": role_tone(),
         "acc": current_account(),
         "ROLE_LABELS": ROLE_LABELS,
         "SUB_ROLE_LABELS": SUB_ROLE_LABELS,
         "SUB_ROLES": SUB_ROLES,
+        "SUB_ROLE_DESC": SUB_ROLE_DESC,
         "SUB_ROLE_ROLES": SUB_ROLE_ROLES,
         "role_full": role_full,
         "sub_role_of": sub_role,
@@ -633,9 +815,8 @@ def inject_globals():
         "can_feature": feature_allowed,
         "SCOPE_LABELS": SCOPE_LABELS,
         "STATUS_LABELS": STATUS_LABELS,
-        "AUTH_PATTERNS": AUTH_PATTERNS,
-        "AUTH_PATTERN_NOTE": AUTH_PATTERN_NOTE,
         "BUILD": BUILD,
+        "VIEW_LOG_GAP": VIEW_LOG_GAP,
         "MAX_EXPORT_ROWS": MAX_EXPORT_ROWS,
         "MAIL_ENABLED": mail_enabled(),
         "RESET_HOURS": RESET_HOURS,
@@ -702,19 +883,15 @@ def account_scope_ids(aid):
     return out
 
 
-def set_account_scopes(aid, scopes, companies=None):
-    """担当範囲を置き換える。企業は従来の account_company にも反映する。
-    companies を渡すと account_company にはそちら（まるごと＋絞り込み対象の親企業）を入れる。
-    渡さなければ従来どおり scopes["company"] を使う。"""
+def set_account_scopes(aid, scopes):
+    """担当範囲を置き換える。企業は従来の account_company にも反映する。"""
     db = get_db()
     db.execute("DELETE FROM account_scope WHERE account_id=?", (aid,))
     for kind in ("company", "office", "dept"):
         for rid in dict.fromkeys(scopes.get(kind) or []):
             db.execute("INSERT OR IGNORE INTO account_scope (account_id, kind, ref_id)"
                        " VALUES (?,?,?)", (aid, kind, rid))
-    if companies is None:
-        companies = scopes.get("company") or []
-    set_account_companies(aid, list(dict.fromkeys(companies)))
+    set_account_companies(aid, scopes.get("company") or [])
 
 
 def scope_summary(scopes):
@@ -902,6 +1079,12 @@ def _current_fy():
     return str(t.year - 1 if t.month <= 3 else t.year)
 
 
+def _fy_options(n=4):
+    """年度の選択肢（今年度から過去n年分）"""
+    now_fy = int(_current_fy())
+    return [str(now_fy - i) for i in range(n)]
+
+
 def member_services(db, row):
     """加入者ごとの「対象状況」（マイページに出す内容と同じもの）。
 
@@ -998,10 +1181,33 @@ def member_services(db, row):
     return {"age": age, "fy": fy, "services": out, "risks": risks}
 
 
+def account_member_id(acc):
+    """加入者本人のアカウントに紐づく加入者のID（本人以外は None）"""
+    if not acc or acc["role"] != "member":
+        return None
+    try:
+        mid = acc["member_id"]
+    except (KeyError, IndexError):
+        mid = None
+    if mid:
+        return mid
+    # 紐づけが無い場合はメールアドレスの一致で本人を探す（移行時の保険）
+    if not acc["email"]:
+        return None
+    row = get_db().execute(
+        "SELECT id FROM member WHERE lower(IFNULL(email,''))=lower(?)"
+        " ORDER BY id LIMIT 1", (acc["email"],)).fetchone()
+    return row["id"] if row else None
+
+
 def member_where(acc):
     """加入者の閲覧範囲。担当範囲（企業・事業所・部署）のどれかに当てはまれば見える。"""
     if acc["role"] == "system_admin":
         return "1=1", []
+    if acc["role"] == "member":
+        # 加入者本人は自分の1件だけ
+        mid = account_member_id(acc)
+        return ("m.id = ?", [mid]) if mid else ("1=0", [])
     if acc["role"] == "kenpo_user":
         return "m.kenpo_id = ?", [acc["kenpo_id"]]
     sc = account_scope_ids(acc["id"])
@@ -1226,6 +1432,8 @@ def api_me():
         "sub_role": sub_role(acc),
         "sub_role_label": SUB_ROLE_LABELS.get(sub_role(acc), ""),
         "role_key": role_key(acc),
+        # シェル（静的HTML）でメインカラーを切り替えるために渡す
+        "tone": role_tone(acc),
         "role_key_label": ROLE_KEY_LABELS.get(role_key(acc), ""),
         # シェル（静的HTML）でカードの出し入れに使う
         "features": account_features(acc),
@@ -1453,15 +1661,159 @@ def api_kenpos():
         return {"ok": False, "message": "この保険者番号は既に登録されています。"}
     if db.execute("SELECT 1 FROM kenpo WHERE name=?", (name,)).fetchone():
         return {"ok": False, "message": "この名称は既に登録されています。"}
-    auth = clean_auth_pattern(data.get("auth_pattern"))
-    db.execute("INSERT INTO kenpo (code, name, auth_pattern) VALUES (?,?,?)",
-               (code, name, auth))
+    consent, err = clean_consent_text(data.get("consent_text"))
+    if err:
+        return {"ok": False, "message": err}
+    sp, err = clean_site_periods(data)
+    if err:
+        return {"ok": False, "message": err}
+    db.execute("INSERT INTO kenpo (code, name, consent_text, kenshin_site_start, kenshin_site_end,"
+               " flu_site_start, flu_site_end) VALUES (?,?,?,?,?,?,?)",
+               (code, name, consent, sp["kenshin_site_start"], sp["kenshin_site_end"],
+                sp["flu_site_start"], sp["flu_site_end"]))
+    kid = db.execute("SELECT id FROM kenpo WHERE code=?", (code,)).fetchone()["id"]
     db.commit()
     log("master", "健康保険組合を登録", "success", target=name,
-        detail=f"保険者番号={code}／認証方式={auth}（{'・'.join(AUTH_PATTERNS[auth])}）")
-    return {"ok": True, "auth_pattern": auth,
+        detail=f"保険者番号={code}"
+               + (f"／同意文 {len(consent_items(consent))}項目" if consent else "／同意文なし"))
+    return {"ok": True, "id": kid,
             "message": f"{name}（保険者番号 {code}）を登録しました。"
-                       f"認証方式{auth}（{'・'.join(AUTH_PATTERNS[auth])}）"}
+                       + ("同意文を登録しました" if consent else "")}
+
+
+SITE_PERIOD_KEYS = ("kenshin_site_start", "kenshin_site_end", "flu_site_start", "flu_site_end")
+
+
+def clean_site_periods(data, row=None):
+    """健診代行・インフル補助の「サイト公開期間」（開始日・終了日）を取り出してそろえる。
+    送られてこなかった項目は今の値を保つ。返り値は (値の辞書, エラー文)"""
+    out, errs = {}, []
+    for k in SITE_PERIOD_KEYS:
+        if k in data:
+            v = norm_date((data.get(k) or "").strip()) if (data.get(k) or "").strip() else ""
+            if v:
+                try:
+                    datetime.strptime(v, "%Y-%m-%d")
+                except ValueError:
+                    v = None
+            if v is None:
+                errs.append("サイト公開期間の日付の形式が正しくありません。")
+                v = ""
+        else:
+            v = (row[k] if row is not None and k in row.keys() and row[k] else "")
+        out[k] = v
+    for a, b, label in (("kenshin_site_start", "kenshin_site_end", "健診代行"),
+                        ("flu_site_start", "flu_site_end", "インフル補助")):
+        if out[a] and out[b] and out[b] < out[a]:
+            errs.append(f"{label}のサイト公開期間は、終了日を開始日以降にしてください。")
+    return out, (errs[0] if errs else "")
+
+
+# クローズサイトに表示する同意文：本文・同意必須 の項目の並びを JSON で保存する
+CONSENT_MAX_ITEMS = 20
+CONSENT_BODY_MAX = 256
+
+
+def clean_consent_text(v):
+    """同意文をそろえる。(保存する文字列, エラー文) を返す。
+
+    v は 項目の配列（JSON）か、その JSON 文字列。本文が空の項目は除く。
+    項目が無ければ '' を返す（クローズサイトには表示しない）。
+    """
+    if v is None:
+        return "", ""
+    if isinstance(v, str):
+        t = v.strip()
+        if not t:
+            return "", ""
+        try:
+            v = json.loads(t)
+        except ValueError:
+            # 旧形式（本文だけの文字列）は 1 項目として扱う
+            v = [{"body": t, "required": True}]
+    if not isinstance(v, list):
+        return "", "同意文の形式が正しくありません。"
+    out = []
+    for it in v:
+        if not isinstance(it, dict):
+            continue
+        body = str(it.get("body") or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+        if not body:
+            continue
+        if len(body) > CONSENT_BODY_MAX:
+            return "", f"同意文の本文は{CONSENT_BODY_MAX:,}文字以内で入力してください（現在 {len(body):,}文字）。"
+        out.append({"body": body, "required": bool(it.get("required", True))})
+    if len(out) > CONSENT_MAX_ITEMS:
+        return "", f"同意文は{CONSENT_MAX_ITEMS}項目までです（現在 {len(out)}項目）。"
+    return (json.dumps(out, ensure_ascii=False) if out else ""), ""
+
+
+def consent_items(text):
+    """保存した同意文（JSON）を項目の配列に戻す"""
+    s_, _ = clean_consent_text(text)
+    return json.loads(s_) if s_ else []
+
+
+@app.route("/api/kenpos/<int:kid>", methods=["GET", "POST"])
+@roles_required("system_admin")
+def api_kenpo_one(kid):
+    """健康保険組合 1件の取得・更新（HIA総合管理の編集画面から呼ぶ）
+
+    更新できるのは 保険者番号・保険者名称・クローズサイトに表示する同意文。
+    一覧のトグル（権限）は /api/kenpos/<id>/flag で切り替える。
+    """
+    db = get_db()
+    row = db.execute("SELECT * FROM kenpo WHERE id=?", (kid,)).fetchone()
+    if not row:
+        return {"ok": False, "message": "健康保険組合が見つかりません。"}, 404
+    if request.method == "GET":
+        return {"ok": True, "row": dict(row)}
+    data = request.get_json(silent=True) or request.form
+    code = (data.get("code") or row["code"] or "").strip()
+    name = (data.get("name") or "").strip()
+    if not code:
+        return {"ok": False, "message": "保険者番号を入力してください。"}
+    if not re.fullmatch(r"[0-9A-Za-z\-]{1,20}", code):
+        return {"ok": False, "message": "保険者番号は英数字とハイフンで入力してください。"}
+    if not name:
+        return {"ok": False, "message": "健康保険組合名（保険者名称）を入力してください。"}
+    if db.execute("SELECT 1 FROM kenpo WHERE code=? AND id<>?", (code, kid)).fetchone():
+        return {"ok": False, "message": "この保険者番号は既に登録されています。"}
+    if db.execute("SELECT 1 FROM kenpo WHERE name=? AND id<>?", (name, kid)).fetchone():
+        return {"ok": False, "message": "この名称は既に登録されています。"}
+    cur_consent = row["consent_text"] if "consent_text" in row.keys() else ""
+    if "consent_text" in data:
+        consent, err = clean_consent_text(data.get("consent_text"))
+        if err:
+            return {"ok": False, "message": err}
+    else:
+        consent = cur_consent or ""
+    sp, err = clean_site_periods(data, row)
+    if err:
+        return {"ok": False, "message": err}
+    db.execute("UPDATE kenpo SET code=?, name=?, consent_text=?, kenshin_site_start=?,"
+               " kenshin_site_end=?, flu_site_start=?, flu_site_end=? WHERE id=?",
+               (code, name, consent, sp["kenshin_site_start"], sp["kenshin_site_end"],
+                sp["flu_site_start"], sp["flu_site_end"], kid))
+    db.commit()
+    changes = []
+    if code != row["code"]:
+        changes.append(f"保険者番号 {row['code']} → {code}")
+    if name != row["name"]:
+        changes.append(f"名称 {row['name']} → {name}")
+    if consent != (cur_consent or ""):
+        changes.append("同意文を" + ("削除（表示しない）" if not consent
+                                  else f"更新（{len(consent_items(consent))}項目）"))
+    for a, b, label in (("kenshin_site_start", "kenshin_site_end", "健診代行"),
+                        ("flu_site_start", "flu_site_end", "インフル補助")):
+        before = f"{(row[a] if a in row.keys() else '') or '—'}〜{(row[b] if b in row.keys() else '') or '—'}"
+        after = f"{sp[a] or '—'}〜{sp[b] or '—'}"
+        if before != after:
+            changes.append(f"{label}のサイト公開期間 {before} → {after}")
+    log("master", "健康保険組合を更新", "success", target=name,
+        detail=("／".join(changes) if changes else f"保険者番号={code}（変更なし）"))
+    return {"ok": True, "row": dict(db.execute("SELECT * FROM kenpo WHERE id=?", (kid,)).fetchone()),
+            "message": f"{name} を更新しました。" + ("" if changes else "（変更はありません）")}
 
 
 @app.route("/kenpos/new", methods=["GET", "POST"])
@@ -1487,13 +1839,9 @@ def kenpo_new():
         for e in errs:
             flash(e, "error")
         return render_template("kenpo_form.html", row=None, form=request.form)
-    auth = clean_auth_pattern(request.form.get("auth_pattern"))
-    db.execute("INSERT INTO kenpo (code, name, auth_pattern) VALUES (?,?,?)",
-               (code, name, auth))
+    db.execute("INSERT INTO kenpo (code, name) VALUES (?,?)", (code, name))
     db.commit()
-    log("master", "健康保険組合を登録", "success", target=name,
-        detail=f"保険者番号={code}／認証方式={auth}"
-               f"（{'・'.join(AUTH_PATTERNS[auth])}）")
+    log("master", "健康保険組合を登録", "success", target=name, detail=f"保険者番号={code}")
     flash(f"{name}（保険者番号 {code}）を登録しました。", "ok")
     return redirect(url_for("kenpos"))
 
@@ -1525,15 +1873,10 @@ def kenpo_edit(kid):
         for e in errs:
             flash(e, "error")
         return render_template("kenpo_form.html", row=row, form=request.form)
-    cur_auth = (row["auth_pattern"] if "auth_pattern" in row.keys() else "A") or "A"
-    auth = clean_auth_pattern(request.form.get("auth_pattern"), cur_auth)
-    db.execute("UPDATE kenpo SET code=?, name=?, auth_pattern=? WHERE id=?",
-               (code, name, auth, kid))
+    db.execute("UPDATE kenpo SET code=?, name=? WHERE id=?", (code, name, kid))
     db.commit()
     log("master", "健康保険組合を更新", "success", target=name,
-        detail=f"保険者番号 {row['code']} → {code}／名称 {row['name']} → {name}"
-               + (f"／認証方式 {cur_auth} → {auth}" if cur_auth != auth
-                  else f"／認証方式={auth}"))
+        detail=f"保険者番号 {row['code']} → {code}／名称 {row['name']} → {name}")
     flash(f"{name} を更新しました。", "ok")
     return redirect(url_for("kenpos"))
 
@@ -1650,7 +1993,7 @@ DRUG_CLASSES = {
 }
 
 # 個人を特定しうる項目。NSIPS連携で混入した場合は取込まず除外する
-PII_KEYS = {"name", "kana", "birth", "address", "zip", "tel", "email",
+PII_KEYS = {"name", "kana", "birth", "address", "pref", "city", "zip", "tel", "email",
             "member_no", "cert_mark", "insured_no", "patient_name", "patient_id"}
 
 
@@ -1733,56 +2076,23 @@ def member_groups(acc):
 @app.route("/risk")
 @login_required
 def risk_list():
-    """予測結果の一覧（加入者ごと）"""
+    """疾患予測ダッシュボード（リスク区分・年代・性別・疾病・企業ごとの集計）。
+    8-63 で検索条件と加入者ごとの一覧、予測の実行ボタンを外し、集計だけの画面にした。
+    加入者ごとの結果はマイページ（疾患予測タブ）で、予測の実行は POST /risk/run（自動連携側から呼ぶ）"""
     db, acc = get_db(), current_account()
     kid = risk_kenpo_id(acc)
-    f = {k: (request.args.get(k) or "").strip()
-         for k in ("name", "cname", "disease", "level")}
     run = db.execute("SELECT * FROM risk_run WHERE kenpo_id=? ORDER BY id DESC LIMIT 1",
                      (kid,)).fetchone()
-    rows, summary = [], {}
-    if run:
-        sql = ("SELECT s.*, m.name, m.kana, m.member_no, m.cert_branch,"
-               " c.name AS company_name, o.name AS office_name"
-               " FROM risk_score s JOIN member m ON m.id=s.member_id"
-               " LEFT JOIN company c ON c.id=m.company_id"
-               " LEFT JOIN office o ON o.id=m.office_id"
-               " WHERE s.run_id=?")
-        params = [run["id"]]
-        if f["disease"]:
-            sql += " AND s.disease=?"
-            params.append(f["disease"])
-        else:
-            # 疾病を選んでいないときは、その人で最もリスクの高い疾病だけを出す
-            sql += (" AND s.score = (SELECT MAX(s2.score) FROM risk_score s2"
-                    " WHERE s2.run_id=s.run_id AND s2.member_id=s.member_id)")
-        if f["name"]:
-            sql += " AND (m.name LIKE ? OR m.kana LIKE ?)"
-            params += [f"%{f['name']}%"] * 2
-        if f["cname"]:
-            sql += " AND c.name LIKE ?"
-            params.append(f"%{f['cname']}%")
-        if f["level"]:
-            sql += " AND s.level=?"
-            params.append(f["level"])
-        if not f["disease"]:
-            sql += " GROUP BY s.member_id"
-        rows = db.execute(sql + " ORDER BY s.score DESC, m.member_no", params).fetchall()
-        for lv in ("高", "中", "低"):
-            summary[lv] = sum(1 for r in rows if r["level"] == lv)
     last_sync = db.execute("SELECT * FROM nsips_sync WHERE kenpo_id=?"
                            " ORDER BY id DESC LIMIT 1", (kid,)).fetchone()
     last_ken = db.execute("SELECT * FROM kenshin_sync WHERE kenpo_id=?"
                           " ORDER BY id DESC LIMIT 1", (kid,)).fetchone()
-    view = request.args.get("view") or "member"
     kenpos = (db.execute("SELECT id, code, name FROM kenpo ORDER BY code").fetchall()
               if not acc["kenpo_id"] else [])
-    return render_template("risk_list.html", rows=rows, run=run, f=f, view=view,
-                           kenpos=kenpos, kid=kid,
-                           summary=summary, diseases=DISEASES, bands=AGE_BANDS,
+    return render_template("risk_list.html", run=run, kenpos=kenpos, kid=kid,
+                           diseases=DISEASES, bands=AGE_BANDS,
                            last_sync=last_sync, last_ken=last_ken,
-                           engine=risk_engine(), g=risk_aggregate(run, f),
-                           hist=risk_hist(rows))
+                           engine=risk_engine(), g=risk_aggregate(run))
 
 
 def risk_hist(rows):
@@ -1809,17 +2119,21 @@ def risk_aggregate(run, f=None):
         "   WHERE s2.run_id=s.run_id AND s2.member_id=s.member_id)"
         " GROUP BY s.member_id", (run["id"],)).fetchall()
 
-    # 年代 × 性別
+    # 年代 × 性別（リスク区分ごとの人数も持つ。8-63 の横積み上げグラフ用）
     by_band = {}
     for r in top:
         d = by_band.setdefault(r["age_band"], {"男": 0, "女": 0, "高男": 0, "高女": 0,
-                                               "score": [], "n": 0})
+                                               "score": [], "n": 0,
+                                               "lv": {"男": {"高": 0, "中": 0, "低": 0},
+                                                      "女": {"高": 0, "中": 0, "低": 0}}})
         sex = r["sex"] if r["sex"] in ("男", "女") else "男"
         d[sex] += 1
         d["n"] += 1
         d["score"].append(r["score"])
         if r["level"] == "高":
             d["高" + sex] += 1
+        if r["level"] in d["lv"][sex]:
+            d["lv"][sex][r["level"]] += 1
     band_rows = []
     for band in AGE_BANDS:
         if band not in by_band:
@@ -1828,6 +2142,7 @@ def risk_aggregate(run, f=None):
         band_rows.append({
             "band": band, "n": d["n"], "male": d["男"], "female": d["女"],
             "high": d["高男"] + d["高女"], "high_m": d["高男"], "high_f": d["高女"],
+            "lv": d["lv"],
             "avg": round(sum(d["score"]) / len(d["score"]), 1) if d["score"] else 0})
 
     # 疾病ごと（8疾病それぞれで、高リスクの人数と平均スコア）
@@ -1859,6 +2174,7 @@ def risk_aggregate(run, f=None):
         levels[r["level"]] = levels.get(r["level"], 0) + 1
     return {"bands": band_rows, "diseases": dis_rows, "companies": comp_rows,
             "levels": levels, "total": len(top),
+            "hist": risk_hist(top),        # 予測した加入者全体のスコア分布（10点刻み）
             # グラフ用（ラベル, 値）の並び
             "chart_band_high": [(r["band"], r["high_m"], r["high_f"]) for r in band_rows],
             "chart_band_avg": [(r["band"], r["avg"]) for r in band_rows],
@@ -1883,17 +2199,8 @@ def risk_member(mid):
         log("risk", "予測の内訳をブロック", "blocked", target=str(mid), detail="閲覧範囲外")
         flash("この加入者を閲覧する権限がありません。", "error")
         return redirect(url_for("risk_list"))
-    run = db.execute("SELECT * FROM risk_run WHERE kenpo_id=? ORDER BY id DESC LIMIT 1",
-                     (kid,)).fetchone()
-    scores = db.execute("SELECT * FROM risk_score WHERE run_id=? AND member_id=?"
-                        " ORDER BY score DESC",
-                        (run["id"], mid)).fetchall() if run else []
-    ks = db.execute("SELECT id, fiscal_year FROM kenshin_sync WHERE kenpo_id=?"
-                    " AND status='ok' ORDER BY id DESC LIMIT 1", (kid,)).fetchone()
-    kens = db.execute("SELECT * FROM kenshin_result WHERE sync_id=? AND member_id=?"
-                      " ORDER BY item", (ks["id"], mid)).fetchall() if ks else []
-    return render_template("risk_member.html", m=m, run=run, scores=scores,
-                           kens=kens, ks=ks, age=age_band(m["birth"]))
+    # 予測の内訳は加入者マイページの「疾患予測」タブで見せる（一覧の「詳細表示」と同じ行き先）
+    return redirect(url_for("hm.hm_member", mid=mid, tab="risk"))
 
 
 @app.route("/risk/run", methods=["POST"])
@@ -1912,7 +2219,7 @@ def risk_run_exec():
     ks = db.execute("SELECT id, fiscal_year FROM kenshin_sync WHERE kenpo_id=?"
                     " AND status='ok' ORDER BY id DESC LIMIT 1", (kid,)).fetchone()
     if not ks:
-        flash("先に健診結果を取込んでください（疾患予測 → 健診結果の連携）。", "error")
+        flash("健診結果がまだ連携されていません。健診システムからの自動連携をお待ちください。", "error")
         return redirect(url_for("risk_list"))
     ken = {}
     for r in db.execute("SELECT * FROM kenshin_result WHERE sync_id=?", (ks["id"],)):
@@ -2163,40 +2470,6 @@ KENSHIN_NAMES = [
     ("ＢＭＩ", ("BMI", "bmi")), ("BMI", ("BMI", "bmi")),
     ("尿蛋白", ("尿蛋白", "up")),
 ]
-# 判定のしきい値（要注意の下限, 要医療の下限）
-KENSHIN_LIMITS = {
-    "sbp": (130, 140), "dbp": (85, 90), "hba1c": (5.6, 6.5), "glu": (100, 126),
-    "ldl": (120, 140), "tg": (150, 300), "ast": (31, 51), "alt": (31, 51),
-    "ggt": (51, 101), "bmi": (25, 30),
-}
-KENSHIN_LOWER = {"hdl": (40, 35)}      # 低いほど悪い項目
-
-
-def judge_value(key, value):
-    """検査値を 基準内 / 要注意 / 要医療 に振り分ける"""
-    if key == "up":
-        v = str(value).strip()
-        if v in ("-", "－", "", "(-)"):
-            return "normal"
-        if v in ("±", "+-"):
-            return "caution"
-        return "medical"
-    try:
-        v = float(value)
-    except (TypeError, ValueError):
-        return None
-    if key in KENSHIN_LOWER:
-        cau, med = KENSHIN_LOWER[key]
-        if v < med:
-            return "medical"
-        return "caution" if v < cau else "normal"
-    lim = KENSHIN_LIMITS.get(key)
-    if not lim:
-        return None
-    cau, med = lim
-    if v >= med:
-        return "medical"
-    return "caution" if v >= cau else "normal"
 
 
 def parse_kenshin_xml(text, groups=None):
@@ -2723,62 +2996,144 @@ def fetch_nsips(acc, kid, endpoint):
 PAGE_ROWS = 30      # 一覧の初期表示件数。以降はスクロールで読み込む
 
 
-def _companies_query(acc):
-    """企業一覧の絞り込み条件からSQLを組み立てる"""
-    ids = [c["id"] for c in scoped_companies(acc)]
-    f = {k: (request.args.get(k) or "").strip() for k in ("code", "name", "tel")}
-    if not ids:
-        return None, None, f
-    q = ",".join("?" * len(ids))
-    sql = (" FROM company c JOIN kenpo k ON k.id=c.kenpo_id"
-           f" WHERE c.id IN ({q})")
-    p = list(ids)
-    if f["code"]:
-        sql += " AND c.code LIKE ?"
-        p.append(f"%{f['code']}%")
-    if f["name"]:
-        sql += " AND (c.name LIKE ? OR c.kana LIKE ?)"
-        p += [f"%{f['name']}%"] * 2
-    if f["tel"]:
-        sql += " AND c.tel LIKE ?"
-        p.append(f"%{f['tel']}%")
-    return sql, p, f
+def _back_to(default_endpoint):
+    """削除などのあとの戻り先。企業の詳細表示から操作したときは next（同一サイト内のパス）に戻る"""
+    nxt = request.form.get("next") or request.args.get("next") or ""
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return redirect(nxt)
+    return redirect(url_for(default_endpoint))
 
 
-def _companies_page(acc, offset, limit):
+def _company_children(cid):
+    """企業の詳細表示（編集画面）に出す、この企業の事業所・部署と加入者数。8-59"""
     db = get_db()
-    sql, p, f = _companies_query(acc)
-    if sql is None:
-        return [], 0, f
-    total = db.execute("SELECT COUNT(*) c" + sql, p).fetchone()["c"]
-    rows = db.execute(
-        "SELECT c.*, k.name AS kenpo_name, k.code AS kenpo_code,"
-        " (SELECT COUNT(*) FROM office o WHERE o.company_id=c.id) AS off_count,"
-        " (SELECT COUNT(*) FROM member m WHERE m.company_id=c.id) AS mem_count"
-        + sql + " ORDER BY k.code, c.code LIMIT ? OFFSET ?", p + [limit, offset]).fetchall()
-    return rows, total, f
+    offs = db.execute("SELECT * FROM office WHERE company_id=? ORDER BY code", (cid,)).fetchall()
+    depts_by_office = {}
+    for d in db.execute("SELECT d.* FROM department d JOIN office o ON o.id=d.office_id"
+                        " WHERE o.company_id=? ORDER BY o.code, d.code", (cid,)):
+        depts_by_office.setdefault(d["office_id"], []).append(d)
+    return dict(offs=offs, depts_by_office=depts_by_office,
+                mem_by_office=_office_counts(), mem_by_dept=_dept_counts())
+
+
+def _save_company_children(cid, form):
+    """企業の詳細表示で入力された事業所・部署の行を登録・更新する（8-59）。
+    行は off_* / dep_* の配列で届く。新しい事業所は off_key（n1, n2…）で識別し、
+    同じ画面で追加した部署の dep_office にはそのキーが入る。エラー時は ValueError。"""
+    db = get_db()
+    g = lambda vals, i: (vals[i] if i < len(vals) else "").strip()
+    off_ids, off_keys = form.getlist("off_id"), form.getlist("off_key")
+    off_ext, off_name = form.getlist("off_ext"), form.getlist("off_name")
+    off_addr, off_tel = form.getlist("off_address"), form.getlist("off_tel")
+    cur_offs = {o["id"]: o for o in db.execute("SELECT * FROM office WHERE company_id=?", (cid,))}
+    key_to_id, seen_names, seen_ext, changes = {}, set(), set(), []
+    for i in range(len(off_ids)):
+        oid = int(off_ids[i]) if off_ids[i].isdigit() else None
+        ext, name, addr, tel = g(off_ext, i), g(off_name, i), g(off_addr, i), g(off_tel, i)
+        if oid is None and not (ext or name or addr or tel):
+            continue                                     # 空の追加行は無視
+        if not name:
+            raise ValueError("事業所名が空の行があります。事業所名を入力してください。")
+        if ext and not re.fullmatch(r"[0-9A-Za-z\-]{1,20}", ext):
+            raise ValueError(f"事業所コード {ext} は英数字とハイフンで入力してください。")
+        if name in seen_names:
+            raise ValueError(f"事業所「{name}」が重複しています。")
+        if ext and ext in seen_ext:
+            raise ValueError(f"事業所コード {ext} が重複しています。")
+        seen_names.add(name)
+        if ext:
+            seen_ext.add(ext)
+        if oid is not None:
+            cur = cur_offs.get(oid)
+            if cur is None:
+                raise ValueError("この企業に属していない事業所が含まれています。")
+            if (cur["ext_code"] or "", cur["name"], cur["address"] or "", cur["tel"] or "") \
+                    != (ext, name, addr, tel):
+                db.execute("UPDATE office SET ext_code=?, name=?, address=?, tel=?, updated_at=?"
+                           " WHERE id=?", (ext or None, name, addr, tel, now(), oid))
+                changes.append(f"事業所を更新：{cur['name']}→{name}")
+            key_to_id[g(off_keys, i) or f"o{oid}"] = oid
+        else:
+            code = next_code("office", str(cid), width=3)
+            cur_ = db.execute("INSERT INTO office (company_id, ext_code, code, name, kana, zip,"
+                              " tel, address) VALUES (?,?,?,?,?,?,?,?)",
+                              (cid, ext or None, code, name, "", "", tel, addr))
+            key_to_id[g(off_keys, i)] = cur_.lastrowid
+            changes.append(f"事業所を追加：{name}（{code}）")
+    # 既存の事業所どうしの重複（送られてこなかった行も含めて確認）
+    for o in cur_offs.values():
+        if o["id"] not in key_to_id.values() and o["name"] in seen_names:
+            raise ValueError(f"事業所「{o['name']}」は既に登録されています。")
+
+    dep_ids, dep_off = form.getlist("dep_id"), form.getlist("dep_office")
+    dep_ext, dep_name = form.getlist("dep_ext"), form.getlist("dep_name")
+    cur_depts = {d["id"]: d for d in db.execute(
+        "SELECT d.* FROM department d JOIN office o ON o.id=d.office_id WHERE o.company_id=?", (cid,))}
+    valid_offs = set(cur_offs) | set(key_to_id.values())
+    seen_d = set()
+    for i in range(len(dep_ids)):
+        did = int(dep_ids[i]) if dep_ids[i].isdigit() else None
+        ref, ext, name = g(dep_off, i), g(dep_ext, i), g(dep_name, i)
+        if did is None and not (ext or name):
+            continue
+        if not name:
+            raise ValueError("部署名が空の行があります。部署名を入力してください。")
+        if ext and not re.fullmatch(r"[0-9A-Za-z\-]{1,20}", ext):
+            raise ValueError(f"部署コード {ext} は英数字とハイフンで入力してください。")
+        oid = int(ref) if ref.isdigit() else key_to_id.get(ref)
+        if oid not in valid_offs:
+            raise ValueError(f"部署「{name}」の事業所が選ばれていません。")
+        if (oid, name) in seen_d:
+            raise ValueError(f"部署「{name}」が同じ事業所の中で重複しています。")
+        seen_d.add((oid, name))
+        if did is not None:
+            cur = cur_depts.get(did)
+            if cur is None:
+                raise ValueError("この企業に属していない部署が含まれています。")
+            if (cur["ext_code"] or "", cur["name"]) != (ext, name):
+                db.execute("UPDATE department SET ext_code=?, name=?, updated_at=? WHERE id=?",
+                           (ext or None, name, now(), did))
+                changes.append(f"部署を更新：{cur['name']}→{name}")
+        else:
+            if db.execute("SELECT 1 FROM department WHERE office_id=? AND name=?",
+                          (oid, name)).fetchone():
+                raise ValueError(f"部署「{name}」は既に登録されています。")
+            code = next_code("dept", str(oid), width=3)
+            db.execute("INSERT INTO department (office_id, ext_code, code, name, kana)"
+                       " VALUES (?,?,?,?,?)", (oid, ext or None, code, name, ""))
+            changes.append(f"部署を追加：{name}（{code}）")
+    for d in cur_depts.values():
+        if d["id"] not in {int(x) for x in dep_ids if x.isdigit()} and (d["office_id"], d["name"]) in seen_d:
+            raise ValueError(f"部署「{d['name']}」は既に登録されています。")
+    return changes
+
+
+@app.route("/orgs")
+@login_required
+def orgs():
+    """企業・事業所・部署のマスタを1つの一覧で（企業 → 事業所 → 部署 の階層）。8-58"""
+    db, acc = get_db(), current_account()
+    comps = scoped_companies(acc)
+    offs = scoped_offices(acc)
+    depts = scoped_departments(acc)
+    offs_by_company, depts_by_office = {}, {}
+    for o in offs:
+        offs_by_company.setdefault(o["company_id"], []).append(o)
+    for d in depts:
+        depts_by_office.setdefault(d["office_id"], []).append(d)
+    mem_by_company = {r["id"]: r["c"] for r in db.execute(
+        "SELECT company_id AS id, COUNT(*) c FROM member WHERE company_id IS NOT NULL GROUP BY company_id")}
+    return render_template("orgs.html", comps=comps, offs=offs, depts=depts,
+                           offs_by_company=offs_by_company, depts_by_office=depts_by_office,
+                           mem_by_company=mem_by_company, mem_by_office=_office_counts(),
+                           mem_by_dept=_dept_counts())
 
 
 @app.route("/companies")
 @login_required
 def companies():
-    db, acc = get_db(), current_account()
-    rows, total, f = _companies_page(acc, 0, PAGE_ROWS)
-    kenpos = db.execute("SELECT * FROM kenpo ORDER BY code").fetchall()
-    return render_template("companies.html", rows=rows, total=total, kenpos=kenpos, f=f,
-                           can_add=acc["role"] in ("system_admin", "kenpo_user"))
-
-
-@app.route("/companies/rows")
-@login_required
-def companies_rows():
-    """スクロールで続きを読み込むための行だけを返す"""
-    acc = current_account()
-    offset = max(request.args.get("offset", type=int) or 0, 0)
-    rows, total, f = _companies_page(acc, offset, PAGE_ROWS)
-    return render_template("_rows_companies.html", rows=rows,
-                           can_add=acc["role"] in ("system_admin", "kenpo_user"),
-                           more=1 if offset + len(rows) < total else 0)
+    """旧・企業情報一覧。企業・事業所・部署の一覧（/orgs）に統合（8-58）"""
+    return redirect(url_for("orgs"))
 
 
 @app.route("/companies/new", methods=["GET", "POST"])
@@ -2789,7 +3144,7 @@ def company_new():
         kenpos = db.execute("SELECT * FROM kenpo ORDER BY code").fetchall()
     else:
         kenpos = db.execute("SELECT * FROM kenpo WHERE id=?", (acc["kenpo_id"],)).fetchall()
-    # 健保ごとに、次に採番される事業所（企業）コードを先読みする
+    # 健保ごとに、次に採番される企業コードを先読みする
     nexts = {str(k["id"]): peek_code("company", str(k["id"])) for k in kenpos}
     if request.method == "GET":
         return render_template("company_form.html", row=None, kenpos=kenpos, nexts=nexts)
@@ -2801,13 +3156,13 @@ def company_new():
     if not name:
         errs.append("企業名を入力してください。")
     if ext and not re.fullmatch(r"[0-9A-Za-z\-]{1,20}", ext):
-        errs.append("事業所（企業）コードは英数字とハイフンで入力してください。")
+        errs.append("企業コードは英数字とハイフンで入力してください。")
     if not kenpo_id:
         errs.append("健康保険組合を選択してください。")
     else:
         if ext and db.execute("SELECT 1 FROM company WHERE kenpo_id=? AND ext_code=?",
                               (kenpo_id, ext)).fetchone():
-            errs.append(f"事業所（企業）コード {ext} は、この健康保険組合で既に使われています。")
+            errs.append(f"企業コード {ext} は、この健康保険組合で既に使われています。")
         kn = db.execute("SELECT name FROM kenpo WHERE id=?", (kenpo_id,)).fetchone()
         if kn and name == kn["name"]:
             log("master", "企業登録をブロック", "blocked", target=name,
@@ -2829,10 +3184,10 @@ def company_new():
                 g("tel"), g("address"), g("email")))
     db.commit()
     log("master", "企業を登録", "success", target=name,
-        detail=f"事業所（企業）コード={ext or '（未設定）'}／当社内部コード={code}")
+        detail=f"企業コード={ext or '（未設定）'}／当社内部コード={code}")
     flash(f"「{name}」を登録しました。"
-          + (f"事業所（企業）コードは {ext} です。" if ext
-             else "事業所（企業）コードは未設定です。")
+          + (f"企業コードは {ext} です。" if ext
+             else "企業コードは未設定です。")
           + f"（当社内部コード {code}）", "ok")
     return redirect(url_for("companies"))
 
@@ -2853,7 +3208,8 @@ def company_edit(cid):
             (cid, cid)).fetchone()
         kn = db.execute("SELECT name, code FROM kenpo WHERE id=?",
                         (row["kenpo_id"],)).fetchone()
-        return render_template("company_form.html", row=row, kenpos=[], stat=stat, kenpo=kn)
+        return render_template("company_form.html", row=row, kenpos=[], stat=stat, kenpo=kn,
+                               **_company_children(cid))
     name = (request.form.get("name") or "").strip()
     errs = []
     if not name:
@@ -2871,15 +3227,28 @@ def company_edit(cid):
         kn = db.execute("SELECT name, code FROM kenpo WHERE id=?",
                         (row["kenpo_id"],)).fetchone()
         return render_template("company_form.html", row=row, kenpos=[], stat=stat,
-                               kenpo=kn, form=request.form)
+                               kenpo=kn, form=request.form, **_company_children(cid))
     g = lambda k: (request.form.get(k) or "").strip()
     ext = g("ext_code")
     if ext and db.execute("SELECT 1 FROM company WHERE kenpo_id=? AND ext_code=? AND id<>?",
                           (row["kenpo_id"], ext, cid)).fetchone():
-        flash(f"事業所（企業）コード {ext} は、この健康保険組合で既に使われています。", "error")
+        flash(f"企業コード {ext} は、この健康保険組合で既に使われています。", "error")
         return redirect(url_for("company_edit", cid=cid))
     before = f"{row['name']}／{row['ext_code'] or '—'}／TEL {row['tel'] or '—'}"
     kn = db.execute("SELECT name FROM kenpo WHERE id=?", (row["kenpo_id"],)).fetchone()
+    # 事業所・部署の行（企業の詳細表示から入力。8-59）を先に検証し、駄目なら企業情報も保存しない
+    try:
+        changes = _save_company_children(cid, request.form)
+    except ValueError as e:
+        db.rollback()
+        log("master", "企業情報の編集をブロック", "blocked", target=name, detail=str(e))
+        flash(str(e), "error")
+        stat = db.execute(
+            "SELECT (SELECT COUNT(*) FROM office WHERE company_id=?) AS n_off,"
+            " (SELECT COUNT(*) FROM member WHERE company_id=?) AS n_mem",
+            (cid, cid)).fetchone()
+        return render_template("company_form.html", row=row, kenpos=[], stat=stat,
+                               kenpo=kn, form=request.form, **_company_children(cid))
     db.execute("UPDATE company SET ext_code=?, code=?, name=?, kana=?, cert_mark=?, zip=?,"
                " tel=?, address=?, email=?, updated_at=? WHERE id=?",
                (ext or None, internal_company_code(kn["name"] if kn else "", name), name,
@@ -2887,8 +3256,10 @@ def company_edit(cid):
                 g("email"), now(), cid))
     db.commit()
     log("master", "企業情報を編集", "success", target=name,
-        detail=f"事業所（企業）コード={ext or '（未設定）'}／変更前: {before}")
-    flash(f"「{name}」の情報を更新しました。", "ok")
+        detail=f"企業コード={ext or '（未設定）'}／変更前: {before}"
+        + ("／" + "、".join(changes) if changes else ""))
+    flash(f"「{name}」の情報を更新しました。"
+          + (f"（事業所・部署 {len(changes)} 件を反映）" if changes else ""), "ok")
     return redirect(url_for("companies"))
 
 
@@ -2918,20 +3289,6 @@ def company_delete(cid):
 
 
 # ================================================================ 事業所
-def _offices_page(acc, offset, limit):
-    """事業所一覧を絞り込んでページ単位で返す"""
-    f = {k: (request.args.get(k) or "").strip() for k in ("cname", "code", "name")}
-    rows = scoped_offices(acc)
-
-    def hit(r):
-        return ((not f["cname"] or f["cname"] in (r["company_name"] or ""))
-                and (not f["code"] or f["code"] in (r["code"] or ""))
-                and (not f["name"] or f["name"] in (r["name"] or "")))
-
-    rows = [r for r in rows if hit(r)]
-    return rows[offset:offset + limit], len(rows), f
-
-
 def _office_counts():
     return {r["id"]: r["c"] for r in get_db().execute(
         "SELECT office_id AS id, COUNT(*) c FROM member GROUP BY office_id")}
@@ -2940,20 +3297,8 @@ def _office_counts():
 @app.route("/offices")
 @login_required
 def offices():
-    acc = current_account()
-    rows, total, f = _offices_page(acc, 0, PAGE_ROWS)
-    return render_template("offices.html", rows=rows, total=total,
-                           counts=_office_counts(), f=f)
-
-
-@app.route("/offices/rows")
-@login_required
-def offices_rows():
-    acc = current_account()
-    offset = max(request.args.get("offset", type=int) or 0, 0)
-    rows, total, f = _offices_page(acc, offset, PAGE_ROWS)
-    return render_template("_rows_offices.html", rows=rows, counts=_office_counts(),
-                           more=1 if offset + len(rows) < total else 0)
+    """旧・事業所情報一覧。企業・事業所・部署の一覧（/orgs）に統合（8-58）"""
+    return redirect(url_for("orgs"))
 
 
 @app.route("/offices/new", methods=["GET", "POST"])
@@ -2963,7 +3308,9 @@ def office_new():
     comps = scoped_companies(acc)
     nexts = {str(c["id"]): peek_code("office", str(c["id"]), width=3) for c in comps}
     if request.method == "GET":
-        return render_template("office_form.html", row=None, comps=comps, nexts=nexts)
+        # 一覧の「事業所を追加」から来たときは、その企業を選んだ状態で開く
+        pre = request.args if request.args.get("company_id") else None
+        return render_template("office_form.html", row=None, comps=comps, nexts=nexts, form=pre)
     g = lambda k: (request.form.get(k) or "").strip()
     cid = request.form.get("company_id", type=int)
     name, ext = g("name"), g("ext_code")
@@ -2973,7 +3320,7 @@ def office_new():
         errs.append("選択された企業を操作する権限がありません。")
     if ext and cid and db.execute("SELECT 1 FROM office WHERE company_id=? AND ext_code=?",
                                   (cid, ext)).fetchone():
-        errs.append(f"所属コード {ext} は、この企業で既に使われています。")
+        errs.append(f"事業所コード {ext} は、この企業で既に使われています。")
     if not name:
         errs.append("部署名を入力してください。")
     elif cid and db.execute("SELECT 1 FROM office WHERE company_id=? AND name=?",
@@ -2992,9 +3339,9 @@ def office_new():
     db.commit()
     cn = db.execute("SELECT name FROM company WHERE id=?", (cid,)).fetchone()["name"]
     log("master", "事業所を登録", "success", target=f"{cn}／{name}",
-        detail=f"所属コード={ext or '（未設定）'}／当社内部コード={code}（自動発番）")
+        detail=f"事業所コード={ext or '（未設定）'}／当社内部コード={code}（自動発番）")
     flash(f"「{name}」を登録しました。"
-          + (f"所属コードは {ext} です。" if ext else "所属コードは未設定です。")
+          + (f"事業所コードは {ext} です。" if ext else "事業所コードは未設定です。")
           + f"（当社内部コード {code}）", "ok")
     return redirect(url_for("offices"))
 
@@ -3032,7 +3379,7 @@ def office_edit(oid):
     ext = g("ext_code")
     if ext and db.execute("SELECT 1 FROM office WHERE company_id=? AND ext_code=? AND id<>?",
                           (row["company_id"], ext, oid)).fetchone():
-        flash(f"所属コード {ext} は、この企業で既に使われています。", "error")
+        flash(f"事業所コード {ext} は、この企業で既に使われています。", "error")
         return redirect(url_for("office_edit", oid=oid))
     db.execute("UPDATE office SET ext_code=?, name=?, kana=?, zip=?, tel=?, address=?,"
                " updated_at=? WHERE id=?",
@@ -3050,7 +3397,7 @@ def office_delete(oid):
     db, acc = get_db(), current_account()
     if not owns_office(acc, oid):
         flash("対象の事業所を操作する権限がありません。", "error")
-        return redirect(url_for("offices"))
+        return _back_to("offices")
     row = db.execute(
         "SELECT o.*, c.name AS company_name FROM office o JOIN company c ON c.id=o.company_id"
         " WHERE o.id=?", (oid,)).fetchone()
@@ -3059,32 +3406,16 @@ def office_delete(oid):
         log("master", "事業所削除をブロック", "blocked", target=row["name"],
             detail=f"加入者{n}件が残っている")
         flash(f"「{row['name']}」には加入者 {n} 件が紐づいています。先に削除してください。", "error")
-        return redirect(url_for("offices"))
+        return _back_to("offices")
     db.execute("DELETE FROM office WHERE id=?", (oid,))
     db.commit()
     log("master", "事業所を削除", "success", target=f"{row['company_name']}／{row['name']}",
         detail=f"事業所コード={row['code']}")
     flash(f"「{row['name']}」を削除しました。", "ok")
-    return redirect(url_for("offices"))
+    return _back_to("offices")
 
 
 # ================================================================ 部署
-def _departments_page(acc, offset, limit):
-    """部署一覧を絞り込んでページ単位で返す"""
-    f = {k: (request.args.get(k) or "").strip()
-         for k in ("cname", "oname", "code", "name")}
-    rows = scoped_departments(acc)
-
-    def hit(r):
-        return ((not f["cname"] or f["cname"] in (r["company_name"] or ""))
-                and (not f["oname"] or f["oname"] in (r["office_name"] or ""))
-                and (not f["code"] or f["code"] in (r["code"] or ""))
-                and (not f["name"] or f["name"] in (r["name"] or "")))
-
-    rows = [r for r in rows if hit(r)]
-    return rows[offset:offset + limit], len(rows), f
-
-
 def _dept_counts():
     return {r["dept_id"]: r["c"] for r in get_db().execute(
         "SELECT dept_id, COUNT(*) c FROM member GROUP BY dept_id")}
@@ -3093,20 +3424,8 @@ def _dept_counts():
 @app.route("/departments")
 @login_required
 def departments():
-    acc = current_account()
-    rows, total, f = _departments_page(acc, 0, PAGE_ROWS)
-    return render_template("departments.html", rows=rows, total=total,
-                           counts=_dept_counts(), f=f)
-
-
-@app.route("/departments/rows")
-@login_required
-def departments_rows():
-    acc = current_account()
-    offset = max(request.args.get("offset", type=int) or 0, 0)
-    rows, total, f = _departments_page(acc, offset, PAGE_ROWS)
-    return render_template("_rows_departments.html", rows=rows, counts=_dept_counts(),
-                           more=1 if offset + len(rows) < total else 0)
+    """旧・部署情報一覧。企業・事業所・部署の一覧（/orgs）に統合（8-58）"""
+    return redirect(url_for("orgs"))
 
 
 @app.route("/departments/new", methods=["GET", "POST"])
@@ -3116,7 +3435,9 @@ def department_new():
     offs = scoped_offices(acc)
     nexts = {str(o["id"]): peek_code("dept", str(o["id"]), width=3) for o in offs}
     if request.method == "GET":
-        return render_template("department_form.html", row=None, offs=offs, nexts=nexts)
+        # 一覧の「部署を追加」から来たときは、その事業所を選んだ状態で開く
+        pre = request.args if request.args.get("office_id") else None
+        return render_template("department_form.html", row=None, offs=offs, nexts=nexts, form=pre)
     g = lambda k: (request.form.get(k) or "").strip()
     oid = request.form.get("office_id", type=int)
     name = g("name")
@@ -3197,7 +3518,7 @@ def department_delete(did):
     db, acc = get_db(), current_account()
     if not owns_department(acc, did):
         flash("対象の部署を操作する権限がありません。", "error")
-        return redirect(url_for("departments"))
+        return _back_to("departments")
     row = next(d for d in scoped_departments(acc) if d["id"] == did)
     n_m = db.execute("SELECT COUNT(*) c FROM member WHERE dept_id=?", (did,)).fetchone()["c"]
     n_a = db.execute(
@@ -3208,13 +3529,13 @@ def department_delete(did):
         log("master", "部署の削除をブロック", "blocked", target=row["name"],
             detail=f"加入者{n_m}件・管理者{n_a}件が紐づいている")
         flash(f"この部署には加入者{n_m}件・管理者{n_a}件が紐づいているため削除できません。", "error")
-        return redirect(url_for("departments"))
+        return _back_to("departments")
     db.execute("DELETE FROM department WHERE id=?", (did,))
     db.commit()
     log("master", "部署を削除", "success", target=row["name"],
         detail=f"{row['company_name']}／{row['office_name']}")
     flash(f"「{row['name']}」を削除しました。", "ok")
-    return redirect(url_for("departments"))
+    return _back_to("departments")
 
 
 # ================================================================ 加入者
@@ -3288,75 +3609,6 @@ def members_rows():
                            more=1 if offset + len(rows) < total else 0)
 
 
-def auto_link_candidates(acc):
-    """加入者情報に書かれたコードで紐づけ先が決まる加入者を集める。
-    企業・事業所を「先方が管理する番号」または「当社内部コード」で照合する。"""
-    db = get_db()
-    where, params = member_where(acc)
-    rows = db.execute(
-        "SELECT m.id, m.member_no, m.cert_branch, m.name, m.kenpo_id,"
-        " m.src_company_code AS sc, m.src_office_code AS so"
-        " FROM member m WHERE m.company_id IS NULL AND m.src_company_code IS NOT NULL"
-        " AND m.src_company_code <> '' AND " + where
-        + " ORDER BY m.member_no, m.cert_branch LIMIT 1000", params).fetchall()
-    if not rows:
-        return [], []
-    allowed = {c["id"] for c in scoped_companies(acc)}
-    comps = {}
-    for c in db.execute("SELECT * FROM company"):
-        if c["id"] not in allowed:
-            continue
-        for k in (c["ext_code"], c["code"]):
-            if k:
-                comps.setdefault((c["kenpo_id"], k), c)
-    offs = {}
-    for o in db.execute("SELECT * FROM office"):
-        for k in (o["ext_code"], o["code"]):
-            if k:
-                offs.setdefault((o["company_id"], k), o)
-    ok, ng = [], []
-    for r in rows:
-        comp = comps.get((r["kenpo_id"], r["sc"]))
-        if not comp:
-            ng.append(dict(r, reason=f"企業コード「{r['sc']}」に一致する企業がありません"))
-            continue
-        off = offs.get((comp["id"], r["so"])) if r["so"] else None
-        if r["so"] and not off:
-            ng.append(dict(r, reason=f"所属コード「{r['so']}」が企業「{comp['name']}」にありません",
-                           company=comp["name"]))
-            continue
-        ok.append(dict(r, company_id=comp["id"], company=comp["name"],
-                       office_id=off["id"] if off else None,
-                       office=off["name"] if off else None))
-    return ok, ng
-
-
-@app.route("/members/link/auto", methods=["GET", "POST"])
-@login_required
-def members_link_auto():
-    """加入者情報のコードをもとに、まとめて紐づける"""
-    db, acc = get_db(), current_account()
-    ok, ng = auto_link_candidates(acc)
-    if request.method == "GET":
-        return render_template("members_link_auto.html", ok=ok, ng=ng)
-    ids = set(request.form.getlist("member_ids", type=int))
-    targets = [r for r in ok if r["id"] in ids] if ids else ok
-    if not targets:
-        flash("紐づけできる加入者がありません。", "error")
-        return redirect(url_for("members_link_auto"))
-    n = 0
-    for r in targets:
-        db.execute("UPDATE member SET company_id=?, office_id=?, updated_at=? WHERE id=?",
-                   (r["company_id"], r["office_id"], now(), r["id"]))
-        n += 1
-    db.commit()
-    log("master", "加入者情報のコードで一括紐づけ", "success", target=f"{n}件",
-        detail="対象=" + ",".join(f"{r['member_no']}" for r in targets[:20])
-               + ("…" if len(targets) > 20 else ""))
-    flash(f"加入者情報のコードで {n} 件を紐づけました。", "ok")
-    return redirect(url_for("members"))
-
-
 @app.route("/members/link")
 @login_required
 def members_link_page():
@@ -3373,10 +3625,9 @@ def members_link_page():
         "SELECT office_id, COUNT(*) c FROM member GROUP BY office_id")}
     dcounts = {r["dept_id"]: r["c"] for r in db.execute(
         "SELECT dept_id, COUNT(*) c FROM member GROUP BY dept_id")}
-    auto_ok, auto_ng = auto_link_candidates(acc)
     return render_template("members_link.html", comps=comps, offs=offs, depts=depts,
                            counts=counts, ocounts=ocounts, dcounts=dcounts,
-                           n_unlinked=n_unlinked, n_auto=len(auto_ok), n_auto_ng=len(auto_ng))
+                           n_unlinked=n_unlinked)
 
 
 @app.route("/members/link/assign")
@@ -3571,8 +3822,9 @@ def api_members_link():
 
 
 MEMBER_FORM_FIELDS = ("cert_mark", "cert_branch", "attr", "relation", "kana", "sex",
-                      "qualified_at", "lost_at", "zip", "address", "address2", "tel",
-                      "email", "delivery_code", "employee_code")
+                      "qualified_at", "lost_at", "zip", "pref", "city", "address", "address2", "tel",
+                      "email", "billing_code", "employee_code", "kenpo_member_id",
+                      "memo")
 
 
 def _member_form_values(form):
@@ -3673,7 +3925,8 @@ def member_edit(mid):
     depts = scoped_departments(acc)
     if request.method == "GET":
         return render_template("member_form.html", row=row, comps=comps, offs=offs,
-                               depts=depts, mypage=member_services(db, row))
+                               depts=depts, mypage=member_services(db, row),
+                               photos=photos_of(db, mid), PHOTO_KINDS=PHOTO_KINDS)
     cid = request.form.get("company_id", type=int)
     oid = request.form.get("office_id", type=int)
     did = request.form.get("dept_id", type=int)
@@ -3703,7 +3956,8 @@ def member_edit(mid):
             flash(e, "error")
         return render_template("member_form.html", row=row, comps=comps, offs=offs,
                                depts=depts, form=request.form,
-                               mypage=member_services(db, row))
+                               mypage=member_services(db, row),
+                               photos=photos_of(db, mid), PHOTO_KINDS=PHOTO_KINDS)
     before = (f"{row['name']}／{row['company_name'] or '企業未紐づけ'}"
               f"／{row['office_name'] or '部署未設定'}")
     keys = list(vals.keys())
@@ -3740,13 +3994,473 @@ def member_delete(mid):
 
 
 
+# ================================================================ 判定マスタ
+# 検査項目ごとの判定基準（判定区分・性別・下限値・上限値）を登録します。
+# 基準は「健保共通」と「企業ごと」の2段で持ち、企業ごとの設定があればそれを使います。
+JUDGE_CODES = [("A", "A：異常なし"), ("B", "B：軽度異常"), ("C", "C：要再検査・生活改善"),
+               ("D", "D：要精密検査・治療"), ("E", "E：治療中")]
+JUDGE_SEXES = ["共通", "男性", "女性"]
+
+
+# 区分番号（特定健診XML 健診項目コード表の区分。HIA総合管理の検査マスタと同じ定義）
+JUDGE_SECTIONS = [
+    ("01", "受診情報"), ("02", "基本情報・診察"), ("03", "身体計測"), ("04", "血圧"),
+    ("05", "血中脂質検査"), ("06", "肝機能検査"), ("07", "血糖検査"),
+    ("08", "尿・腎機能検査"), ("09", "血液学的検査"), ("10", "心電図検査"),
+    ("11", "眼底検査"), ("12", "その他の検査"), ("13", "医師の判断"),
+    ("14", "問診（質問票）"), ("15", "メタボリックシンドローム判定"), ("16", "保健指導"),
+]
+SECTION_NAME = dict(JUDGE_SECTIONS)
+
+
+def judge_items(db, sec="", q="", code=""):
+    """検査項目マスタ（区分番号・項目名・コードで絞り込める）"""
+    sql, p = "SELECT * FROM judge_item WHERE 1=1", []
+    if sec:
+        sql += " AND sec_no=?"
+        p.append(sec)
+    if q:
+        sql += " AND name LIKE ?"
+        p.append(f"%{q}%")
+    if code:
+        sql += " AND code LIKE ?"
+        p.append(f"%{code}%")
+    return db.execute(sql + " ORDER BY sort, id", p).fetchall()
+
+
+def _criteria_scope(acc, cid):
+    """判定基準の対象（健保・企業）を決める。企業を選ばなければ健保共通"""
+    if acc["role"] == "system_admin":
+        kid = acc["kenpo_id"]
+    else:
+        kid = acc["kenpo_id"]
+    return kid, (cid or None)
+
+
+def criteria_rows(db, kid, cid, fy, item_id=None):
+    sql = ("SELECT c.*, i.name AS item_name, i.unit AS item_unit FROM judge_criteria c"
+           " JOIN judge_item i ON i.id=c.item_id"
+           " WHERE c.kenpo_id=? AND c.fiscal_year=? AND c.company_id IS ?")
+    p = [kid, fy, cid]
+    if item_id:
+        sql += " AND c.item_id=?"
+        p.append(item_id)
+    return db.execute(sql + " ORDER BY i.sort, c.sort, c.id", p).fetchall()
+
+
+def norm_item_name(v):
+    """検査項目名を突き合わせやすい形にそろえる（全角・半角・空白の違いを無視する）"""
+    import unicodedata
+    t = unicodedata.normalize("NFKC", (v or "").strip()).lower()
+    return re.sub(r"[\s　・]", "", t)
+
+
+# 取込CSVの列名 → 判定マスタの検査項目名（呼び方の違いを吸収する）
+ITEM_ALIASES = {
+    "収縮期血圧": "収縮期血圧(その他)", "拡張期血圧": "拡張期血圧(その他)",
+    "hba1c": "HbA1c(NGSP値)", "中性脂肪": "空腹時中性脂肪(トリグリセリド)",
+    "血糖": "空腹時血糖", "ldl": "LDLコレステロール", "hdl": "HDLコレステロール",
+    "ast": "AST(GOT)", "alt": "ALT(GPT)", "γ-gt": "γ-GT(γ-GTP)", "γ-gtp": "γ-GT(γ-GTP)",
+}
+
+
+def judge_item_by_name(db, name):
+    """検査項目名（取込CSVの列名など）から判定マスタの項目を引く"""
+    if not hasattr(g, "_jitems"):
+        g._jitems = {norm_item_name(r["name"]): r
+                     for r in db.execute("SELECT * FROM judge_item")}
+    key = norm_item_name(name)
+    row = g._jitems.get(key)
+    if row:
+        return row
+    alias = ITEM_ALIASES.get(key)
+    return g._jitems.get(norm_item_name(alias)) if alias else None
+
+
+def judge_defaults_of(db, code):
+    """HIA総合管理の判定マスタに入っている既定の基準"""
+    return db.execute("SELECT * FROM judge_default WHERE item_code=?"
+                      " ORDER BY sort, id", (code,)).fetchall()
+
+
+def reflect_judge_defaults(db, kenpo_id, fy, item_ids=None):
+    """健保共通の基準が無い項目に、HIA総合管理の判定マスタの内容を反映する。
+
+    「HIA健保管理に設定が無い場合は、HIA総合管理の判定マスタの情報を反映する」ための処理です。
+    反映するのは健保共通の基準で、企業ごとの基準は上書きしません。
+    戻り値は (反映した項目数, 反映した件数)。
+    """
+    items = db.execute("SELECT * FROM judge_item ORDER BY sort, id").fetchall()
+    if item_ids is not None:
+        keep = set(item_ids)
+        items = [i for i in items if i["id"] in keep]
+    n_item = n_row = 0
+    for it in items:
+        has = db.execute("SELECT COUNT(*) c FROM judge_criteria WHERE kenpo_id=?"
+                         " AND company_id IS NULL AND item_id=? AND fiscal_year=?",
+                         (kenpo_id, it["id"], fy)).fetchone()["c"]
+        if has:
+            continue
+        rows = judge_defaults_of(db, it["code"])
+        if not rows:
+            continue
+        for r in rows:
+            db.execute("INSERT INTO judge_criteria (kenpo_id, company_id, item_id,"
+                       " fiscal_year, judge, sex, lo, hi, sort, updated_at)"
+                       " VALUES (?, NULL, ?,?,?,?,?,?,?,?)",
+                       (kenpo_id, it["id"], fy, r["judge"], r["sex"], r["lo"], r["hi"],
+                        r["sort"], now()))
+            n_row += 1
+        n_item += 1
+    if n_item:
+        db.commit()
+        log("master", "判定マスタを反映（HIA総合管理 → HIA健保管理）", "success",
+            target=f"{fy}年度", detail=f"{n_item}項目・{n_row}件を健保共通として登録")
+    return n_item, n_row
+
+
+def criteria_map(db, kenpo_id, company_id, fy):
+    """判定に使う基準を項目IDごとに返す（企業ごとの基準があれば健保共通より優先）"""
+    sql = ("SELECT * FROM judge_criteria WHERE kenpo_id=? AND fiscal_year=?"
+           " AND company_id IS ? ORDER BY sort, id")
+    out = {}
+    for r in db.execute(sql, (kenpo_id, fy, None)):     # 健保共通
+        out.setdefault(r["item_id"], []).append(r)
+    if company_id:
+        mine = {}
+        for r in db.execute(sql, (kenpo_id, fy, company_id)):
+            mine.setdefault(r["item_id"], []).append(r)
+        out.update(mine)                                # 企業ごとの基準で置き換える
+    return out
+
+
+def judge_by_rules(rules, value, sex=""):
+    """検査値を判定基準に当てて A〜E を求める（該当が無ければ None）"""
+    try:
+        v = float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    sx = "男性" if str(sex).startswith("男") else ("女性" if str(sex).startswith("女") else "")
+    best = None
+    for r in rules:
+        rsex = r["sex"] or "共通"
+        if rsex != "共通" and rsex != sx:
+            continue
+        lo, hi = r["lo"], r["hi"]
+        try:
+            if lo not in (None, "") and v < float(lo):
+                continue
+            # 上限値は「以下」（hi と同じ値もその判定に含めます）
+            if hi not in (None, "") and v > float(hi):
+                continue
+        except ValueError:
+            continue
+        # 性別を指定した基準を優先する
+        if best is None or (rsex != "共通" and (best[1] == "共通")):
+            best = (r["judge"], rsex)
+    return best[0] if best else None
+
+
+@app.route("/criteria")
+@login_required
+def criteria():
+    """判定マスタ（企業ごと／健保共通の判定基準の一覧）"""
+    db, acc = get_db(), current_account()
+    comps = scoped_companies(acc)
+    cid = request.args.get("company_id", type=int)
+    if cid and not owns_company(acc, cid):
+        flash("選択された企業を操作する権限がありません。", "error")
+        return redirect(url_for("criteria"))
+    fy = (request.args.get("fy") or str(_current_fy())).strip()
+    sec = (request.args.get("sec") or "").strip()
+    q = (request.args.get("q") or "").strip()
+    code = (request.args.get("code") or "").strip()
+    kid, cid = _criteria_scope(acc, cid)
+    # 健保共通の基準が無い項目には、既定値（日本人間ドック学会の判定区分）を入れておきます
+    if kid:
+        reflect_judge_defaults(db, kid, fy)
+    items = judge_items(db, sec, q, code)
+    mine = {}
+    for r in criteria_rows(db, kid, cid, fy):
+        mine.setdefault(r["item_id"], []).append(r)
+    common = {}
+    if cid:
+        for r in criteria_rows(db, kid, None, fy):
+            common.setdefault(r["item_id"], []).append(r)
+    n_all = db.execute("SELECT COUNT(*) c FROM judge_item").fetchone()["c"]
+    return render_template("criteria.html", items=items, comps=comps, cid=cid, fy=fy,
+                           mine=mine, common=common, years=_fy_options(),
+                           sections=JUDGE_SECTIONS, SECTION_NAME=SECTION_NAME,
+                           sec=sec, q=q, code=code, n_all=n_all)
+
+
+@app.route("/criteria/<int:item_id>", methods=["GET", "POST"])
+@login_required
+def criteria_edit(item_id):
+    """判定マスタ 編集（検査項目1つ分の判定基準）"""
+    db, acc = get_db(), current_account()
+    comps = scoped_companies(acc)
+    src = request.form if request.method == "POST" else request.args
+    cid = src.get("company_id", type=int)
+    if cid and not owns_company(acc, cid):
+        flash("選択された企業を操作する権限がありません。", "error")
+        return redirect(url_for("criteria"))
+    fy = (src.get("fy") or str(_current_fy())).strip()
+    kid, cid = _criteria_scope(acc, cid)
+    item = db.execute("SELECT * FROM judge_item WHERE id=?", (item_id,)).fetchone()
+    if not item:
+        flash("検査項目が見つかりません。", "error")
+        return redirect(url_for("criteria"))
+    if request.method == "GET":
+        return render_template("criteria_edit.html", item=item, comps=comps, cid=cid,
+                               fy=fy, rows=criteria_rows(db, kid, cid, fy, item_id),
+                               common=criteria_rows(db, kid, None, fy, item_id) if cid
+                               else [], JUDGE_CODES=JUDGE_CODES,
+                               JUDGE_SEXES=JUDGE_SEXES, years=_fy_options(),
+                               SECTION_NAME=SECTION_NAME)
+    # 保存（画面の行をそのまま入れ替える）
+    judges = request.form.getlist("judge")
+    sexes = request.form.getlist("sex")
+    los = request.form.getlist("lo")
+    his = request.form.getlist("hi")
+    errs, keep = [], []
+    for i, j in enumerate(judges):
+        j = (j or "").strip().upper()
+        if j not in [c for c, _ in JUDGE_CODES]:
+            continue
+        sx = (sexes[i] if i < len(sexes) else "共通") or "共通"
+        lo = (los[i] if i < len(los) else "").strip()
+        hi = (his[i] if i < len(his) else "").strip()
+        for v, label in ((lo, "下限値"), (hi, "上限値")):
+            if v:
+                try:
+                    float(v)
+                except ValueError:
+                    errs.append(f"{i + 1}行目の{label}は数値で入力してください（{v}）。")
+        if lo and hi:
+            try:
+                if float(lo) > float(hi):
+                    errs.append(f"{i + 1}行目は下限値が上限値より大きくなっています。")
+            except ValueError:
+                pass
+        keep.append((j, sx if sx in JUDGE_SEXES else "共通", lo or None, hi or None))
+    if errs:
+        for e in errs:
+            flash(e, "error")
+        return render_template("criteria_edit.html", item=item, comps=comps, cid=cid,
+                               fy=fy, rows=criteria_rows(db, kid, cid, fy, item_id),
+                               common=criteria_rows(db, kid, None, fy, item_id) if cid
+                               else [], JUDGE_CODES=JUDGE_CODES,
+                               JUDGE_SEXES=JUDGE_SEXES, years=_fy_options(),
+                               SECTION_NAME=SECTION_NAME)
+    db.execute("DELETE FROM judge_criteria WHERE kenpo_id=? AND company_id IS ?"
+               " AND item_id=? AND fiscal_year=?", (kid, cid, item_id, fy))
+    for n, (j, sx, lo, hi) in enumerate(keep, start=1):
+        db.execute("INSERT INTO judge_criteria (kenpo_id, company_id, item_id,"
+                   " fiscal_year, judge, sex, lo, hi, sort, updated_at)"
+                   " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                   (kid, cid, item_id, fy, j, sx, lo, hi, n * 10, now()))
+    db.commit()
+    place = next((c["name"] for c in comps if c["id"] == cid), None) if cid else "健保共通"
+    log("master", "判定マスタを更新", "success", target=f"{item['name']}（{fy}年度）",
+        detail=f"対象={place}／{len(keep)}件を登録")
+    flash(f"{item['name']}の判定基準（{place}・{fy}年度）を{len(keep)}件で更新しました。", "ok")
+    return redirect(url_for("criteria", company_id=cid, fy=fy))
+
+
+# ================================================================ 加入者ごとの写真
+# 採血結果などの写真を「個人ごと」に取り込み、加入者マスタ（加入者の編集画面）で見ます。
+# ファイル本体は uploads/member_photos/<加入者ID>/ に置き、DBには場所と情報だけ持ちます。
+PHOTO_DIR = os.path.join(BASE_DIR, "uploads", "member_photos")
+PHOTO_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+               ".webp": "image/webp", ".gif": "image/gif", ".heic": "image/heic",
+               ".pdf": "application/pdf"}
+MAX_PHOTO_MB = int(os.environ.get("HIA_MAX_PHOTO_MB", "10"))
+PHOTO_KINDS = ["採血結果", "健診結果票", "問診票", "同意書", "その他"]
+
+
+def member_in_scope(db, acc, mid):
+    """権限の範囲にある加入者を1件返す（範囲外なら None）"""
+    where, params = member_where(acc)
+    return db.execute(
+        "SELECT m.*, c.name AS company_name, o.name AS office_name, d.name AS dept_name"
+        " FROM member m LEFT JOIN company c ON c.id=m.company_id"
+        " LEFT JOIN office o ON o.id=m.office_id LEFT JOIN department d ON d.id=m.dept_id"
+        " WHERE m.id=? AND " + where, [mid] + params).fetchone()
+
+
+def photos_of(db, mid):
+    return db.execute("SELECT * FROM member_photo WHERE member_id=?"
+                      " ORDER BY id DESC", (mid,)).fetchall()
+
+
+def photo_counts(db, ids):
+    """加入者ごとの写真の枚数"""
+    if not ids:
+        return {}
+    q = ",".join("?" * len(ids))
+    return {r["member_id"]: r["n"] for r in db.execute(
+        f"SELECT member_id, COUNT(*) n FROM member_photo WHERE member_id IN ({q})"
+        " GROUP BY member_id", list(ids))}
+
+
+def _photo_path(mid, filename):
+    return os.path.join(PHOTO_DIR, str(mid), filename)
+
+
+@app.route("/members/photos")
+@login_required
+def member_photos_page():
+    """写真の取込（個人ごと）。加入者を探して選び、写真を取り込みます。"""
+    db, acc = get_db(), current_account()
+    q = (request.args.get("q") or "").strip()
+    mid = request.args.get("mid", type=int)
+    where, params = member_where(acc)
+    rows, sel, photos = [], None, []
+    if q:
+        like = f"%{q}%"
+        rows = db.execute(
+            "SELECT m.id, m.name, m.kana, m.subscriber_id, m.employee_code, m.member_no,"
+            " c.name AS company_name, o.name AS office_name"
+            " FROM member m LEFT JOIN company c ON c.id=m.company_id"
+            " LEFT JOIN office o ON o.id=m.office_id"
+            " WHERE " + where + " AND (m.subscriber_id LIKE ? OR m.employee_code LIKE ?"
+            " OR m.member_no LIKE ? OR m.name LIKE ? OR m.kana LIKE ?)"
+            " ORDER BY m.subscriber_id, m.member_no LIMIT 50",
+            params + [like] * 5).fetchall()
+    if mid:
+        sel = member_in_scope(db, acc, mid)
+        if not sel:
+            flash("対象の加入者を操作する権限がありません。", "error")
+            return redirect(url_for("member_photos_page"))
+        photos = photos_of(db, mid)
+    n_all = db.execute("SELECT COUNT(*) c FROM member_photo p JOIN member m"
+                       " ON m.id=p.member_id WHERE " + where, params).fetchone()["c"]
+    return render_template("member_photos.html", q=q, rows=rows, sel=sel, photos=photos,
+                           counts=photo_counts(db, [r["id"] for r in rows]),
+                           kinds=PHOTO_KINDS, max_mb=MAX_PHOTO_MB,
+                           exts=sorted(PHOTO_TYPES), n_all=n_all)
+
+
+@app.route("/members/<int:mid>/photos", methods=["POST"])
+@login_required
+def member_photo_upload(mid):
+    """写真を取り込む（1人に何枚でも）"""
+    return save_member_photos(mid)
+
+
+def save_member_photos(mid, back=None, by_self=False):
+    """写真の取込の本体。担当者の画面と、加入者ご本人のマイページで共通に使う。
+
+    by_self=True は加入者ご本人が自分の写真を取り込む場合（操作ログにその旨を残す）。
+    """
+    db, acc = get_db(), current_account()
+    row = member_in_scope(db, acc, mid)
+    if not row:
+        log("import", "写真の取込をブロック", "blocked", target=str(mid), detail="スコープ外")
+        flash("対象の加入者を操作する権限がありません。", "error")
+        return redirect(back or url_for("member_photos_page"))
+    files = [f for f in request.files.getlist("photos") if f and f.filename]
+    kind = (request.form.get("kind") or "").strip()
+    taken_on = _fmt_date(request.form.get("taken_on") or "")
+    note = (request.form.get("note") or "").strip()
+    back = back or request.form.get("back") or url_for("member_photos_page", mid=mid)
+    if not files:
+        flash("取り込む写真を選択してください。", "error")
+        return redirect(back)
+    os.makedirs(_photo_path(mid, ""), exist_ok=True)
+    ok, ng = 0, []
+    for fs in files:
+        ext = os.path.splitext(fs.filename)[1].lower()
+        if ext not in PHOTO_TYPES:
+            ng.append(f"{fs.filename}（対応していない形式）")
+            continue
+        data = fs.read()
+        if len(data) > MAX_PHOTO_MB * 1024 * 1024:
+            ng.append(f"{fs.filename}（{MAX_PHOTO_MB}MBを超えています）")
+            continue
+        name = uuid.uuid4().hex + ext
+        with open(_photo_path(mid, name), "wb") as out:
+            out.write(data)
+        db.execute("INSERT INTO member_photo (member_id, kind, filename, orig_name, mime,"
+                   " bytes, taken_on, note, uploaded_by) VALUES (?,?,?,?,?,?,?,?,?)",
+                   (mid, kind or None, name, fs.filename, PHOTO_TYPES[ext], len(data),
+                    taken_on or None, note or None, acc["email"]))
+        ok += 1
+    db.commit()
+    log("import", "加入者の写真を取込", "success" if ok else "failure",
+        target=row["subscriber_id"] or row["member_no"],
+        detail=f"{ok}件を登録／区分={kind or '未設定'}"
+               + ("／ご本人による取込" if by_self else "")
+               + (f"／取込できなかったファイル{len(ng)}件" if ng else ""))
+    if ok:
+        flash(f"写真を{ok}件取り込みました。", "ok")
+    for m in ng:
+        flash("取り込めませんでした：" + m, "error")
+    return redirect(back)
+
+
+@app.route("/members/<int:mid>/photos/<int:pid>")
+@login_required
+def member_photo_file(mid, pid):
+    """写真そのものを返す（権限の範囲の加入者だけ）"""
+    db, acc = get_db(), current_account()
+    if not member_in_scope(db, acc, mid):
+        log("view", "写真の閲覧をブロック", "blocked", target=str(mid), detail="スコープ外")
+        return Response("この写真を見る権限がありません。", status=403,
+                        mimetype="text/plain; charset=utf-8")
+    p = db.execute("SELECT * FROM member_photo WHERE id=? AND member_id=?",
+                   (pid, mid)).fetchone()
+    path = _photo_path(mid, p["filename"]) if p else None
+    if not path or not os.path.exists(path):
+        return Response("写真が見つかりません。", status=404,
+                        mimetype="text/plain; charset=utf-8")
+    with open(path, "rb") as f:
+        return Response(f.read(), headers={
+            "Content-Type": p["mime"] or "application/octet-stream",
+            "Content-Disposition": "inline",
+            "Cache-Control": "private, max-age=0, no-store"})
+
+
+@app.route("/members/<int:mid>/photos/<int:pid>/delete", methods=["POST"])
+@login_required
+def member_photo_delete(mid, pid):
+    db, acc = get_db(), current_account()
+    row = member_in_scope(db, acc, mid)
+    if not row:
+        flash("対象の加入者を操作する権限がありません。", "error")
+        return redirect(url_for("member_photos_page"))
+    p = db.execute("SELECT * FROM member_photo WHERE id=? AND member_id=?",
+                   (pid, mid)).fetchone()
+    if p:
+        path = _photo_path(mid, p["filename"])
+        if os.path.exists(path):
+            os.remove(path)
+        db.execute("DELETE FROM member_photo WHERE id=?", (pid,))
+        db.commit()
+        log("master", "加入者の写真を削除", "success",
+            target=row["subscriber_id"] or row["member_no"],
+            detail=f"{p['kind'] or '区分未設定'}／{p['orig_name'] or p['filename']}")
+        flash("写真を削除しました。", "ok")
+    return redirect(request.form.get("back") or url_for("member_photos_page", mid=mid))
+
+
+# 取込ファイルの見出しの旧名称（そのまま取り込めるようにする）
+HEADER_ALIASES = {"事業所（企業）コード": "企業コード", "所属コード": "事業所コード"}
+
+
 def read_table(fs):
     raw = fs.read()
     for enc in ("utf-8-sig", "cp932", "utf-8"):
         try:
-            return list(csv.DictReader(io.StringIO(raw.decode(enc))))
+            rows = list(csv.DictReader(io.StringIO(raw.decode(enc))))
         except UnicodeDecodeError:
             continue
+        for r in rows:
+            for old, new in HEADER_ALIASES.items():
+                if old in r and new not in r:
+                    r[new] = r.pop(old)
+        return rows
     raise ValueError("文字コードを判別できませんでした（UTF-8 または Shift_JIS で保存してください）")
 
 
@@ -3767,14 +4481,14 @@ MEMBER_COLUMNS = ["加入者ID", "被保険者証記号", "被保険者証番号
                   "被保険者属性名", "続柄名称", "対象者氏名（漢字）", "対象者氏名（カナ）",
                   "性別", "生年月日", "資格取得日（家族認定日）", "資格喪失日（家族削除日）",
                   "郵便番号", "住所", "住所（建物名）", "電話番号", "メールアドレス",
-                  "事業所（企業）コード", "所属コード", "配付先コード", "社員コード",
-                  "connectID", "個人ID"]
+                  "企業コード", "事業所コード", "請求先コード", "社員番号",
+                  "健保別加入者管理ID"]
 MEMBER_REQUIRED = ["被保険者証番号", "対象者氏名（漢字）"]
 # 加入者IDは当システムで採番する（ファイルの値は使わない）
 MEMBER_SAMPLE = ["", "99999", "9001", "", "", "本人", "伊藤博文", "イトウヒロブミ", "男",
                  "1961/10/16", "2000/4/1", "", "1710014", "東京都豊島区池袋2-43-1",
                  "池袋青柳ビル　７階", "364163872",
-                 "hirobumi.nagao+ZD5D0200@kusurinomadoguchi.co.jp", "436", "", "", "", "", ""]
+                 "hirobumi.nagao+ZD5D0200@kusurinomadoguchi.co.jp", "436", "", "", "", ""]
 
 
 def cur_id(db, kenpo_id, mark, member_no, branch):
@@ -3813,7 +4527,7 @@ def members_import():
     db, acc = get_db(), current_account()
     fs = request.files.get("file")
     rows, resp = _read_upload(fs, MEMBER_COLUMNS, "members",
-                              ["被保険者証番号", "対象者氏名（漢字）", "事業所（企業）コード"])
+                              ["被保険者証番号", "対象者氏名（漢字）", "企業コード"])
     if rows is None:
         return resp
 
@@ -3844,8 +4558,8 @@ def members_import():
     ok, err, seen = [], [], set()
     for i, r in enumerate(rows, start=2):
         g = lambda k: (r.get(k) or "").strip()
-        no, name, ccode = g("被保険者証番号"), g("対象者氏名（漢字）"), g("事業所（企業）コード")
-        ocode = g("所属コード")
+        no, name, ccode = g("被保険者証番号"), g("対象者氏名（漢字）"), g("企業コード")
+        ocode = g("事業所コード")
         mark, branch = g("被保険者証記号"), g("被保険者証枝番")
         e, warn = [], []
         for col in MEMBER_REQUIRED:
@@ -3856,7 +4570,7 @@ def members_import():
             warn.append(f"企業コード「{ccode}」は未登録のため未紐づけで登録します")
         off = offs.get((comp["id"], ocode)) if comp and ocode else None
         if ocode and comp and not off:
-            warn.append(f"所属コード「{ocode}」は企業「{comp['name']}」に未登録のため"
+            warn.append(f"事業所コード「{ocode}」は企業「{comp['name']}」に未登録のため"
                         f"部署は未設定にします")
         cur = cur_id(db, kenpo_id, mark, no, branch)
         if g("加入者ID") and not cur:
@@ -3894,14 +4608,15 @@ def members_import():
                            "qualified_at": qual,
                            "lost_at": lost,
                            "zip": g("郵便番号"),
-                           "address": g("住所"),
+                           # 取込ファイルの「住所」は 都道府県・市区町村・住所 に分けて持つ
+                           **dict(zip(("pref", "city", "address"), split_address(g("住所")))),
                            "address2": g("住所（建物名）"),
                            "tel": g("電話番号"),
                            "email": g("メールアドレス"),
-                           "delivery_code": g("配付先コード"),
-                           "employee_code": g("社員コード"),
-                           "connect_id": g("connectID"),
-                           "personal_id": g("個人ID"),
+                           "billing_code": g("請求先コード"),
+                           # 旧フォーマットの「社員コード」も受け付けます
+                           "employee_code": g("社員番号") or g("社員コード"),
+                           "kenpo_member_id": g("健保別加入者管理ID"),
                        })
         (err if e else ok).append(row)
 
@@ -3989,9 +4704,9 @@ def _read_upload(fs, columns, back, required=None):
     return rows, None
 
 
-COMPANY_COLUMNS = ["事業所（企業）コード", "保険者番号", "被保険者証記号", "企業名",
+COMPANY_COLUMNS = ["企業コード", "保険者番号", "被保険者証記号", "企業名",
                    "企業名（フリガナ）", "郵便番号", "住所", "電話番号", "担当メールアドレス",
-                   "所属コード", "部署名", "部署名（フリガナ）"]
+                   "事業所コード", "部署名", "部署名（フリガナ）"]
 COMPANY_REQUIRED = ["保険者番号", "企業名", "部署名"]
 COMPANY_SAMPLE = ["456", "6139166", "1000", "ひかり健康保険組合", "ヒカリケンコウホケンクミアイ",
                   "1080023", "東京都港区芝浦4-16-25　安全ビル4F", "363651454",
@@ -4030,7 +4745,7 @@ def companies_import():
     db, acc = get_db(), current_account()
     fs = request.files.get("file")
     rows, resp = _read_upload(fs, COMPANY_COLUMNS, "companies",
-                              ["事業所（企業）コード", "保険者番号", "企業名", "部署名"])
+                              ["企業コード", "保険者番号", "企業名", "部署名"])
     if rows is None:
         return resp
 
@@ -4043,8 +4758,8 @@ def companies_import():
     ok, err, seen, seen_c = [], [], set(), set()
     for i, r in enumerate(rows, start=2):
         g = lambda k: (r.get(k) or "").strip()
-        ccode, kcode, cname = g("事業所（企業）コード"), g("保険者番号"), g("企業名")
-        ocode, oname = g("所属コード"), g("部署名")
+        ccode, kcode, cname = g("企業コード"), g("保険者番号"), g("企業名")
+        ocode, oname = g("事業所コード"), g("部署名")
         e = []
         for col in COMPANY_REQUIRED:
             if not g(col):
@@ -4058,7 +4773,7 @@ def companies_import():
             e.append("同じ企業・事業所の行がファイル内で重複")
         seen.add(key)
 
-        # 既存かどうかは「健保が管理する事業所（企業）コード」で判断する。
+        # 既存かどうかは「健保が管理する企業コード」で判断する。
         # コードが空の場合は企業名で照合する。
         cur_c = None
         if kenpo and ccode:
@@ -4079,9 +4794,9 @@ def companies_import():
         seen_c.add((kcode, ccode or cname))
         warn = []
         if not ccode:
-            warn.append("事業所（企業）コードが空欄のため、企業名で照合します")
+            warn.append("企業コードが空欄のため、企業名で照合します")
         if not ocode:
-            warn.append("所属コードが空欄のため、事業所名で照合します")
+            warn.append("事業所コードが空欄のため、事業所名で照合します")
         row = {"line": i, "cells": [g(c) for c in COMPANY_COLUMNS], "errors": e,
                "warnings": warn,
                "mode": ("更新" if (cur_c or in_file) else "新規")
@@ -4105,7 +4820,7 @@ def companies_import():
                            commit_url=url_for("companies_import_commit"), show_mode=True,
                            has_warn=any(r["warnings"] for r in ok + err),
                            lead="1行につき企業と部署（事業所）を登録します。"
-                                "事業所（企業）コードと所属コードは"
+                                "企業コードと事業所コードは"
                                 "健保・企業が管理する番号として保存し、次回の取込で"
                                 "同じ番号の行があれば内容を更新します（更新のキー）。"
                                 "当社内部コードは自動で割り振ります。")
@@ -4176,10 +4891,27 @@ def companies_import_commit():
 
 # ================================================================ 事業所（部署）の一括取込
 # 企業登録フォーマットと同じ呼び方でそろえた、部署だけを登録するフォーマット
-OFFICE_COLUMNS = ["保険者番号", "事業所（企業）コード", "所属コード", "部署名",
+def _link_conf(label, options, help_text):
+    """確認（プレビュー）画面で紐づけ先を選ばせるための設定"""
+    return {"label": label, "options": options, "help": help_text}
+
+
+def company_options(acc):
+    """紐づけ先に選べる企業（コード　企業名）"""
+    return [(c["id"], f"{c['ext_code'] or c['code']}　{c['name']}")
+            for c in scoped_companies(acc)]
+
+
+def office_options(acc):
+    """紐づけ先に選べる事業所（企業名／事業所名）"""
+    return [(o["id"], f"{o['company_name']}　／　{o['ext_code'] or o['code']}　{o['name']}")
+            for o in scoped_offices(acc)]
+
+
+OFFICE_COLUMNS = ["保険者番号", "企業コード", "事業所コード", "部署名",
                   "部署名（フリガナ）", "郵便番号", "住所", "電話番号"]
-OFFICE_REQUIRED = ["保険者番号", "事業所（企業）コード", "部署名"]
-# 所属コードはファイルの値を使わず、当システムで採番する
+OFFICE_REQUIRED = ["保険者番号", "企業コード", "部署名"]
+# 事業所コードはファイルの値を使わず、当システムで採番する
 OFFICE_SAMPLE = ["6139166", "456", "8718", "株式会社　光通信", "ヒカリツウシン",
                  "1080023", "東京都港区芝浦4-16-25　安全ビル4F", "363651454"]
 
@@ -4201,7 +4933,7 @@ def offices_import():
     if rows is None:
         return resp
 
-    # 操作できる企業を (保険者番号, 事業所（企業）コード) で引けるようにする。
+    # 操作できる企業を (保険者番号, 企業コード) で引けるようにする。
     # 健保が管理する番号（ext_code）でも、当社内部コードでも引ける。
     comps = {}
     for c in scoped_companies(acc):
@@ -4213,22 +4945,20 @@ def offices_import():
     ok, err, seen = [], [], set()
     for i, r in enumerate(rows, start=2):
         g = lambda k: (r.get(k) or "").strip()
-        kcode, ccode, ocode, name = (g("保険者番号"), g("事業所（企業）コード"),
-                                     g("所属コード"), g("部署名"))
+        kcode, ccode, ocode, name = (g("保険者番号"), g("企業コード"),
+                                     g("事業所コード"), g("部署名"))
         e = []
         for col in OFFICE_REQUIRED:
             if not g(col):
                 e.append(f"{col}が未入力")
+        # 企業が特定できない行はエラーにせず、確認画面で企業を選んで紐づけてもらう
         comp = comps.get((kcode, ccode))
-        if kcode and ccode and not comp:
-            e.append(f"保険者番号「{kcode}」・事業所（企業）コード「{ccode}」の企業が"
-                     f"未登録、または操作の範囲外")
         key = (kcode, ccode, ocode or name)
         if key in seen:
             e.append("同じ企業・事業所の行がファイル内で重複")
         seen.add(key)
 
-        # 既存かどうかは「企業が管理する所属コード」で判断する。空欄なら名称で照合
+        # 既存かどうかは「企業が管理する事業所コード」で判断する。空欄なら名称で照合
         cur = None
         if comp and ocode:
             cur = db.execute("SELECT * FROM office WHERE company_id=? AND ext_code=?",
@@ -4238,14 +4968,18 @@ def offices_import():
                              (comp["id"], name)).fetchone()
         warn = []
         if not ocode:
-            warn.append("所属コードが空欄のため、事業所名で照合します")
+            warn.append("事業所コードが空欄のため、事業所名で照合します")
+        if comp is None and not e:
+            warn.append("企業が特定できないため、右の列で企業を選んでください")
         row = {"line": i, "cells": [g(c) for c in OFFICE_COLUMNS], "errors": e,
-               "warnings": warn, "mode": "更新" if cur else "新規"}
+               "warnings": warn,
+               "mode": "要紐づけ" if comp is None else ("更新" if cur else "新規")}
         if not e:
-            row.update(company_id=comp["id"], code=ocode, name=name,
+            row.update(company_id=comp["id"] if comp else None, code=ocode, name=name,
                        kana=g("部署名（フリガナ）"), zip=g("郵便番号"),
                        address=g("住所"), tel=g("電話番号"),
-                       office_id=cur["id"] if cur else None)
+                       office_id=cur["id"] if cur else None,
+                       link_id=comp["id"] if comp else None, link_need=comp is None)
         (err if e else ok).append(row)
 
     token = _stage("office", ok, fs.filename) if (ok and not err) else None
@@ -4256,7 +4990,11 @@ def offices_import():
                            filename=fs.filename, back_url=url_for("offices"),
                            commit_url=url_for("offices_import_commit"), show_mode=True,
                            has_warn=any(r["warnings"] for r in ok + err),
-                           lead="所属コードは企業が管理する番号として保存し、"
+                           link=_link_conf("企業", company_options(acc),
+                                           "ファイルの保険者番号・企業コードで"
+                                           "企業を照合しています。"
+                                           "選び直すと、その企業の下に登録します。"),
+                           lead="事業所コードは企業が管理する番号として保存し、"
                                 "次回の取込で同じ番号の行があれば内容を更新します（更新のキー）。"
                                 "当社内部コードは登録順に自動発番します。")
 
@@ -4265,34 +5003,184 @@ def offices_import():
 @login_required
 def offices_import_commit():
     db, acc = get_db(), current_account()
-    stg = STAGING.pop(request.form.get("token") or "", None)
+    tok = request.form.get("token") or ""
+    stg = STAGING.get(tok)
     if not stg or stg["kind"] != "office" or stg["email"] != acc["email"]:
         flash("取込内容の有効期限が切れています。もう一度アップロードしてください。", "error")
         return redirect(url_for("offices"))
     ins = upd = 0
+    skip = []
     for r in stg["rows"]:
-        if r["office_id"]:
+        # 確認画面で選ばれた企業を優先する（未選択ならファイルから判定した企業）
+        cid = request.form.get(f"link_{r['line']}", type=int) or r.get("company_id")
+        if not cid or not owns_company(acc, cid):
+            skip.append(r["line"])
+            continue
+        # 企業を選び直した場合もあるため、既存かどうかは確定時にもう一度照合する
+        cur = None
+        if r["code"]:
+            cur = db.execute("SELECT id FROM office WHERE company_id=? AND ext_code=?",
+                             (cid, r["code"])).fetchone()
+        if not cur:
+            cur = db.execute("SELECT id FROM office WHERE company_id=? AND name=?",
+                             (cid, r["name"])).fetchone()
+        if cur:
             db.execute("UPDATE office SET name=?, ext_code=COALESCE(?, ext_code), kana=?,"
                        " zip=?, address=?, tel=?, updated_at=? WHERE id=?",
                        (r["name"], r["code"] or None, r["kana"], r["zip"], r["address"],
-                        r["tel"], now(), r["office_id"]))
+                        r["tel"], now(), cur["id"]))
             upd += 1
         else:
             db.execute("INSERT INTO office (company_id, ext_code, code, name, kana, zip,"
                        " address, tel) VALUES (?,?,?,?,?,?,?,?)",
-                       (r["company_id"], r["code"] or None,
-                        next_code("office", str(r["company_id"]), width=3),
+                       (cid, r["code"] or None,
+                        next_code("office", str(cid), width=3),
                         r["name"], r["kana"], r["zip"], r["address"], r["tel"]))
             ins += 1
     db.commit()
+    STAGING.pop(tok, None)
     log("master", "事業所をCSVで一括登録", "success", target=stg["filename"],
-        detail=f"新規{ins}件／更新{upd}件")
+        detail=f"新規{ins}件／更新{upd}件"
+               + (f"／企業未選択で取込せず{len(skip)}件" if skip else ""))
     flash(f"事業所を新規{ins}件・更新{upd}件で取り込みました。", "ok")
+    if skip:
+        flash(f"企業が選ばれていない{len(skip)}件（行 "
+              + "、".join(str(n) for n in skip[:10])
+              + ("…" if len(skip) > 10 else "") + "）は取り込んでいません。", "error")
     return redirect(url_for("offices"))
 
 
+# ================================================================ 部署の一括取込
+# 事業所の下に置く部署を取り込む。事業所は「事業所コード」で照合し、
+# 特定できない行は確認画面で事業所を選んで紐づけます。
+DEPT_COLUMNS = ["保険者番号", "企業コード", "事業所コード", "部署コード",
+                "部署名", "部署名（フリガナ）"]
+DEPT_REQUIRED = ["保険者番号", "企業コード", "部署名"]
+
+
+@app.route("/departments/import", methods=["POST"])
+@login_required
+def departments_import():
+    """部署登録フォーマットを取り込む。事業所コードで事業所を照合する。"""
+    db, acc = get_db(), current_account()
+    fs = request.files.get("file")
+    rows, resp = _read_upload(fs, DEPT_COLUMNS, "departments", DEPT_REQUIRED)
+    if rows is None:
+        return resp
+
+    # 操作できる事業所を（保険者番号, 企業コード, 事業所コード）で引けるようにする
+    offs = {}
+    for o in scoped_offices(acc):
+        k = db.execute("SELECT code FROM kenpo WHERE id=?", (o["kenpo_id"],)).fetchone()
+        for ck in (o["company_ext"], o["company_code"]):
+            for ok_ in (o["ext_code"], o["code"]):
+                if ck and ok_:
+                    offs.setdefault((k["code"], ck, ok_), o)
+
+    ok, err, seen = [], [], set()
+    for i, r in enumerate(rows, start=2):
+        g = lambda k: (r.get(k) or "").strip()
+        kcode, ccode, ocode = g("保険者番号"), g("企業コード"), g("事業所コード")
+        dcode, name = g("部署コード"), g("部署名")
+        e = []
+        for col in DEPT_REQUIRED:
+            if not g(col):
+                e.append(f"{col}が未入力")
+        off = offs.get((kcode, ccode, ocode)) if ocode else None
+        key = (kcode, ccode, ocode, dcode or name)
+        if key in seen:
+            e.append("同じ事業所・部署の行がファイル内で重複")
+        seen.add(key)
+
+        # 既存かどうかは事業所の中の「部署コード」で判断する。空欄なら部署名で照合
+        cur = None
+        if off and dcode:
+            cur = db.execute("SELECT id FROM department WHERE office_id=? AND ext_code=?",
+                             (off["id"], dcode)).fetchone()
+        if not cur and off and name:
+            cur = db.execute("SELECT id FROM department WHERE office_id=? AND name=?",
+                             (off["id"], name)).fetchone()
+        warn = []
+        if not dcode:
+            warn.append("部署コードが空欄のため、部署名で照合します")
+        if off is None and not e:
+            warn.append("事業所が特定できないため、右の列で事業所を選んでください")
+        row = {"line": i, "cells": [g(c) for c in DEPT_COLUMNS], "errors": e,
+               "warnings": warn,
+               "mode": "要紐づけ" if off is None else ("更新" if cur else "新規")}
+        if not e:
+            row.update(office_id=off["id"] if off else None, code=dcode, name=name,
+                       kana=g("部署名（フリガナ）"), dept_id=cur["id"] if cur else None,
+                       link_id=off["id"] if off else None, link_need=off is None)
+        (err if e else ok).append(row)
+
+    token = _stage("dept", ok, fs.filename) if (ok and not err) else None
+    log("import", "部署の取込ファイルを検証", "success" if not err else "failure",
+        target=fs.filename, detail=f"正常{len(ok)}件／エラー{len(err)}件")
+    return render_template("master_preview.html", title="部署の一括インポート",
+                           columns=DEPT_COLUMNS, ok_rows=ok, err_rows=err, token=token,
+                           filename=fs.filename, back_url=url_for("departments"),
+                           commit_url=url_for("departments_import_commit"),
+                           show_mode=True,
+                           has_warn=any(r["warnings"] for r in ok + err),
+                           link=_link_conf("事業所", office_options(acc),
+                                           "ファイルの事業所コードで事業所を照合しています。"
+                                           "選び直すと、その事業所の下に登録します。"),
+                           lead="部署コードは企業が管理する番号として保存し、"
+                                "次回の取込で同じ番号の行があれば内容を更新します（更新のキー）。"
+                                "当社内部コードは登録順に自動発番します。")
+
+
+@app.route("/departments/import/commit", methods=["POST"])
+@login_required
+def departments_import_commit():
+    db, acc = get_db(), current_account()
+    tok = request.form.get("token") or ""
+    stg = STAGING.get(tok)
+    if not stg or stg["kind"] != "dept" or stg["email"] != acc["email"]:
+        flash("取込内容の有効期限が切れています。もう一度アップロードしてください。", "error")
+        return redirect(url_for("departments"))
+    ins = upd = 0
+    skip = []
+    for r in stg["rows"]:
+        # 確認画面で選ばれた事業所を優先する（未選択ならファイルから判定した事業所）
+        oid = request.form.get(f"link_{r['line']}", type=int) or r.get("office_id")
+        if not oid or not owns_office(acc, oid):
+            skip.append(r["line"])
+            continue
+        cur = None
+        if r["code"]:
+            cur = db.execute("SELECT id FROM department WHERE office_id=? AND ext_code=?",
+                             (oid, r["code"])).fetchone()
+        if not cur:
+            cur = db.execute("SELECT id FROM department WHERE office_id=? AND name=?",
+                             (oid, r["name"])).fetchone()
+        if cur:
+            db.execute("UPDATE department SET name=?, ext_code=COALESCE(?, ext_code),"
+                       " kana=?, updated_at=? WHERE id=?",
+                       (r["name"], r["code"] or None, r["kana"], now(), cur["id"]))
+            upd += 1
+        else:
+            db.execute("INSERT INTO department (office_id, ext_code, code, name, kana)"
+                       " VALUES (?,?,?,?,?)",
+                       (oid, r["code"] or None, next_code("dept", str(oid), width=3),
+                        r["name"], r["kana"]))
+            ins += 1
+    db.commit()
+    STAGING.pop(tok, None)
+    log("master", "部署をCSVで一括登録", "success", target=stg["filename"],
+        detail=f"新規{ins}件／更新{upd}件"
+               + (f"／事業所未選択で取込せず{len(skip)}件" if skip else ""))
+    flash(f"部署を新規{ins}件・更新{upd}件で取り込みました。", "ok")
+    if skip:
+        flash(f"事業所が選ばれていない{len(skip)}件（行 "
+              + "、".join(str(n) for n in skip[:10])
+              + ("…" if len(skip) > 10 else "") + "）は取り込んでいません。", "error")
+    return redirect(url_for("departments"))
+
+
 # ================================================================ 出力
-def export_csv(filename, header, rows, kind):
+def export_csv(filename, header, rows, kind, cap=True):
     acc = current_account()
     if not feature_allowed("download", acc):
         log("download", "出力をブロック", "blocked", target=kind,
@@ -4303,7 +5191,8 @@ def export_csv(filename, header, rows, kind):
         log("download", "出力をブロック", "blocked", target=kind, detail="ダウンロード権限なし")
         flash("このアカウントにはダウンロード権限がありません。", "error")
         return None
-    if len(rows) > MAX_EXPORT_ROWS:
+    # 操作ログのように「全件を出せること」が要件の出力では cap=False で上限を外します
+    if cap and len(rows) > MAX_EXPORT_ROWS:
         log("download", "出力をブロック（上限超過）", "blocked", target=kind,
             detail=f"要求{len(rows)}件 > 上限{MAX_EXPORT_ROWS}件。管理者へ通知")
         flash(f"出力件数が上限（{MAX_EXPORT_ROWS}件）を超えています。"
@@ -4322,8 +5211,9 @@ def members_export():
     rows = db.execute(
         "SELECT m.subscriber_id, m.cert_mark, m.member_no, m.cert_branch, m.attr,"
         " m.relation, m.name, m.kana, m.sex, m.birth, m.qualified_at, m.lost_at,"
-        " m.zip, m.address, m.address2, m.tel, m.email, c.code, o.code,"
-        " m.delivery_code, m.employee_code, m.connect_id, m.personal_id"
+        " m.zip, TRIM(COALESCE(m.pref,'')||COALESCE(m.city,'')||COALESCE(m.address,'')),"
+        " m.address2, m.tel, m.email, c.code, o.code,"
+        " m.billing_code, m.employee_code, m.kenpo_member_id"
         " FROM member m LEFT JOIN company c ON c.id=m.company_id"
         " LEFT JOIN office o ON o.id=m.office_id"
         " WHERE " + where + " ORDER BY c.code, o.code, m.member_no", params).fetchall()
@@ -4345,7 +5235,7 @@ def feature_settings():
             if feature_na(key, rk):
                 matrix[rk][key] = False     # 役割上の対象外（切り替えません）
             elif fixed:
-                matrix[rk][key] = (rk == FIXED_FEATURE_ROLE)
+                matrix[rk][key] = (rk in fixed_roles(key))
             elif rk == ALL_FEATURE_ROLE:
                 matrix[rk][key] = True      # 当社スタッフは常に利用可（切替不可）
             else:
@@ -4567,7 +5457,7 @@ def accounts():
         p += list(mine)
     rows = db.execute(
         sql + " ORDER BY CASE a.status WHEN 'deleted' THEN 1 ELSE 0 END,"
-              " a.is_primary DESC, a.id DESC", p).fetchall()
+              " a.id DESC", p).fetchall()
     # 担当範囲（企業・事業所・部署）を行ごとに付ける
     comp_map, scope_map = {}, {}
     for r in db.execute("SELECT ac.account_id, c.name, c.code FROM account_company ac"
@@ -4603,7 +5493,7 @@ def accounts():
 @login_required
 def accounts_export():
     db, acc = get_db(), current_account()
-    sql = ("SELECT a.email, a.name, a.role, a.view_scope, a.can_download, a.status, a.is_primary,"
+    sql = ("SELECT a.email, a.name, a.role, a.view_scope, a.can_download, a.status, 0,"
            " k.name, c.name, a.created_at, a.last_login_at, a.sub_role FROM account a"
            " LEFT JOIN company c ON c.id=a.company_id LEFT JOIN kenpo k ON k.id=a.kenpo_id"
            " WHERE a.status <> 'deleted'")
@@ -4619,11 +5509,11 @@ def accounts_export():
     rows = [(r[0], r[1], ROLE_LABELS.get(r[2], r[2]),
              SUB_ROLE_LABELS.get(r[11] or "", ""), SCOPE_LABELS.get(r[3], r[3]),
              "可" if r[4] else "不可", STATUS_LABELS.get(r[5], r[5]),
-             "代表者" if r[6] else "", r[7] or "", r[8] or "", r[9], r[10] or "")
+             r[7] or "", r[8] or "", r[9], r[10] or "")
             for r in db.execute(sql + " ORDER BY a.id", p)]
     return export_csv("accounts.csv",
                       ["メールアドレス", "利用者名", "権限ロール", "サブロール", "閲覧範囲",
-                       "ダウンロード", "状態", "区分", "健康保険組合", "企業名", "作成日時",
+                       "ダウンロード", "状態", "健康保険組合", "企業名", "作成日時",
                        "最終ログイン"],
                       rows, "アカウント一覧") or redirect(url_for("accounts"))
 
@@ -4654,44 +5544,30 @@ def scope_kenpo_id(acc, scopes):
 
 def _resolve_scope(acc, role, company_ids, office_ids=None, dept_ids=None):
     """ロールから閲覧範囲を決定する。手動指定はさせない。
-    企業担当者は「健保 → 企業 → 事業所 → 部署」の連動で担当範囲を選ぶ。
-    - 事業所は選択企業の配下、部署は選択事業所の配下に限る（企業を跨いだ指定はできない）。
-    - 企業配下の事業所を1つも選ばなければ、その企業まるごとが担当範囲。
-      1つ以上選んだ場合は企業まるごとの担当を外し、選んだ事業所（＋部署）だけに絞る。
-    指定できるのは発行者の操作範囲内のものだけ。
-    戻り値は (view_scope, scopes, rejected, rel_companies)。
-    - scopes … 実際の閲覧範囲。company は「まるごと担当」の企業だけ（絞り込んだ企業は含めない）。
-    - rel_companies … この担当が関わる企業すべて（まるごと＋絞り込み対象の親企業）。
-      account_company・確認画面・編集画面の企業選択の復元に使う。確認画面の再送信で
-      親企業が失われて絞り込みが消えるのを防ぐ。"""
+    企業担当者は、企業・事業所・部署を跨いで複数まとめて担当できる。
+    指定できるのは発行者の操作範囲内のものだけ。"""
     if role == "system_admin":
-        return "all", {"company": [], "office": [], "dept": []}, [], []
+        return "all", {"company": [], "office": [], "dept": []}
     if role == "kenpo_user":
-        return "kenpo_all", {"company": [], "office": [], "dept": []}, [], []
+        return "kenpo_all", {"company": [], "office": [], "dept": []}
+    ok_c = {c["id"] for c in scoped_companies(acc)}
     offs = scoped_offices(acc)
     depts = scoped_departments(acc)
-    ok_c = {c["id"] for c in scoped_companies(acc)}
     ok_o = {o["id"] for o in offs}
     ok_d = {d["id"] for d in depts}
-    want_c = list(company_ids or [])
-    want_o = list(office_ids or [])
-    want_d = list(dept_ids or [])
-    # 発行者の操作範囲の外にあるものは弾く（なりすまし・改ざん対策）
-    rejected = ([i for i in want_c if i not in ok_c]
-                + [i for i in want_o if i not in ok_o]
-                + [i for i in want_d if i not in ok_d])
-    comp_sel = [i for i in want_c if i in ok_c]
-    cset = set(comp_sel)
-    off_sel = [o["id"] for o in offs if o["id"] in set(want_o) and o["company_id"] in cset]
-    oset = set(off_sel)
-    dept_sel = [d["id"] for d in depts if d["id"] in set(want_d) and d["office_id"] in oset]
-    # 選択した企業すべて（まるごと＋絞り込み対象の親企業）。account_company に入れる。
-    rel_companies = list(comp_sel)
-    # 事業所を選んだ企業は「まるごと担当」から外す（選んだ事業所・部署だけに絞る）
-    narrowed = {o["company_id"] for o in offs if o["id"] in oset}
-    scope_c = [c for c in comp_sel if c not in narrowed]
-    return ("own_company", {"company": scope_c, "office": off_sel, "dept": dept_sel},
-            rejected, rel_companies)
+    scopes = {
+        "company": [i for i in (company_ids or []) if i in ok_c],
+        "office": [i for i in (office_ids or []) if i in ok_o],
+        "dept": [i for i in (dept_ids or []) if i in ok_d],
+    }
+    # 事業所・部署は「選んだ企業の中」から絞るものなので、企業に属さないものは外す
+    if scopes["company"]:
+        cids = set(scopes["company"])
+        o_of = {o["id"]: o["company_id"] for o in offs}
+        d_of = {d["id"]: d["company_id"] for d in depts}
+        scopes["office"] = [i for i in scopes["office"] if o_of.get(i) in cids]
+        scopes["dept"] = [i for i in scopes["dept"] if d_of.get(i) in cids]
+    return "own_company", scopes
 
 
 @app.route("/accounts/new", methods=["GET", "POST"])
@@ -4712,7 +5588,6 @@ def accounts_new():
     company_ids = [int(x) for x in request.form.getlist("company_ids") if x.isdigit()]
     kenpo_id = request.form.get("kenpo_id", type=int)
     can_dl = 1 if request.form.get("can_download") else 0
-    is_primary = 1 if request.form.get("is_primary") else 0
 
     errs = []
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}", email):
@@ -4731,13 +5606,10 @@ def accounts_new():
 
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    view_scope, scopes, rejected, rel_c = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
-    company_ids = rel_c
-    if view_scope == "own_company":
-        if rejected:
-            errs.append("選択した企業・事業所・部署のうち、操作する権限のないものが含まれています。")
-        if not any(scopes.values()):
-            errs.append("担当する企業を選択してください（特定の事業所・部署だけに絞ることもできます）。")
+    view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
+    company_ids = scopes["company"]
+    if view_scope == "own_company" and not scopes["company"]:
+        errs.append("担当する企業を1社以上選択してください（事業所・部署は任意です）。")
     if role == "kenpo_user":
         if acc["role"] != "system_admin":
             kenpo_id = acc["kenpo_id"]
@@ -4759,7 +5631,7 @@ def accounts_new():
     vis = visible_members(kenpo_id, company_ids, view_scope, scopes=scopes)
     return render_template("accounts_confirm.html", email=email, name=name, role=role,
                            srole=srole,
-                           view_scope=view_scope, can_dl=can_dl, is_primary=is_primary,
+                           view_scope=view_scope, can_dl=can_dl,
                            companies=sel, company_ids=company_ids,
                            kenpo=kenpo, kenpo_id=kenpo_id, vis=vis, scopes=scopes, scope_label=scope_summary(scopes))
 
@@ -4775,7 +5647,6 @@ def accounts_create():
     company_ids = [int(x) for x in request.form.getlist("company_ids") if x.isdigit()]
     kenpo_id = request.form.get("kenpo_id", type=int)
     can_dl = 1 if request.form.get("can_download") == "1" else 0
-    is_primary = 1 if request.form.get("is_primary") == "1" else 0
 
     if request.form.get("confirmed") != "1":
         flash("閲覧できる加入者の範囲を確認してから発行してください。", "error")
@@ -4785,18 +5656,19 @@ def accounts_create():
             detail=f"権限外のロール（{ROLE_LABELS.get(role, role)}）を指定")
         flash("そのロールを発行する権限がありません。", "error")
         return redirect(url_for("accounts_new"))
+    requested = len(company_ids)
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    view_scope, scopes, rejected, rel_c = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
-    company_ids = rel_c
+    view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
+    company_ids = scopes["company"]
     if view_scope == "own_company":
-        if rejected:
+        if requested != len(company_ids):
             log("account", "アカウント発行をブロック", "blocked", target=email,
-                detail=f"スコープ外の企業・事業所・部署が指定された（{rejected}）")
-            flash("選択された企業・事業所・部署のうち、操作する権限のないものが含まれています。", "error")
+                detail=f"スコープ外の企業が指定された（要求{requested}社／許可{len(company_ids)}社）")
+            flash("選択された企業のうち、操作する権限のないものが含まれています。", "error")
             return redirect(url_for("accounts_new"))
-        if not any(scopes.values()):
-            flash("担当する企業を選択してください。", "error")
+        if not scopes["company"]:
+            flash("担当する企業を1社以上選択してください（事業所・部署は任意です）。", "error")
             return redirect(url_for("accounts_new"))
     if role == "kenpo_user" and acc["role"] != "system_admin":
         kenpo_id = acc["kenpo_id"]
@@ -4810,19 +5682,18 @@ def accounts_create():
     expire = (datetime.now() + timedelta(hours=INVITE_HOURS)).strftime("%Y-%m-%d %H:%M:%S")
     cur = db.execute(
         "INSERT INTO account (email, name, role, sub_role, view_scope, can_download,"
-        " is_primary, kenpo_id, company_id, status, invite_token, invite_expire, created_by)"
-        " VALUES (?,?,?,?,?,?,?,?,?,'invited',?,?,?)",
-        (email, name, role, srole, view_scope, can_dl, is_primary, kenpo_id, None,
+        " kenpo_id, company_id, status, invite_token, invite_expire, created_by)"
+        " VALUES (?,?,?,?,?,?,?,?,'invited',?,?,?)",
+        (email, name, role, srole, view_scope, can_dl, kenpo_id, None,
          token, expire, acc["email"]))
-    set_account_scopes(cur.lastrowid, scopes, rel_c)
+    set_account_scopes(cur.lastrowid, scopes)
     db.commit()
     log("account", "アカウントを発行", "success", target=email,
         detail=(f"ロール={ROLE_LABELS[role]}"
                 + (f"（{SUB_ROLE_LABELS[srole]}）" if srole else "")
                 + f"／閲覧範囲={SCOPE_LABELS[view_scope]}"
-                + (f"（{company_names(scopes['company'])}）" if scopes.get("company") else "")
+                + (f"（{company_names(company_ids)}）" if company_ids else "")
                 + f"／担当範囲={scope_summary(scopes)}"
-                + f"／{'代表者／' if is_primary else ''}"
                 f"閲覧対象={vis['total']}件（{vis['companies']}社・{vis['offices']}事業所）"
                 f"／ダウンロード={'可' if can_dl else '不可'}／初回パスワードは発行しない"))
     flash(f"{email} を登録しました。案内メールを送信してください。", "ok")
@@ -4902,7 +5773,6 @@ def accounts_edit(aid):
     srole = clean_sub_role(role, request.form.get("sub_role"))
     company_ids = [int(x) for x in request.form.getlist("company_ids") if x.isdigit()]
     can_dl = 1 if request.form.get("can_download") else 0
-    is_primary = 1 if request.form.get("is_primary") else 0
     errs = []
     if not name:
         errs.append("利用者名を入力してください。")
@@ -4910,13 +5780,10 @@ def accounts_edit(aid):
         errs.append(f"「{ROLE_LABELS.get(role, role)}」へ変更する権限がありません。")
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    view_scope, scopes, rejected, rel_c = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
-    company_ids = rel_c
-    if view_scope == "own_company":
-        if rejected:
-            errs.append("選択した企業・事業所・部署のうち、操作する権限のないものが含まれています。")
-        if not any(scopes.values()):
-            errs.append("担当する企業を選択してください（特定の事業所・部署だけに絞ることもできます）。")
+    view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
+    company_ids = scopes["company"]
+    if view_scope == "own_company" and not scopes["company"]:
+        errs.append("担当する企業を1社以上選択してください（事業所・部署は任意です）。")
     if role == "kenpo_user" and acc["role"] == "system_admin":
         kid = request.form.get("kenpo_id", type=int)
         if not kid:
@@ -4955,13 +5822,12 @@ def accounts_edit(aid):
         ("閲覧範囲", SCOPE_LABELS.get(row["view_scope"], row["view_scope"]),
          SCOPE_LABELS[view_scope]),
         ("ダウンロード", "可" if row["can_download"] else "不可", "可" if can_dl else "不可"),
-        ("区分", "代表者" if row["is_primary"] else "一般", "代表者" if is_primary else "一般"),
         ("閲覧できる加入者", f"{vb['total']:,}件（{vb['companies']}社）",
          f"{va['total']:,}件（{va['companies']}社）"),
     ]
     return render_template("accounts_edit_confirm.html", row=row, name=name, role=role,
                            srole=srole,
-                           view_scope=view_scope, can_dl=can_dl, is_primary=is_primary,
+                           view_scope=view_scope, can_dl=can_dl,
                            companies=sel, company_ids=company_ids, kenpo_id=kenpo_id,
                            kenpo=kenpo, vis=va, diff=diff,
                            changed=any(a != b for _, a, b in diff),
@@ -4985,24 +5851,24 @@ def accounts_edit_apply(aid):
     srole = clean_sub_role(role, request.form.get("sub_role"))
     company_ids = [int(x) for x in request.form.getlist("company_ids") if x.isdigit()]
     can_dl = 1 if request.form.get("can_download") == "1" else 0
-    is_primary = 1 if request.form.get("is_primary") == "1" else 0
     if not name or role not in issuable_roles(acc):
         log("account", "権限変更をブロック", "blocked", target=row["email"],
             detail=f"権限外のロール（{ROLE_LABELS.get(role, role)}）への変更を試行")
         flash("そのロールへ変更する権限がありません。", "error")
         return redirect(url_for("accounts_edit", aid=aid))
+    requested = len(company_ids)
     office_ids = request.form.getlist("office_ids", type=int)
     dept_ids = request.form.getlist("dept_ids", type=int)
-    view_scope, scopes, rejected, rel_c = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
-    company_ids = rel_c
+    view_scope, scopes = _resolve_scope(acc, role, company_ids, office_ids, dept_ids)
+    company_ids = scopes["company"]
     if view_scope == "own_company":
-        if rejected:
+        if requested != len(company_ids):
             log("account", "権限変更をブロック", "blocked", target=row["email"],
-                detail=f"スコープ外の企業・事業所・部署が指定された（{rejected}）")
-            flash("選択された企業・事業所・部署のうち、操作する権限のないものが含まれています。", "error")
+                detail=f"スコープ外の企業が指定された（要求{requested}社／許可{len(company_ids)}社）")
+            flash("選択された企業のうち、操作する権限のないものが含まれています。", "error")
             return redirect(url_for("accounts_edit", aid=aid))
-        if not any(scopes.values()):
-            flash("担当する企業を選択してください。", "error")
+        if not scopes["company"]:
+            flash("担当する企業を1社以上選択してください（事業所・部署は任意です）。", "error")
             return redirect(url_for("accounts_edit", aid=aid))
     old_ids = account_company_ids(aid)
     kenpo_id = row["kenpo_id"]
@@ -5042,14 +5908,11 @@ def accounts_edit_apply(aid):
     if bool(row["can_download"]) != bool(can_dl):
         changes.append(("CSVのダウンロード", "可" if row["can_download"] else "不可",
                         "可" if can_dl else "不可"))
-    if bool(row["is_primary"]) != bool(is_primary):
-        changes.append(("区分", "代表者" if row["is_primary"] else "一般",
-                        "代表者" if is_primary else "一般"))
 
     db.execute("UPDATE account SET name=?, role=?, sub_role=?, view_scope=?, kenpo_id=?,"
-               " can_download=?, is_primary=?, updated_at=? WHERE id=?",
-               (name, role, srole, view_scope, kenpo_id, can_dl, is_primary, now(), aid))
-    set_account_scopes(aid, scopes, rel_c)
+               " can_download=?, updated_at=? WHERE id=?",
+               (name, role, srole, view_scope, kenpo_id, can_dl, now(), aid))
+    set_account_scopes(aid, scopes)
     db.commit()
     log("account", "アカウントの権限を変更", "success", target=row["email"],
         detail=("／".join(f"{k} {a} → {b2}" for k, a, b2 in changes) or "変更なし")
@@ -5267,92 +6130,95 @@ def _log_scope(acc):
     return "", []
 
 
+def log_is_km():
+    """いま HIA総合管理（当社）側で見ているか。
+    HIA健保管理（青）で開いたときは、当社側（km）の操作ログは出しません。"""
+    return session.get("shell") == "km"
+
+
+def _log_filters(acc, args):
+    """操作ログの絞り込み条件をSQLに組み立てる（画面とCSV出力で同じ条件を使う）"""
+    km = log_is_km()
+    f = {"category": (args.get("category") or "").strip() if km else "",
+         "shell": (args.get("shell") or "").strip() if km else "",
+         "q": (args.get("q") or "").strip(),
+         "from": (args.get("from") or "").strip(),
+         "to": (args.get("to") or "").strip()}
+    sql, p = "", []
+    sc, sp = _log_scope(acc)
+    sql += sc
+    p += sp
+    if not km:
+        # HIA健保管理側は、健保管理の画面での操作だけを出す
+        sql += " AND shell=?"
+        p.append("kenpo")
+    if f["category"]:
+        sql += " AND category=?"
+        p.append(f["category"])
+    if f["shell"]:
+        sql += " AND shell=?"
+        p.append(f["shell"])
+    if f["q"]:
+        sql += " AND (actor_email LIKE ? OR action LIKE ? OR target LIKE ? OR detail LIKE ?)"
+        p += [f"%{f['q']}%"] * 4
+    if f["from"]:
+        sql += " AND ts >= ?"
+        p.append(f["from"] + " 00:00:00")
+    if f["to"]:
+        sql += " AND ts <= ?"
+        p.append(f["to"] + " 23:59:59")
+    return f, sql, p
+
+
 @app.route("/logs")
 @login_required
 def logs():
     db, acc = get_db(), current_account()
-    cat = request.args.get("category") or ""
-    shell = request.args.get("shell") or ""
-    kw = (request.args.get("q") or "").strip()
-    dfrom = request.args.get("from") or ""
-    dto = request.args.get("to") or ""
-    sql, p = "SELECT * FROM audit_log WHERE 1=1", []
-    sc, sp = _log_scope(acc)
-    sql += sc
-    p += sp
-    if cat:
-        sql += " AND category=?"
-        p.append(cat)
-    if shell:
-        sql += " AND shell=?"
-        p.append(shell)
-    if kw:
-        sql += " AND (actor_email LIKE ? OR action LIKE ? OR target LIKE ? OR detail LIKE ?)"
-        p += [f"%{kw}%"] * 4
-    if dfrom:
-        sql += " AND ts >= ?"
-        p.append(dfrom + " 00:00:00")
-    if dto:
-        sql += " AND ts <= ?"
-        p.append(dto + " 23:59:59")
+    f, where, p = _log_filters(acc, request.args)
+    sql = "SELECT * FROM audit_log WHERE 1=1" + where
     total = db.execute("SELECT COUNT(*) c FROM (" + sql + ")", p).fetchone()["c"]
     rows = db.execute(sql + " ORDER BY id DESC LIMIT 300", p).fetchall()
-    return render_template("logs.html", rows=rows, total=total, cat=cat, shell=shell,
-                           kw=kw, dfrom=dfrom, dto=dto, mails=mail_log_rows(db))
+    return render_template("logs.html", rows=rows, total=total, cat=f["category"],
+                           shell=f["shell"], kw=f["q"], dfrom=f["from"], dto=f["to"],
+                           KM_LOG=log_is_km())
 
 
-def mail_log_rows(db, limit=100):
-    """配信ログ（メールの送信記録）を1回の配信ごとにまとめて返す。
-
-    受診勧奨・受検案内は同じ時刻にまとめて送るため、
-    「配信日時（分単位）×メール種別×テンプレート」で1行にし、
-    宛先数・成功・失敗・スキップの件数だけを出します（個人名は出しません）。
-    """
-    try:
-        return db.execute(
-            "SELECT substr(l.sent_at,1,16) sent_at, l.kind kind,"
-            "       COALESCE(t.name, l.subject, '—') tpl,"
-            "       COUNT(*) n,"
-            "       SUM(CASE WHEN l.result='success' THEN 1 ELSE 0 END) ok,"
-            "       SUM(CASE WHEN l.result='failure' THEN 1 ELSE 0 END) ng,"
-            "       SUM(CASE WHEN l.result='skipped' THEN 1 ELSE 0 END) sk,"
-            "       MAX(l.actor) actor"
-            "  FROM oh_mail_log l"
-            "  LEFT JOIN oh_mail_template t ON t.id = l.template_id"
-            " GROUP BY substr(l.sent_at,1,16), l.kind, l.template_id"
-            " ORDER BY sent_at DESC LIMIT ?", (limit,)).fetchall()
-    except sqlite3.Error:
-        return []                            # 産業医面談管理のテーブルが無い場合
-
-
-@app.route("/logs/mail/export")
-@login_required
-def logs_mail_export():
-    db = get_db()
-    rows = [(r["sent_at"], r["kind"], r["tpl"], r["n"], r["ok"], r["ng"], r["sk"],
-             r["actor"] or "") for r in mail_log_rows(db, limit=10000)]
-    return export_csv("mail_log.csv",
-                      ["配信日時", "メール種別", "テンプレート名", "宛先数", "成功",
-                       "失敗", "スキップ", "実行者"], rows, "配信ログ") \
-        or redirect(url_for("logs"))
+LOG_EXPORT_COLUMNS = ["日時", "画面", "区分", "操作", "結果", "実行者", "実行者ロール",
+                      "IPアドレス", "対象", "ディレクトリ", "詳細"]
 
 
 @app.route("/logs/export")
 @login_required
 def logs_export():
+    """操作ログをCSVで出力する。
+
+    画面の一覧は最大300件までしか出しませんが、CSVは**該当する全件**を出します。
+    `all=1` を付けると絞り込みを無視して、権限の範囲のログをすべて出力します。
+    件数の上限（HIA_MAX_EXPORT_ROWS）は、記録の保全のため操作ログには適用しません。
+    """
     db, acc = get_db(), current_account()
+    everything = request.args.get("all") in ("1", "true", "on")
+    args = {} if everything else request.args
+    f, where, p = _log_filters(acc, args)
     sql = ("SELECT ts, shell, category, action, result, actor_email, actor_role, ip,"
-           " target, detail FROM audit_log WHERE 1=1")
-    sc, p = _log_scope(acc)
-    sql += sc
+           " target, path, detail FROM audit_log WHERE 1=1" + where)
     rows = [(r[0], {"km": "HIA総合管理", "kenpo": "HIA健保管理"}.get(r[1], r[1] or ""),
              r[2], r[3],
              {"success": "成功", "failure": "失敗", "blocked": "ブロック"}.get(r[4], r[4]),
-             r[5] or "", ROLE_LABELS.get(r[6], r[6] or ""), r[7] or "", r[8] or "", r[9] or "")
+             r[5] or "", ROLE_LABELS.get(r[6], r[6] or ""), r[7] or "", r[8] or "",
+             r[9] or "", r[10] or "")
             for r in db.execute(sql + " ORDER BY id", p)]
-    return export_csv("audit_log.csv",
-                      ["日時", "画面", "区分", "操作", "結果", "実行者", "実行者ロール",
-                       "IPアドレス", "対象", "詳細"], rows, "操作ログ") or redirect(url_for("logs"))
+    # 絞り込みの語句（氏名など）は記録に残さないため、条件は項目名だけを書きます
+    if everything:
+        cond = "すべて"
+    else:
+        names = {"category": "区分", "shell": "画面", "q": "キーワード",
+                 "from": "開始日", "to": "終了日"}
+        used = [f"{names[k]}={v}" if k != "q" else "キーワード指定あり"
+                for k, v in f.items() if v]
+        cond = "／".join(used) or "絞り込みなし"
+    return export_csv("audit_log.csv", LOG_EXPORT_COLUMNS, rows,
+                      f"操作ログ（{cond}）", cap=False) or redirect(url_for("logs"))
 
 
 @app.errorhandler(404)
@@ -5367,6 +6233,12 @@ import sys as _sys           # noqa: E402
 import sanmen               # noqa: E402
 
 sanmen.init_app(app, _sys.modules[__name__])
+
+# ================================================================ 健康管理
+# 加入者マスタとは別に、加入者一人ひとりの健康を管理する画面（/health …）。
+import health                # noqa: E402
+
+health.init_app(app, _sys.modules[__name__])
 
 
 def local_ipv4():

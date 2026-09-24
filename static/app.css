@@ -118,6 +118,31 @@
    ============================================================ */
 body.theme-km{--primary:#2f4f4f;--accent:#15803d;--bg-light:#f7f8f9}
 body.theme-kenpo{--primary:#1a365d;--accent:#3182ce;--bg-light:#f4f7f9}
+/* 産業医・人事のメインカラーは「健康」をイメージしやすいブルーグリーン（青緑）。
+   ロールで body に tone-health が付き、この色に切り替わります。 */
+body.tone-health{--primary:#1b5e5c;--accent:#2c7a7b;--bg-light:#f1f7f6}
+/* 青で決め打ちしている箇所も、青緑にそろえます */
+body.tone-health .btn-sm.primary:not(.btn-edit):not(.btn-detail-blue),
+body.tone-health a.btn-sm.primary:not(.btn-edit):not(.btn-detail-blue),
+body.tone-health .btn-submit, body.tone-health .btn-regsave,
+body.tone-health .btn-new, body.tone-health a.btn-new{
+  background:var(--primary)!important;border-color:var(--primary)!important;color:#fff!important}
+body.tone-health .btn-sm.btn-edit, body.tone-health a.btn-sm.btn-edit{
+  background:#e6f4f2!important;color:#1b5e5c!important;border-color:#bfdedb!important}
+body.tone-health .oh-jchip.is-on, body.tone-health .iv-chip.is-on{
+  background:#e6f4f2;border-color:#2c7a7b;color:#1b5e5c}
+body.tone-health .blk-head .actions .btn-sm.is-on{
+  background:#e6f4f2;color:#1b5e5c;border-color:#bfdedb}
+body.tone-health .hm-hero{border-left-color:var(--accent)}
+body.tone-health .hm-trend-item.is-cur{box-shadow:0 0 0 2px rgba(44,122,123,.12)}
+body.tone-health .oh-jtext{color:#1b5e5c}
+body.tone-health .code{color:#1b5e5c}
+body.tone-health .hm-bar{background:#7fbdbb}
+body.tone-health .hm-jbar-fill{background:#7fbdbb}
+body.tone-health .st.st-active{background:#e6f4f2;color:#1b5e5c}
+body.tone-health .scope-box{border-color:var(--primary);background:#eef8f7}
+body.tone-health .scope-box .scope-ttl{color:var(--primary)}
+body.tone-health .dash-rate-value{color:#1b5e5c}
 
 /* フォントは全画面で統一（シェルごとに変えない） */
 html,body,.frag{font-family:'Zen Kaku Gothic New','Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,system-ui,sans-serif}
@@ -184,10 +209,14 @@ button,.btn-primary,.btn-submit,.btn-sm,.btn-back{font-family:inherit;cursor:poi
 .modal-card{background:#fff;border-radius:12px;width:100%;max-width:660px;
   box-shadow:0 14px 48px rgba(0,0,0,.3);overflow:hidden}
 /* 画面より背が高い内容でも見出し（×ボタン）が画面の外に出ないようにします */
-.modal-back .modal-card{max-height:calc(100vh - 40px);display:flex;flex-direction:column}
+.modal-back .modal-card{max-height:calc(100vh / var(--ui-zoom,1) - 40px);display:flex;flex-direction:column}
 .modal-back .modal-card .modal-head,
 .modal-back .modal-card .modal-foot{flex-shrink:0}
-.modal-back .modal-card .modal-body{overflow-y:auto;flex:1 1 auto}
+/* min-height:0 が無いと中身の高さのまま縮まず、フッター（送信ボタン）が
+   カードの外へはみ出します（flex の既定 min-height:auto の対策）。
+   本文とフッターを <form> で包む画面があるので、form も縦のフレックスにします */
+.modal-back .modal-card > form{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.modal-back .modal-card .modal-body{overflow-y:auto;flex:1 1 auto;min-height:0}
 .modal-card .modal-head{display:flex;align-items:center;gap:10px;padding:16px 22px;
   border-bottom:1px solid var(--border);background:var(--primary);color:#fff}
 /* 見出しの共通ルール（色 #333333）より優先して白にします（背景が濃い紺のため） */
@@ -199,25 +228,77 @@ button,.btn-primary,.btn-submit,.btn-sm,.btn-back{font-family:inherit;cursor:poi
 .modal-card .modal-foot{display:flex;gap:10px;align-items:center;justify-content:flex-end;
   padding:14px 22px;border-top:1px solid var(--border);background:var(--bg-light)}
 
+/* ---- 一括インポートのモーダル ---- */
+.imp-card{max-width:560px}
+/* 手順（1 ファイルを選ぶ → 2 内容を確認 → 3 登録）*/
+.imp-steps{display:flex;align-items:center;gap:8px;list-style:none;margin:0 0 18px;padding:0}
+.imp-steps li{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;
+  color:#a0aec0;white-space:nowrap}
+.imp-steps li+li::before{content:"";width:14px;height:1px;background:var(--border);
+  margin-right:1px}
+.imp-steps .imp-n{display:inline-flex;align-items:center;justify-content:center;
+  width:20px;height:20px;border-radius:50%;background:#edf1f5;color:#a0aec0;
+  font-size:11.5px;font-weight:700;flex:0 0 auto}
+.imp-steps li.on{color:var(--text-main)}
+.imp-steps li.on .imp-n{background:var(--accent);color:#fff}
+.imp-kenpo{max-width:320px;margin-bottom:16px}
+
 /* ドロップゾーン */
-.drop{border:2px dashed #c3ccd6;border-radius:10px;background:var(--bg-light);
-  padding:30px 20px;text-align:center;cursor:pointer;transition:.15s}
-.drop:hover{border-color:var(--accent);background:#f0f7fc}
-.drop.over{border-color:var(--accent);background:#e8f2fb;border-style:solid}
-.drop .drop-ico{font-size:30px;line-height:1;color:var(--accent);margin-bottom:8px}
-.drop .drop-main{font-size:14px;font-weight:700;color:var(--text-main);margin-bottom:4px}
-.drop .drop-sub{font-size:11.5px;color:#a0aec0;line-height:1.7}
+.drop{position:relative;border:1.5px dashed #c8d2dd;border-radius:12px;
+  background:linear-gradient(180deg,#fbfdff 0%,var(--bg-light) 100%);
+  padding:32px 20px 26px;text-align:center;cursor:pointer;
+  transition:border-color .15s, background .15s, box-shadow .15s}
+.drop:hover{border-color:var(--accent);background:#f4f9fd;
+  box-shadow:0 2px 10px rgba(0,0,0,.05)}
+.drop.over{border-color:var(--accent);background:#e8f2fb;border-style:solid;
+  box-shadow:0 0 0 4px rgba(49,130,206,.12)}
+.drop .drop-ico{display:inline-flex;align-items:center;justify-content:center;
+  width:46px;height:46px;margin-bottom:12px;border-radius:50%;
+  background:#fff;border:1px solid var(--border);color:var(--accent);
+  box-shadow:0 2px 6px rgba(0,0,0,.06)}
+.drop .drop-ico svg{width:22px;height:22px;display:block}
+.drop.over .drop-ico{background:var(--accent);border-color:var(--accent);color:#fff}
+.drop .drop-main{font-size:14px;font-weight:700;color:var(--text-main);margin-bottom:3px}
+.drop .drop-sub{font-size:12px;color:#8b98a8;line-height:1.7}
+.drop .drop-tags{display:flex;justify-content:center;gap:6px;margin-top:12px}
+.drop .drop-tags span{padding:2px 9px;border-radius:999px;background:#fff;
+  border:1px solid var(--border);font-size:11px;color:#8b98a8;line-height:1.7}
 .drop input[type=file]{display:none}
-.drop-file{display:none;margin-top:12px;padding:9px 13px;background:#fff;border:1px solid var(--border);
-  border-radius:6px;font-size:12.5px;text-align:left}
-.drop-file.on{display:block}
-.drop-file .fn{font-family:'Inter',Consolas,monospace;font-weight:700;color:var(--text-main)}
+
+/* 選んだファイル */
+.drop-file{display:none;margin-top:12px;padding:10px 12px;background:#fff;
+  border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:8px;font-size:12.5px;text-align:left}
+.drop-file.on{display:flex;align-items:center;gap:11px}
+.drop-file .df-ico{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+  width:34px;height:34px;border-radius:7px;background:#eef4fb;color:var(--accent);
+  font-size:10.5px;font-weight:700;letter-spacing:.03em}
+.drop-file .df-body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
+.drop-file .fn{font-weight:700;color:var(--text-main);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .drop-file .fs{color:#a0aec0;font-size:11px}
-.drop-err{display:none;margin-top:10px;font-size:12px;color:var(--error)}
+.drop-file .df-x{flex:0 0 auto;width:26px;height:26px;padding:0;line-height:1;
+  border:1px solid var(--border);border-radius:6px;background:#fff;color:#8b98a8;
+  font-size:16px;cursor:pointer}
+.drop-file .df-x:hover{background:#fff5f5;border-color:#fc8181;color:#c53030}
+.drop-err{display:none;margin-top:10px;padding:8px 11px;border-radius:7px;
+  background:#fff5f5;border:1px solid #fed7d7;font-size:12px;color:var(--error)}
 .drop-err.on{display:block}
-.col-help{margin-top:16px}
-.col-help summary{cursor:pointer;font-size:12.5px;color:var(--accent);font-weight:600}
-.col-help table{margin-top:10px}
+.imp-note{margin:16px 0 0;padding-top:13px;border-top:1px solid var(--border);
+  font-size:12px;color:#718096;line-height:1.8}
+
+/* ---- 取込の確認（プレビュー）画面：企業・事業所の紐づけ ---- */
+.mp-link-note{margin:0 0 14px;padding:11px 14px;border-radius:8px;
+  background:#eef4fc;border:1px solid #cddff3;font-size:12.5px;line-height:1.9}
+.mp-link-note b{display:inline-block;margin-right:8px;color:var(--text-main)}
+.mp-link-note span{color:#4a5568}
+.mp-link-note.need{background:#fff8ec;border-color:#f6d9a8}
+.mp-link-note .mp-need{display:block;color:#b5750f;font-weight:700}
+.result-table td.mp-link{padding:5px 8px}
+.result-table td.mp-link select{width:100%;min-width:230px;max-width:340px;
+  font-size:12.5px;padding:5px 8px}
+.result-table tr.need td{background:#fffcf5}
+.result-table tr.need td.mp-link select{border-color:#e6b45f;background:#fff}
 
 /* アカウント詳細モーダルの明細 */
 .detail-dl{display:grid;grid-template-columns:130px 1fr;gap:8px 16px;margin:0;font-size:13px}
@@ -402,6 +483,9 @@ table th, table th.tl, table th.tbl-left, table th.ops{text-align:center !import
      .col-ops   260px   操作
      .col-text  200px   長文（対象疾患・名称など。収まらない分は「…」で省略）
      .col-long  auto    長文・備考・名称（最低200px。余った幅はこの列が受けます）
+     .col-sex    88px   年齢・性別
+     .col-val   104px   検査値（BMI・血圧・時間外など）
+     .col-cnt    72px   件数（写真の枚数など）
    ============================================================ */
 .col-chk{width:92px}
 .col-no{width:44px}
@@ -415,11 +499,25 @@ table th, table th.tl, table th.tbl-left, table th.ops{text-align:center !import
 .col-kana{width:140px}
 .col-num{width:120px}
 .col-status{width:130px}
+/* 対応区分と面談の進み具合を2行で出すステータス列だけ少し広くします */
+.col-status-w{width:160px}
+/* 面談対象者一覧の操作列。就業区分と承認をその場で処理できるよう2段に並べます */
+.oh-ops-row{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+.oh-ops-row + .oh-ops-row{margin-top:6px}
+.oh-ops-sel{height:32px;min-height:32px;padding:0 6px;border-radius:6px;
+  border:1px solid var(--border);background:#fff;font-size:12px;max-width:112px}
 .col-money{width:100px}
 .col-ops{width:260px}
 .col-text{width:200px}
 .col-text,.col-text-cell,td.col-text{max-width:200px}
+/* 300px の長文列（面談対象者一覧の抽出理由など）*/
+.col-text300{width:300px}
+.col-text300,.col-text300-cell,td.col-text300{max-width:300px}
 .col-long{min-width:200px}
+/* 加入者健康一覧で使う列（年齢・性別／検査値／件数） */
+.col-sex{width:88px}
+.col-val{width:104px}
+.col-cnt{width:72px}
 /* 列に収まらない文字は「…」で省略します（全文は title 属性で確認できます） */
 table td{overflow:hidden;text-overflow:ellipsis;}
 /* ボタンが並ぶ操作セルは、収まらないときは折り返します */
@@ -439,10 +537,16 @@ table td:has(.oh-full){overflow:visible;}
 .result-table th.col-kana{width:140px}
 .result-table th.col-num{width:120px}
 .result-table th.col-status{width:130px}
+.result-table th.col-status-w{width:160px}
 .result-table th.col-money{width:100px}
 .result-table th.col-ops{width:260px}
 .result-table th.col-text{width:200px;max-width:200px}
 .result-table th.col-long{width:auto;min-width:200px}
+/* 残り幅を受ける名称の列も、収まらない分は「…」で省略します（title で全文） */
+.result-table td.col-long{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.result-table th.col-sex{width:88px}
+.result-table th.col-val{width:104px}
+.result-table th.col-cnt{width:72px}
 /* 固定幅の長文セルは、はみ出す分を「…」で省略します */
 .result-table td.col-text{max-width:200px;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap;}
@@ -579,7 +683,9 @@ body.theme-km .result-table tr.pick-row.on td{background:#e8f4ec}
    ============================================================ */
 .table-scroll.paged{max-height:620px;overflow-y:auto;overflow-x:auto}
 .table-scroll.paged thead th{position:sticky;top:0;z-index:3;background:#f0f3f6;
-  box-shadow:inset 0 -1px 0 var(--border)}
+  /* 見出しを固定すると表の上端の罫線（border-collapse で表に属する線）が一緒に流れて消えるため、
+     見出しのセル自身に上下の線を描いて、スクロール中も上段の罫線が残るようにします */
+  box-shadow:inset 0 1px 0 #ddd, inset 0 -1px 0 var(--border)}
 .rows-loading{display:flex;align-items:center;justify-content:center;gap:8px;
   padding:12px;font-size:12px;color:var(--gray-label)}
 .rows-loading .spin{width:13px;height:13px;border:2px solid #cbd5e0;
@@ -605,6 +711,11 @@ body.theme-km .result-table tr.pick-row.on td{background:#e8f4ec}
   color:var(--text-main);margin-bottom:6px}
 .req{display:inline-block;padding:1px 6px;border-radius:3px;background:#fed7d7;
   color:#c53030;font-size:10px;font-weight:700;letter-spacing:.02em}
+/* 任意の項目のしるし（必須と同じ形でグレー） */
+.opt{display:inline-block;margin-left:7px;padding:1px 6px;border-radius:3px;
+  background:#eef1f3;color:#5b6b7f;font-size:10px;font-weight:700;letter-spacing:.02em}
+/* カードの見出しに付ける必須のしるしは、見出しの右に少し離して置く */
+.block h2 > .req{margin-left:7px}
 .fld-help{margin:5px 0 0;font-size:11.5px;color:var(--gray-label);line-height:1.6}
 .fld input[type=text],.fld input[type=date],.fld select{margin:0}
 
@@ -640,8 +751,9 @@ body.theme-km .result-table tr.pick-row.on td{background:#e8f4ec}
    高さを固定する画面（一覧）
    画面の高さいっぱいに収め、表の中だけをスクロールさせる
    ============================================================ */
-body.fixed-h{height:100vh;overflow:hidden}
-body.fixed-h .frag{height:100vh;display:flex;flex-direction:column;min-height:0;
+/* 100vh は表示倍率（--ui-zoom、外側の文書だけ）の分だけ短くなるので割り戻す */
+body.fixed-h{height:calc(100vh / var(--ui-zoom,1));overflow:hidden}
+body.fixed-h .frag{height:calc(100vh / var(--ui-zoom,1));display:flex;flex-direction:column;min-height:0;
   padding-bottom:14px;box-sizing:border-box}
 /* 検索カードなどは内容の高さ、一覧カードが残りを使う */
 body.fixed-h .frag > .list-card{display:flex;flex-direction:column;flex:1;
@@ -661,6 +773,12 @@ body.fixed-h .list-card .empty-box{flex:0 0 auto}
   border-radius:4px;padding:4px 11px}
 
 /* 担当範囲（事業所・部署）の複数選択 */
+/* アカウントの登録・編集：企業の検索（1行いっぱい）→ 対象の企業｜担当する事業所・部署 を横並びの2枚に */
+.scope-row{display:flex;flex-wrap:wrap;gap:20px;align-items:stretch;margin-bottom:20px}
+.scope-row > .block{margin-bottom:0;min-width:0}
+.scope-row > #compcard-search{flex:1 1 100%}
+.scope-row > #compcard-list,.scope-row > #card-scope{flex:1 1 420px}
+.scope-row .scope-cols{grid-template-columns:1fr}
 .scope-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 @media (max-width:900px){ .scope-cols{grid-template-columns:1fr} }
 .scope-head{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;
@@ -771,17 +889,8 @@ select.ph-empty { color: #a0aec0 }
 select.ph-empty option { color: var(--text-main) }
 
 /* ============================================================
-   表示切替タブとグラフ
+   グラフ
    ============================================================ */
-.view-tabs{display:flex;align-items:center;gap:6px;margin-bottom:14px}
-.view-tab{display:inline-flex;align-items:center;justify-content:center;height:40px;
-  padding:0 22px;border-radius:6px 6px 0 0;border:1px solid var(--border);
-  border-bottom:none;background:#f7fafc;color:var(--gray-label);font-size:13px;
-  font-weight:700;text-decoration:none}
-.view-tab.on{background:#fff;color:var(--accent);
-  box-shadow:inset 0 3px 0 0 var(--accent)}
-.view-tab:hover{color:var(--accent)}
-
 .chart-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
 .chart-card{flex:1;min-width:330px;margin-bottom:0}
 .chart{display:block;overflow:visible}
@@ -936,9 +1045,19 @@ textarea { min-height: 40px; box-sizing: border-box; }
   padding:8px 11px;margin-bottom:8px;font-size:12.5px;line-height:1.7}
 .oh-memo .oh-memo-m{font-size:11px;color:var(--gray-label);margin-bottom:2px}
 
-/* 提出書類（印刷・PDF用のA4レイアウト） */
-.oh-doc{background:#fff;color:#1a202c;max-width:760px;margin:0 auto 24px;padding:26px 30px;
+/* 提出書類（印刷・PDF用のA4レイアウト）
+   A4（210×297mm）の余白内（幅190mm）に収まる大きさで組みます。 */
+@page{size:A4 portrait;margin:10mm}
+.oh-doc{background:#fff;color:#1a202c;width:190mm;max-width:100%;
+  margin:0 auto 24px;padding:26px 30px;box-sizing:border-box;
   border:1px solid var(--border);border-radius:6px}
+/* プレビュー（枠の中）は、A4の紙1枚をそのまま縮めて全体を見せます */
+body.is-preview{background:#f1f5f9;margin:0;padding:4px;overflow:hidden;
+  display:flex;justify-content:center;align-items:flex-start}
+body.is-preview .frag, body.is-preview .oh-doc{margin:0}
+body.is-preview .oh-doc{width:190mm;max-width:none;min-height:277mm;border:0;
+  border-radius:0;box-shadow:0 2px 10px rgba(0,0,0,.12);transform-origin:top left}
+body.is-preview .oh-prev-sheet{overflow:hidden;flex:0 0 auto}
 .oh-doc h1{font-size:17px;text-align:center;margin:0 0 4px;letter-spacing:.06em}
 .oh-doc h2{font-size:13px;margin:20px 0 8px;padding-bottom:4px;
   border-bottom:1.5px solid #2d3748}
@@ -951,8 +1070,8 @@ textarea { min-height: 40px; box-sizing: border-box; }
 .oh-doc .oh-sign .oh-sign-l{font-size:11px;color:#4a5568;margin-bottom:6px}
 .oh-doc .oh-sign-name{font-size:15px;font-weight:700;letter-spacing:.08em}
 .oh-doc .oh-foot{margin-top:16px;font-size:10.5px;color:#4a5568;line-height:1.8}
-.oh-toolbar{max-width:760px;margin:0 auto 16px;display:flex;gap:10px;align-items:center;
-  flex-wrap:wrap}
+.oh-toolbar{width:190mm;max-width:100%;margin:0 auto 16px;display:flex;gap:10px;
+  align-items:center;flex-wrap:wrap}
 @media print{
   .oh-toolbar,.oh-noprint{display:none !important}
   body{background:#fff !important}
@@ -1228,13 +1347,15 @@ table td .st, table td .badge, table td .flu-badge{
 .mf-grid .fld-help{font-size:11px}
 .mf-g-cert{grid-template-columns:1fr 1fr .62fr 1fr 1fr}
 .mf-g-person{grid-template-columns:1.35fr 1.35fr .7fr 1fr 1.1fr 1.1fr}
-.mf-g-belong{grid-template-columns:1.5fr 1.3fr 1.3fr .85fr .85fr}
+/* 企業・事業所・部署・社員コード・請求先コード・健保別加入者管理ID の6項目 */
+.mf-g-belong{grid-template-columns:1.35fr 1.15fr 1.15fr .8fr .8fr 1.05fr}
 .mf-g-contact{grid-template-columns:.8fr 1.9fr 1.3fr 1fr 1.4fr}
 /* 企業・事業所・部署の登録／編集で使う並び */
 .mf-g-c-basic{grid-template-columns:1.4fr .8fr 1.6fr 1.2fr .8fr}
 .mf-g-o-basic{grid-template-columns:1.6fr .8fr 1.4fr 1.2fr}
 .mf-g-d-basic{grid-template-columns:1.8fr .8fr 1.4fr 1.2fr}
 .mf-g-addr{grid-template-columns:.7fr 2.6fr}
+.mf-g-memo{grid-template-columns:1fr}
 .mf-g-tel{grid-template-columns:1fr 1.6fr 2fr}
 @media (max-width:1180px){
   .mf-g-cert,.mf-g-person,.mf-g-belong,.mf-g-contact,
@@ -1262,6 +1383,35 @@ body.theme-kenpo .btn-detail-blue:hover, body.theme-kenpo a.btn-detail-blue:hove
   border-color: #a0aec0 !important;
 }
 
+/* 一覧の行の「案内」ボタン（メールの送付）。
+   受診対象者一覧・特定保健指導 対象者一覧の「案内」と同じ配色にそろえています */
+body.theme-kenpo .btn-sm.btn-guide-blue,
+body.theme-kenpo a.btn-sm.btn-guide-blue {
+  background: #1a365d !important;   /* シェルの「案内を送付」（btn-edit btn-guide）と同じ色 */
+  color: #fff !important;
+  border: 1px solid #1a365d !important;
+}
+body.theme-kenpo .btn-sm.btn-guide-blue:hover,
+body.theme-kenpo a.btn-sm.btn-guide-blue:hover {
+  background: #1e3a78 !important;
+  border-color: #1e3a78 !important;
+}
+body.theme-kenpo .btn-sm.btn-guide-blue:disabled {
+  background: #edf2f7 !important;
+  color: #a0aec0 !important;
+  border-color: #cbd5e0 !important;
+  cursor: default;
+}
+/* 産業医・人事のメインカラー（青緑）では「案内」も同系色にします */
+body.tone-health .btn-sm.btn-guide-blue,
+body.tone-health a.btn-sm.btn-guide-blue {
+  background: var(--accent) !important; border-color: var(--accent) !important;
+}
+/* 条件でまとめて選んでいる間は、そのボタンに印を付けます */
+.hm-table ~ * .btn-sm.is-on, .blk-head .actions .btn-sm.is-on {
+  background: #e8f0fb; color: #2563b0; border-color: #bdd4ec;
+}
+
 /* ============================================================
    インポートのドラッグ＆ドロップ（産業医面談のデータ取込）
    HIA健保管理のインポート画面と同じ見た目にそろえています
@@ -1285,7 +1435,18 @@ body.theme-kenpo .btn-detail-blue:hover, body.theme-kenpo a.btn-detail-blue:hove
 .oh-metric-label{display:block;font-size:12px;color:var(--gray-label);margin-bottom:4px}
 .oh-metric-value{font-size:18px;font-weight:700;color:var(--text-main);
   font-variant-numeric:tabular-nums}
+/* 提出書類は左右に並べて、画面の横幅いっぱいに出します */
+/* 労基署報告：サマリーはダッシュボードと同じ形（summary-grid＋bottom-flex の block-inner）。
+   事業場の情報は 見出し：値 の行で並べる */
+.rp-office{display:flex;flex-direction:column}
+.rp-office .rp-of-row{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:baseline;
+  padding:11px 0;border-bottom:1px solid var(--border);font-size:14px;color:var(--text-main)}
+.rp-office .rp-of-row:last-child{border-bottom:0}
+.rp-office .rp-of-row .fld-label{margin:0}
+.block .summary-grid{margin-bottom:16px}
+.block .bottom-flex .block-inner{padding:18px 20px}
 .oh-docs{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch}
+.block:has(> .oh-docs){padding-left:16px;padding-right:16px}
 .oh-doc-card{border:1px solid var(--border);border-radius:8px;background:#fff;
   display:flex;flex-direction:column;overflow:hidden}
 .oh-doc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
@@ -1293,7 +1454,9 @@ body.theme-kenpo .btn-detail-blue:hover, body.theme-kenpo a.btn-detail-blue:hove
 .oh-doc-title{font-size:14px;font-weight:700;color:#333;line-height:1.5}
 .oh-doc-frame{position:relative;flex:1 1 auto;background:#f8fafc;
   border-bottom:1px solid var(--border)}
-.oh-doc-frame iframe{width:100%;height:520px;border:0;display:block;background:#fff}
+/* プレビューはA4の紙と同じ縦横比で、横幅いっぱいに出します */
+.oh-doc-frame iframe{width:100%;aspect-ratio:210 / 297;height:auto;min-height:640px;
+  border:0;display:block;background:#fff}
 .oh-doc-pdf{position:absolute;right:14px;bottom:14px;background:#c53030;color:#fff;
   font-size:12px;font-weight:700;border-radius:5px;padding:5px 10px;text-decoration:none;
   box-shadow:0 2px 8px rgba(0,0,0,.2)}
@@ -1305,11 +1468,18 @@ body.theme-kenpo .btn-detail-blue:hover, body.theme-kenpo a.btn-detail-blue:hove
 @media (max-width:1100px){ .oh-docs{grid-template-columns:1fr} }
 
 /* ============================================================
-   面談結果入力（左：対象者の選択／右：入力フォーム）
+   面談結果入力（検索条件 → 見出し帯 → 左：入力フォーム／右：入力対象者）
    ============================================================ */
-.iv-cols{display:grid;grid-template-columns:1fr 1.25fr;gap:16px;align-items:start}
-/* 入力対象者の一覧：選んでいる行は青系（ほかの画面の選択と同じ色）で示す */
+/* 面談結果入力は、ほかの画面と同じ作り（検索条件 → 見出し帯 → 左：入力／右：一覧）に
+   そろえています。左右のカラムは加入者マイページと同じ .hm-cols を使います */
+/* 「次の未入力の方へ」：見出し帯の右端に置く。残りの人数を小さく添える */
+.iv-next{display:inline-flex;align-items:center;gap:8px;padding:0 16px}
+.iv-next-n{font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;
+  background:rgba(255,255,255,.25);color:#fff}
+.iv-foot .iv-foot-next{background:#fff;color:var(--accent);border-color:#bdd4ec}
+.iv-foot .iv-foot-next:hover{background:#f0f7ff;border-color:var(--accent)}
 .iv-row{cursor:pointer}
+/* 入力対象者の一覧：選んでいる行は青系（ほかの画面の選択と同じ色）で示す */
 .iv-row:hover{background:#f0f7ff}
 .iv-row.is-on{background:#e8f0fb}
 .iv-row.is-on td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
@@ -1319,10 +1489,6 @@ body.theme-kenpo .btn-detail-blue:hover, body.theme-kenpo a.btn-detail-blue:hove
 .iv-foot .btn-sm:hover{background:#f0f7ff;border-color:var(--accent)}
 .iv-foot .btn-sm.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .iv-foot .btn-sm.primary:hover{background:#2b6cb0;border-color:#2b6cb0}
-.iv-kv{display:grid;grid-template-columns:120px 1fr;gap:6px 14px;margin-bottom:16px}
-.iv-kv dt{font-size:12px;color:var(--gray-label);margin:0}
-.iv-kv dd{margin:0;font-size:14px;font-weight:700;color:#333}
-.iv-sec-title{font-size:14px;font-weight:700;color:#333;margin:0 0 10px}
 .iv-chips{display:flex;gap:0;border:1px solid var(--border);border-radius:6px;
   overflow:hidden;width:fit-content}
 .iv-chip{padding:9px 22px;background:#fff;border:0;border-right:1px solid var(--border);
@@ -1330,13 +1496,49 @@ body.theme-kenpo .btn-detail-blue:hover, body.theme-kenpo a.btn-detail-blue:hove
 .iv-chip:last-child{border-right:0}
 .iv-chip.is-on{background:var(--accent);color:#fff}
 .iv-foot{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
-.iv-note{margin:14px 0 0;padding:10px 14px;background:var(--bg-light);
-  border-radius:6px;text-align:right}
-@media (max-width:1100px){ .iv-cols{grid-template-columns:1fr} }
+/* 見出し帯に出す就業区分（一覧で判定済みの値。この画面では変えない） */
+.hm-hero-meta .iv-work{font-weight:700;color:#4a5568;margin-left:4px}
+.hm-hero-meta .iv-work.is-set{color:var(--primary)}
+.iv-foot .btn-sm.primary .iv-next-n{background:rgba(255,255,255,.25);color:#fff}
+.iv-foot .iv-foot-next .iv-next-n{background:#e8f0fb;color:var(--primary)}
 
 /* ============================================================
    切り替え（トグル）：加入者情報の深夜業従事・健診の対象から除外
    ============================================================ */
+/* ============================================================
+   登録・編集フォーム（加入者・企業・事業所・部署）：見出しの帯 ＋ 表形式
+   ============================================================ */
+/* ===== 項目の並び（見出しの帯 ＋ 表形式：項目名のセル｜入力欄のセル を左右2組） ===== */
+.mt-block{padding:0;overflow:hidden}
+.mt-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 20px;
+  border-bottom:1px solid var(--border)}
+.mt-head h2{margin:0;font-size:14px}
+.mt-note{font-size:11.5px;color:var(--gray-label);line-height:1.6}
+.mt-tbl{display:grid;grid-template-columns:190px minmax(0,1fr) 190px minmax(0,1fr);
+  gap:1px;margin:16px 20px 20px;border:1px solid #cbd5e0;border-radius:6px;overflow:hidden;
+  background:#cbd5e0}   /* 罫線：セルの隙間（1px）に下地の色を見せる（表示倍率が変わっても線が消えない） */
+.mt-label,.mt-cell{display:flex;align-items:center;min-height:58px;padding:9px 14px;background:#fff}
+.mt-label{gap:8px;background:#f8fafc;color:#718096;font-size:12.5px;font-weight:500;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-label .req{flex:0 0 auto}
+.mt-cell{flex-wrap:wrap;gap:6px 12px;max-width:none;margin:0}
+.mt-span{grid-column:2 / -1}
+.mt-cell input[type=text],.mt-cell select{width:220px;max-width:100%}
+.mt-cell input[type=date]{width:180px;max-width:100%}
+.mt-cell.mt-w-s input[type=text],.mt-cell.mt-w-s select{width:160px}
+.mt-cell.mt-w-m input[type=text],.mt-cell.mt-w-m select{width:300px}
+.mt-cell.mt-w-l select,.mt-cell.mt-w-l input[type=text]{width:100%;max-width:460px}
+.mt-cell.mt-w-xl input[type=text]{width:100%;max-width:860px}
+.mt-cell.mt-w-full input[type=text],.mt-cell.mt-w-full textarea{width:100%}
+.mt-cell textarea{padding:8px 12px;border-radius:6px;border:1px solid #ccc;font:inherit;font-size:14px}
+.mt-cell .fld-help{flex-basis:100%;margin:0}
+.mt-block .auto-note{margin:0 20px 20px}
+@media (max-width:1180px){
+  .mt-tbl{grid-template-columns:190px minmax(0,1fr)}
+  .mt-span{grid-column:2}
+  .mt-cell.mt-w-m input[type=text],.mt-cell.mt-w-l select{width:100%}
+}
+
 .mf-toggles{display:flex;flex-wrap:wrap;gap:14px 28px}
 .mf-toggle{display:inline-flex;align-items:center;gap:10px;cursor:pointer;
   font-size:14px;color:#333}
@@ -1350,33 +1552,12 @@ body.theme-kenpo .btn-detail-blue:hover, body.theme-kenpo a.btn-detail-blue:hove
 .mf-toggle input:focus-visible + .mf-toggle-sw{box-shadow:0 0 0 3px rgba(49,130,206,.25)}
 .mf-toggle-text{line-height:1.5}
 
-/* ============================================================
-   認証方式（加入者向けサイトの本人確認で使う項目のパターン）
-   健康保険組合の登録・編集で選びます。
-   ============================================================ */
-.auth-pick{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:900px}
-.auth-opt{margin:0;cursor:pointer}
-.auth-opt input{position:absolute;opacity:0;width:0;height:0}
-.auth-opt .auth-box{display:block;border:1px solid var(--border);border-radius:8px;
-  padding:14px 16px;background:#fff;transition:.15s;height:100%}
-.auth-opt:hover .auth-box{border-color:var(--accent)}
-.auth-opt.is-on .auth-box{border-color:var(--accent);background:#f2f7fd;
-  box-shadow:0 0 0 1px var(--accent) inset}
-.auth-opt .auth-box b{display:block;font-size:14px;font-weight:700;color:var(--text-main);
-  margin-bottom:8px}
-.auth-opt.is-on .auth-box b{color:var(--accent)}
-.auth-items{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
-.auth-item{display:inline-block;padding:3px 10px;border-radius:100px;background:#eef2f7;
-  color:#4c5761;font-size:12.5px;font-weight:700;white-space:nowrap}
-.auth-opt.is-on .auth-item{background:#e8f0fb;color:#2563b0}
-.auth-opt .auth-box em{display:block;font-style:normal;font-size:12px;
-  color:var(--gray-label);line-height:1.7}
-body.theme-km .auth-opt:hover .auth-box{border-color:#2f4f4f}
-body.theme-km .auth-opt.is-on .auth-box{border-color:#2f4f4f;background:#f1f6f4;
-  box-shadow:0 0 0 1px #2f4f4f inset}
-body.theme-km .auth-opt.is-on .auth-box b{color:#2f4f4f}
-body.theme-km .auth-opt.is-on .auth-item{background:#e8f4ec;color:#15803d}
-@media (max-width:900px){ .auth-pick{grid-template-columns:1fr} }
+/* 枠（iframe）の中の画面で、見出しの行に「戻る」を置くとき
+   （企業・部署の紐づけ／加入者の紐づけ など） */
+.frag-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.frag-head > div{min-width:0}
+.frag-head .btn-back{flex-shrink:0}
+
 
 /* 面談対象者一覧の「健診結果」ボタン。HIA健保管理（青）は青系でそろえる */
 .btn-sm.btn-kenshin{background:#e8f0fb !important;color:#2563b0 !important;
@@ -1435,6 +1616,7 @@ a.summary-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0
 .summary-card .value{font-size:26px;font-weight:800;color:var(--text-main);line-height:1.2}
 .summary-card .total{font-size:15px;color:#a0aec0;font-weight:700}
 .summary-card .rate{font-size:13px;color:var(--gray-label);margin-top:4px}
+.summary-card .value small{font-weight:400;color:var(--gray-label);margin-left:2px}
 
 .charts-flex{display:grid;grid-template-columns:1fr 300px;gap:20px;margin-bottom:20px}
 .bottom-flex{display:grid;grid-template-columns:1fr 1fr;gap:20px}
@@ -1469,3 +1651,447 @@ a.insured-card:hover{border-color:var(--accent);background:#f0f7ff}
   .summary-grid{grid-template-columns:repeat(2,1fr)}
   .charts-flex,.bottom-flex{grid-template-columns:1fr}
 }
+
+/* ---- 操作ログの「ディレクトリ」列（操作した画面のURL） ---- */
+.result-table td.lg-dir{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.result-table td.lg-dir .dir-path{display:inline-block;max-width:100%;
+  padding:2px 8px;border-radius:5px;background:var(--bg-light);
+  border:1px solid var(--border);color:#4a5568;
+  font-family:'Inter',Consolas,'Courier New',monospace;font-size:12.5px;
+  overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+
+/* ---- 加入者ごとの写真（採血結果など）---- */
+.ph-add{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:14px}
+.ph-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  gap:14px;margin-top:14px}
+.ph-card{margin:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;
+  background:#fff;display:flex;flex-direction:column}
+.ph-card>a{display:block;background:var(--bg-light);line-height:0}
+.ph-card img{width:100%;height:150px;object-fit:cover;display:block}
+.ph-card .ph-pdf{display:flex;align-items:center;justify-content:center;height:150px;
+  font-size:16px;font-weight:700;color:var(--accent);letter-spacing:.06em;line-height:1}
+.ph-card figcaption{padding:9px 11px;display:flex;flex-direction:column;gap:2px;
+  font-size:12px;color:#4a5568;flex:1 1 auto}
+.ph-card figcaption b{font-size:12.5px;color:var(--text-main)}
+.ph-card figcaption .ph-note{color:#718096}
+.ph-card .ph-del{padding:0 11px 11px}
+.ph-card .ph-del .btn-sm{width:100%}
+
+/* ---- 判定マスタ（企業ごとの判定基準）---- */
+.jc-line{display:inline-block;margin:0 8px 2px 0;padding:1px 8px;border-radius:5px;
+  background:var(--bg-light);border:1px solid var(--border);font-size:12px;
+  color:#4a5568;font-variant-numeric:tabular-nums}
+/* 入力欄・プルダウンはほかの画面の入力欄と同じ見た目（縦40px・角丸6px・薄い枠線） */
+#jcRows input.jc-val{width:100%;text-align:right;font-variant-numeric:tabular-nums;
+  height:40px;min-height:40px;padding:0 12px;border:1px solid #ccc;border-radius:6px;
+  font-size:14px;color:#4a5568;font-family:inherit;background:#fff;box-sizing:border-box}
+#jcRows input.jc-val:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
+#jcRows select{height:40px;min-height:40px;font-size:13px}
+#jcRows td{padding:6px 10px}
+
+/* 判定マスタ 編集：カード右上の企業・年度の選択 */
+.cr-pick-label{font-size:12px;color:var(--gray-label);white-space:nowrap}
+select.cr-pick{height:40px;min-height:40px;min-width:180px;font-size:13px}
+
+/* 判定マスタ一覧は HIA総合管理の検査マスタと同じ作りにそろえます。
+   No.10 までを表示し、それ以降は表の中を縦スクロールします（見出し行は残ります） */
+.ms-list-scroll{max-height:528px;overflow-y:auto;overflow-x:auto}
+.ms-list-scroll thead th{position:sticky;top:0;z-index:3;background:#f0f3f6;
+  box-shadow:inset 0 1px 0 #ddd, inset 0 -1px 0 var(--border)}
+.result-table.ms-table td,.result-table.ms-table th{height:52px;
+  vertical-align:middle;border:1px solid var(--border)}
+/* XMLデータ型の見出しが切れないだけの幅を取ります */
+.col-xml{width:112px}
+.result-table th.col-xml{width:112px}
+/* 判定基準の「未設定／設定済」ボタン（これが編集の入口です） */
+.ms-set{display:inline-flex;align-items:center;justify-content:center;
+  min-width:84px;height:40px;min-height:40px;padding:0 12px;border-radius:6px;font-size:14px;
+  font-weight:500;background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;
+  cursor:pointer;transition:background .12s,border-color .12s,color .12s}
+.ms-set:hover{background:#e2e8f0;color:#475569;border-color:#b6c3ce}
+.ms-set.is-on{background:#ebf5ff;color:var(--primary);border-color:#bee3f8;
+  font-weight:600}
+.ms-set.is-on:hover{background:#dbeafe;border-color:#90cdf4}
+
+/* ---- 定期健康診断結果報告書（様式第6号）の報告項目 ---- */
+.f6-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:1180px){.f6-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){.f6-grid{grid-template-columns:1fr}}
+.f6-sub{margin:20px 0 10px;font-size:14px;color:var(--text-main)}
+
+/* ============================================================
+   定期健康診断結果報告書（様式第6号）の用紙レイアウト
+   厚生労働省の様式にならべ、記入欄はマスの並びで表しています
+   ============================================================ */
+.f6-doc{font-size:10px;color:#111;letter-spacing:0}
+/* 注記は様式の紙の外（下）に置きます。プレビューと印刷では出しません */
+.oh-doc-notes{width:190mm;max-width:100%;margin:0 auto 24px;color:#4a5568}
+.oh-doc-notes .oh-foot{margin:0 0 6px;font-size:11px;line-height:1.8}
+body.is-preview .oh-doc-notes{display:none}
+@media print{ .oh-doc-notes{display:none} }
+/* 産業医意見書（1名分の帳票） */
+.op-doc{font-size:12.5px;line-height:1.7}
+.op-head{text-align:center;margin-bottom:14px;position:relative}
+.op-head .op-no{position:absolute;right:0;top:0;font-size:11px;color:#4a5568}
+.op-doc h1{font-size:20px;letter-spacing:.2em;margin:6px 0 2px}
+.op-sub{margin:0;font-size:11px;color:#4a5568}
+.op-doc h2{font-size:13px;margin:16px 0 6px;padding-left:8px;border-left:4px solid #2f4f4f;color:#1a202c}
+.op-table{width:100%;border-collapse:collapse;margin-top:4px}
+.op-table th,.op-table td{border:1px solid #999;padding:6px 8px;text-align:left;vertical-align:top;font-size:12px}
+.op-table th{width:16%;background:#f1f5f9;font-weight:700;white-space:nowrap}
+.op-table td{width:34%}
+.op-memos th{width:22%}.op-memos td{width:auto}
+.op-classes{display:flex;gap:26px;padding:8px 10px;border:1px solid #999}
+.op-class{font-size:13px}.op-class.is-on{font-weight:700}
+.op-box{display:inline-block;width:18px}
+.op-text{border:1px solid #999;min-height:64px;padding:8px 10px;white-space:normal}
+.op-sign{display:flex;justify-content:space-between;margin-top:22px;font-size:12.5px}
+.op-note{margin-top:14px;font-size:10.5px;color:#4a5568}
+.op-dim{color:#718096;font-size:11px;margin-left:6px}
+/* 様式名は中央の表題と重ならないよう、1行上に置きます */
+.f6-doc .f6-top{position:relative;margin:0 0 7px;padding-top:12px}
+.f6-doc .f6-kind{position:absolute;left:0;top:0;font-size:9.5px;color:#333}
+.f6-doc h1{font-size:15px;text-align:center;margin:0 0 3px;letter-spacing:.12em;
+  font-weight:700}
+.f6-t{width:100%;border-collapse:collapse;margin:0 0 -1px;table-layout:auto}
+.f6-t td{border:1px solid #111;padding:3px 5px;vertical-align:middle}
+.f6-lbl{background:#fff;text-align:center;font-weight:700;font-size:10px;
+  line-height:1.3;white-space:nowrap}
+.f6-free{font-size:11.5px;min-height:22px}
+.f6-sub{font-size:8.5px;color:#333;margin:0 2px;white-space:nowrap;line-height:1.15;
+  display:inline-block;vertical-align:middle;text-align:center}
+/* 対象年・健診年月日の行も A4 の幅に収まるよう、ふりがなとマスを小さくします */
+.f6-nowrap{white-space:nowrap}
+.f6-nowrap .f6-sub{font-size:7px;margin:0 1px}
+.f6-nowrap .f6-c{width:12px;height:17px;font-size:9.5px}
+/* 労働保険番号は1行に収める（府県・所掌・管轄・基幹番号・枝番号・被一括事業場番号） */
+/* 1つ目の表は列幅を決めて、どの行も A4 の幅に収まるようにします */
+.f6-t1{table-layout:fixed}
+.f6-t1 .f6-c1,.f6-t1 .f6-c3{width:72px}
+.f6-t1 .f6-c2{width:204px}
+.f6-t1 .f6-nowrap{zoom:.74}
+/* 労働保険番号は欄が多いので、セルごと少し縮めて1行に収めます */
+.f6-lin{white-space:nowrap;padding:3px 2px !important;zoom:.82}
+.f6-lin-g{display:inline-flex;align-items:center;margin-right:2px}
+/* 「被一括事業場番号」など長いラベルは折り返して、1行の幅を A4 に収めます */
+.f6-lin .f6-sub{font-size:7.5px;margin:0 1px;max-width:30px;white-space:normal}
+.f6-sm .f6-c{width:11px;height:17px;font-size:9.5px}
+.f6-addr{font-size:12px;margin-left:4px}
+/* 記入欄のマス */
+.f6-cells{display:inline-flex;gap:0;vertical-align:middle}
+.f6-c{display:inline-flex;align-items:center;justify-content:center;
+  width:14px;height:17px;border:1px solid #111;margin-left:-1px;
+  font-size:11.5px;font-variant-numeric:tabular-nums;background:#fff}
+.f6-num .f6-c{width:15px}
+.f6-note{font-size:8.5px;color:#333;text-align:right;margin-top:1px}
+/* 様式第6号の2（ストレスチェック結果等報告書）の該当番号・注記 */
+.f6-note2{font-size:8px;color:#333;margin-top:2px;line-height:1.3}
+.f6-chk{padding:4px 6px !important}
+.f6-chk .f6-cells{vertical-align:top;margin-right:8px}
+.f6-opts{display:inline-block;vertical-align:top;margin:0;padding-left:16px;
+  font-size:9px;line-height:1.5;max-width:390px}
+.f6-opts li{margin:0}
+.f6-chk-n{width:170px;text-align:center;white-space:nowrap}
+.f6-lbl2{font-size:10px;font-weight:700;margin-bottom:3px;line-height:1.3}
+/* 年齢階層別 */
+.f6-band-head{font-size:8.5px;color:#333;border-bottom:0 !important;line-height:1.35}
+.f6-bands{padding:4px 6px}
+.f6-band{display:inline-flex;align-items:center;margin:1px 3px 1px 0}
+.f6-band .f6-c{width:12px;height:17px;font-size:9.5px}
+.f6-bands-total{width:150px;text-align:right;white-space:nowrap}
+/* 健康診断項目 */
+.f6-items td{padding:1px 3px}
+.f6-items .f6-c{height:17px;width:13px}
+.f6-items .f6-ih{font-size:8.5px;text-align:center;font-weight:700;background:#fff;
+  line-height:1.2}
+.f6-items .f6-iname{font-size:9px;line-height:1.2;width:172px}
+/* 縦に並べるラベル（健康診断項目・産業医）。文字は <br> で改行して積みます */
+.f6-vert{width:26px;text-align:center;line-height:1.5;letter-spacing:0;
+  writing-mode:horizontal-tb}
+/* 下段（日付・事業者職氏名・受付印） */
+.f6-foot{display:flex;align-items:flex-end;justify-content:space-between;
+  margin-top:10px;padding:0 6px}
+.f6-foot-l{font-size:11px;line-height:1.9}
+.f6-emp-name{font-size:12.5px;font-weight:700;margin-left:10px}
+.f6-kantoku{margin-top:8px;letter-spacing:.1em}
+.f6-stamp{width:74px;height:74px;border:1px solid #111;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:10px;
+  letter-spacing:.12em;color:#333}
+@media print{
+  .f6-doc{font-size:10.5px}
+  .f6-c{width:14px;height:18px}
+}
+
+/* 面談対象者一覧・加入者健康一覧：抽出理由・メモは最大2行まで表示し、
+   続きは「…」（全文はマウスオーバー） */
+/* 検査値（労働安全衛生規則の区分ごと）。区分は行の見出しとして差し込みます */
+.hm-law tr.hm-law-h > th{background:var(--bg-light);font-weight:700;color:#2d3748;
+  text-align:left !important;font-size:12.5px;padding:8px 12px;
+  border-top:2px solid var(--border)}
+.hm-law tbody tr.hm-law-h:hover > th{background:var(--bg-light)}
+
+.oh-table td.col-text300-cell .oh-clip .oh-text,
+.oh-table td.oh-memo-cell .oh-clip .oh-text,
+.hm-table td.col-text300-cell .oh-clip .oh-text,
+.hm-table td.oh-memo-cell .oh-clip .oh-text{display:-webkit-box;-webkit-box-orient:vertical;
+  -webkit-line-clamp:2;line-clamp:2;white-space:normal;overflow:hidden;
+  line-height:1.5;max-height:3em}
+.oh-table td.col-text300-cell,.oh-table td.oh-memo-cell,
+.hm-table td.col-text300-cell,.hm-table td.oh-memo-cell{vertical-align:top;padding-top:8px}
+/* メモは 200px 固定（.col-text）。以前は余った幅をすべて受けて広くなりすぎていた。
+   画面が広いときの余りは抽出理由の列が受ける（表の最小幅で 300px は確保される） */
+.oh-table td.oh-memo-cell,.hm-table td.oh-memo-cell{max-width:200px}
+.oh-table th.col-text300,.hm-table th.col-text300{width:auto}
+.oh-table td.col-text300-cell,.hm-table td.col-text300-cell{max-width:none}
+/* ステータス列は 240px（産業医のボタン「再検査対応済み｜就業区分を判定」が 1 行で収まる幅）。
+   ステータス・操作は表の右端に固定する。画面が狭くて表が横にスクロールしても、
+   ボタンが隠れないようにする（操作 260px の左にステータス 240px） */
+.oh-table th.col-status-w,.hm-table th.col-status-w{width:240px}
+.oh-table th.ops,.oh-table td.ops,.hm-table th.ops,.hm-table td.ops{
+  position:sticky;right:0;z-index:2;background:#fff}
+.oh-table th.col-status-w,.oh-table td.oh-status-cell,
+.hm-table th.col-status-w,.hm-table td.oh-status-cell{
+  position:sticky;right:260px;z-index:2;background:#fff;
+  box-shadow:inset 1px 0 0 #ddd}
+.oh-table th.ops,.oh-table th.col-status-w,.hm-table th.ops,.hm-table th.col-status-w{background:#f0f0f0;z-index:3}
+.oh-table tr:hover td.ops,.oh-table tr:hover td.oh-status-cell,
+.hm-table tr:hover td.ops,.hm-table tr:hover td.oh-status-cell{background:#f9f9f9}
+
+/* ============================================================
+   加入者の健康管理（一覧・マイページ）
+     .hm-stat     まとめの数字を横に並べる箱
+     .hm-trend    総合判定の年度推移
+     .hm-bars     時間外労働の月別グラフ（CSSだけで描画）
+     .hm-iv       面談の記録カード
+   ============================================================ */
+.hm-stat{display:flex;flex-wrap:wrap;gap:10px}
+.hm-stat-box{flex:1 1 150px;min-width:140px;border:1px solid var(--border);
+  border-radius:8px;padding:10px 12px;background:#fff;display:flex;
+  flex-direction:column;gap:2px}
+.hm-stat-box.is-warn{border-color:#f0b7b7;background:#fff8f8}
+.hm-stat-lb{font-size:11px;color:var(--gray-label)}
+.hm-stat-box b{font-size:22px;line-height:1.2;font-variant-numeric:tabular-nums}
+.hm-stat-u{font-size:11px;color:var(--gray-label)}
+
+/* ダッシュボード（まとめの箱はリンクにもなります） */
+.hm-stat-box{text-decoration:none;color:inherit}
+a.hm-stat-box:hover{border-color:var(--accent);box-shadow:0 1px 4px rgba(26,54,93,.10)}
+.hm-dash-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;
+  align-items:start}
+.hm-dash-cols > .block{margin-bottom:0}
+@media (max-width:1100px){
+  .hm-dash-cols{grid-template-columns:minmax(0,1fr)}
+}
+/* 健診判定の内訳（横棒） */
+.hm-jbars{display:flex;flex-direction:column;gap:8px}
+.hm-jbar{display:grid;grid-template-columns:150px minmax(0,1fr) 68px;gap:10px;
+  align-items:center}
+.hm-jbar-k{display:flex;align-items:baseline;gap:6px}
+.hm-jbar-j{font-size:15px;font-weight:700}
+.hm-jbar-j.j-A,.hm-jbar-j.j-B{color:#2f855a}
+.hm-jbar-j.j-C{color:#b7791f}
+.hm-jbar-j.j-D,.hm-jbar-j.j-E{color:#b02a2a}
+.hm-jbar-j.j-x{color:var(--gray-label)}
+.hm-jbar-track{display:block;height:14px;background:#f4f6f9;border-radius:7px;
+  overflow:hidden}
+.hm-jbar-fill{display:block;height:100%;border-radius:7px;background:#93b7dc;min-width:2px}
+.hm-jbar-fill.j-A,.hm-jbar-fill.j-B{background:#7fb894}
+.hm-jbar-fill.j-C{background:#e3a857}
+.hm-jbar-fill.j-D,.hm-jbar-fill.j-E{background:#c9615c}
+.hm-jbar-fill.j-x{background:#cbd5e0}
+.hm-jbar-v{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.hm-jbar-v .hint{font-weight:400;margin-left:3px}
+
+.hm-abn{margin-top:2px;font-size:10px;color:#a03030;white-space:nowrap}
+.hm-bad{color:#b02a2a;font-weight:600}
+.hm-table td{vertical-align:middle}
+.hm-table td a{color:var(--accent);text-decoration:none}
+.hm-table td a:hover{text-decoration:underline}
+
+/* 加入者マイページ：見出し帯（だれの画面か）と左右2カラム */
+.hm-hero{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-start;
+  justify-content:space-between;border:1px solid var(--border);border-left:4px solid var(--accent);
+  border-radius:8px;background:#fff;padding:14px 16px;margin-bottom:14px}
+.hm-hero-id{min-width:260px;flex:1 1 420px}
+.hm-hero-name{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px}
+.hm-hero-name > b{font-size:19px;letter-spacing:.02em}
+.hm-hero-kana{font-size:11.5px;color:var(--gray-label)}
+.hm-hero-j{font-size:12px;font-weight:700;padding:2px 10px;border-radius:999px;
+  background:#eef3f8;color:var(--primary)}
+.hm-hero-j.j-A,.hm-hero-j.j-B{background:#e8f4ec;color:#2f855a}
+.hm-hero-j.j-C{background:#fdf3e2;color:#b7791f}
+.hm-hero-j.j-D,.hm-hero-j.j-E{background:#fdecec;color:#b02a2a}
+.hm-hero-meta{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:8px;
+  font-size:13.5px;color:var(--text-main)}
+.hm-hero-meta span{white-space:nowrap}
+.hm-hero-act{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.hm-hero-fy{display:flex;align-items:center;gap:8px;margin:0}
+.hm-hero-fy label{font-size:11px;color:var(--gray-label)}
+
+/* 左（読み込む情報）と右（要約）の比率は6：4 */
+.hm-cols{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,4fr);gap:14px;
+  align-items:start}
+.hm-col-main,.hm-col-side{min-width:0;display:flex;flex-direction:column;gap:14px}
+.hm-col-main > .block,.hm-col-side > .block{margin-bottom:0}
+/* 右カラムはせまい画面では下へ回します */
+@media (max-width:1180px){
+  .hm-cols{grid-template-columns:minmax(0,1fr)}
+}
+/* 右カラムの「項目：値」の並び */
+.hm-kv{display:flex;flex-direction:column}
+.hm-kv-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding:7px 8px;border-radius:6px}
+.hm-kv-row + .hm-kv-row{border-top:1px solid var(--border)}
+.hm-kv-row.is-warn{background:#fff8f8}
+.hm-kv-k{font-size:11.5px;color:var(--gray-label)}
+.hm-kv-v{text-align:right;white-space:nowrap}
+.hm-kv-v b{font-size:18px;font-variant-numeric:tabular-nums}
+.hm-kv-u{font-size:11px;color:var(--gray-label);margin-left:5px}
+/* 右カラムの写真は小さめに並べます */
+.hm-ph{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+
+/* 一覧のメール（送信履歴とテンプレートを横に並べる） */
+.hm-mail-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;
+  align-items:start}
+.hm-mail-cols > .block{margin-bottom:0}
+@media (max-width:1100px){
+  .hm-mail-cols{grid-template-columns:minmax(0,1fr)}
+}
+/* 選択のチェックボックス列 */
+.hm-table td.hm-narrow{text-align:center;width:92px}
+.hm-table .hm-chk{width:16px;height:16px}
+
+/* 加入者本人のログイン（発行済みの表示）と、本人からの問い合わせ */
+.hm-login-on{font-size:11px;padding:4px 10px;border-radius:999px;
+  background:#e8f4ec;color:#2f855a;white-space:nowrap}
+/* メールのやり取りの向き（お知らせ／本人から） */
+.hm-dir{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:999px;
+  white-space:nowrap}
+.hm-dir.out{background:#eef3f8;color:var(--primary)}
+.hm-dir.in{background:#e8f4ec;color:#2f855a}
+.hm-inq{border-top:1px solid var(--border);padding-top:12px}
+.hm-inq textarea{padding:8px 10px;border:1px solid #ccc;border-radius:6px;
+  font-family:inherit;font-size:12px;resize:vertical}
+.hm-inq textarea:focus{outline:0;border-color:var(--accent)}
+
+.hm-trend{display:flex;flex-wrap:wrap;gap:10px}
+.hm-trend-item{border:1px solid var(--border);border-radius:8px;padding:8px 12px;
+  min-width:132px;display:flex;flex-direction:column;gap:3px;background:#fff}
+.hm-trend-item.is-cur{border-color:var(--accent);box-shadow:0 0 0 2px rgba(49,130,206,.10)}
+.hm-trend-fy{font-size:11px;color:var(--gray-label)}
+.hm-trend-j{font-size:20px;font-weight:700;line-height:1.1}
+.hm-trend-j.j-A,.hm-trend-j.j-B{color:#2f855a}
+.hm-trend-j.j-C{color:#b7791f}
+.hm-trend-j.j-D,.hm-trend-j.j-E{color:#b02a2a}
+.hm-trend-j.j-x{color:var(--gray-label)}
+.hm-trend-d{font-size:11px;color:var(--gray-label)}
+
+.hm-bars{display:flex;gap:8px;align-items:flex-end;justify-content:flex-start;
+  overflow-x:auto;padding:4px 0}
+.hm-bar-col{flex:0 0 52px;display:flex;flex-direction:column;
+  align-items:center;gap:3px}
+.hm-bar-wrap{width:100%;height:110px;display:flex;align-items:flex-end;
+  background:#f4f6f9;border-radius:4px}
+.hm-bar{width:100%;background:#93b7dc;border-radius:4px 4px 0 0;min-height:2px}
+.hm-bar.is-over{background:#e3a857}
+.hm-bar.is-over2{background:#c9615c}
+.hm-bar-v{font-size:11px;font-variant-numeric:tabular-nums}
+.hm-bar-m{font-size:10.5px;color:var(--gray-label)}
+
+.hm-iv{border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;
+  background:#fff}
+.hm-iv-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.hm-memo-form{display:flex;gap:10px;align-items:flex-end;margin-bottom:12px}
+/* 対応区分（人事）の変更。メモの入力欄と同じ並べ方にします */
+.hm-hr-form{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+.hm-hr-form select{flex:1;min-width:0}
+/* 取り込んだ写真のプレビュー（画像はそのまま／PDFは枠で表示） */
+.hm-ph-view{display:flex;align-items:center;justify-content:center;background:#f7fafc;
+  border:1px solid var(--border);border-radius:8px;min-height:320px;overflow:auto}
+.hm-ph-view img{max-width:100%;max-height:62vh;display:block}
+.hm-ph-view iframe{width:100%;height:62vh;border:0;background:#fff}
+
+/* ============================================================
+   対応区分（ステータス）ごとの進め方
+   人事・産業医・保健師が行うことを、一括処理・マイページ・
+   面談ダッシュボードで同じ形に出します。
+   ============================================================ */
+.hcg{display:grid;gap:14px}
+.hcg-item{border:1px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff}
+.hcg-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.hcg-short{font-size:12px;color:var(--gray-label);font-weight:700}
+.hcg-roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+@media (max-width:760px){.hcg-roles{grid-template-columns:1fr}}
+.hcg-role-name{font-size:12px;font-weight:700;color:var(--primary);margin-bottom:4px}
+.hcg-role ul{margin:0;padding-left:18px}
+.hcg-role li{font-size:12.5px;line-height:1.75;color:var(--text-main)}
+.hcg-note{margin:10px 0 0}
+/* 一括処理・マイページでは、選んだ区分のぶんだけ出します */
+.hcg.is-one .hcg-item{border:0;padding:0;background:transparent}
+.hcg.is-one .hcg-item[hidden]{display:none}
+
+
+/* マイページのサブタブ。押したタブのカードだけを出します */
+.hm-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0;
+  border-bottom:1px solid var(--border);padding-bottom:0}
+/* タブとカードのあいだに余白を作りません */
+.hm-tabs + .hm-cols{margin-top:0}
+.hm-tabs + .hm-cols > * > .block:first-child{margin-top:0}
+.hm-tab{height:40px;min-height:40px;padding:0 16px;border:1px solid var(--border);
+  border-bottom:0;border-radius:8px 8px 0 0;background:#fff;color:#4a5568;
+  font-size:13px;font-weight:600;cursor:pointer;position:relative;top:1px;
+  transition:.15s;font-family:inherit}
+.hm-tab:hover{color:var(--primary);border-color:var(--accent)}
+/* 企業・事業所・部署の一覧（1つの表）：1行＝1レコード。所属する企業・事業所は列で示し、種別はラベルで示す（8-59） */
+.org-table td.ops{white-space:nowrap;padding-left:0;padding-right:0}
+/* 9列あるので、名称・住所の最低幅は 150px に抑える */
+.org-table .col-long,.org-table th.col-long{min-width:150px}
+.org-table .org-ops{display:flex;gap:1px;justify-content:center;align-items:center}
+.org-table .org-ops form{display:contents}
+.org-table .org-ops .btn-sm{margin:0 !important;padding:0 6px}
+.org-kind{display:inline-block;min-width:56px;text-align:center}
+.org-kind-company{background:#e8f0fb;color:#2563b0}
+.org-kind-office{background:#e6f4ef;color:#1f8f6e}
+.org-kind-dept{background:#eef1f3;color:#4c5761}
+body.theme-km .org-kind-company{background:#e8f4ec;color:#15803d}
+/* 企業の詳細表示（編集画面）の「事業所・部署」カード：行ごとに入力欄を持つ表。＋ボタンで行を増やし「更新」でまとめて保存する */
+.org-sub{overflow-x:auto}
+.org-sub .result-table td{padding:5px 6px}
+.org-sub .result-table td input,.org-sub .result-table td select{width:100%;height:40px;min-height:40px;
+  font-size:14px;padding:0 10px;margin:0;box-sizing:border-box}
+.org-sub .result-table td.ops{padding-left:0;padding-right:0}
+.org-sub .result-table td.ops .btn-sm{margin:0 !important}
+.org-sub tr.is-new td{background:#fffbea}
+.org-sub-actions{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.org-sub-actions .hint{margin-left:auto}
+.hm-tab.is-on{background:var(--bg-light);color:var(--primary);
+  border-color:var(--border);box-shadow:inset 0 3px 0 var(--accent)}
+.hm-tab[hidden]{display:none !important}
+.hm-cols .block[hidden]{display:none !important}
+/* 片方のカラムだけになったときは1カラムにします */
+.hm-cols.is-one{grid-template-columns:1fr}
+
+/* 面談対象者一覧（産業医）・加入者健康一覧：ステータスのボタンは横幅をそろえる（区分名だけを出す） */
+.oh-table td.oh-status-cell .hm-st-btn,.hm-table td.oh-status-cell .hm-st-btn{width:140px;min-width:140px}
+/* 加入者健康一覧・面談対象者一覧のステータス。次の操作ができる区分はボタンにします
+   （ボタンの縦幅は全画面 40px。ほかのボタンと同じ高さ・同じ字の大きさにそろえます） */
+.hm-st-btn{display:inline-flex !important;align-items:center;justify-content:center;
+  gap:6px;height:40px !important;min-height:40px !important;
+  padding:0 12px !important;line-height:1.2 !important;font-size:12px;
+  font-weight:700;color:var(--primary);border-color:var(--accent);background:#fff}
+.hm-st-btn:hover:not(:disabled){background:var(--bg-light)}
+.hm-st-btn:disabled{opacity:.55;cursor:not-allowed}
+.hm-st-do{font-size:10.5px;font-weight:600;color:var(--accent);
+  padding-left:6px;border-left:1px solid var(--border)}
+.hm-st-btn.is-judged{border-color:#2a4d9b;color:#2a4d9b}
+.hm-st-btn.is-judged .hm-st-do{color:#2a4d9b}
+body.tone-health .hm-st-btn.is-judged{border-color:var(--accent);color:var(--primary)}
+body.tone-health .hm-st-btn.is-judged .hm-st-do{color:var(--accent)}
+/* せまい列（右カラム）では入力欄とボタンを縦に並べます */
+.hm-memo-form.is-narrow{flex-wrap:wrap}
+.hm-memo-form.is-narrow textarea{flex:1 1 100%}
+.hm-memo-form.is-narrow button{margin-left:auto}
+.hm-memo-form textarea{flex:1;padding:8px 10px;border:1px solid #ccc;border-radius:6px;
+  font-family:inherit;font-size:12px;resize:vertical}
+.hm-memo-form textarea:focus{outline:0;border-color:var(--accent)}
+

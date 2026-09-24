@@ -1,0 +1,133 @@
+{% extends LAYOUT %}{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">判定マスタ</h1>
+<p class="page-lead">特定健診XMLの検査項目ごとに、判定区分・性別・下限値・上限値の組を登録します。
+  基準は<b>企業ごと</b>に設定でき、企業の設定が無い項目は<b>健保共通</b>の基準を使います。<br>
+  <span class="hint">健保共通の初期値は<b>日本人間ドック学会の判定区分</b>（2026年4月1日改定）の数値を
+    入れています。A（異常なし）・B（軽度異常）・C（要再検査・生活改善）・D（要精密検査・治療）。
+    受診の要否や就業上の措置の最終判断は、産業医・医師が行います。</span></p>
+{% endif %}
+
+{# 画面の作りは HIA総合管理の「検査マスタ」と同じにそろえています
+   （検索カード → 一覧カード。一覧はNo.10までを表示して、続きは表の中をスクロール）。
+   ただし判定マスタでは「項目コード」「条件・金額」は扱わないため、その2列は置きません。 #}
+<div class="block">
+  <h2>判定マスタ検索</h2>
+  <form method="get" class="search-row" id="crSearch">
+    <div class="search-group" style="min-width:300px">
+      <label for="company_id">対象の企業</label>
+      <select id="company_id" name="company_id" style="width:100%">
+        <option value="">健保共通（企業を指定しない）</option>
+        {% for c in comps %}
+        <option value="{{ c.id }}" {{ 'selected' if cid == c.id }}>
+          {{ c.ext_code or c.code }}　{{ c.name }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="search-group"><label for="fy">適用年度</label>
+      <select id="fy" name="fy" style="width:120px">
+        {% for y in years %}
+        <option value="{{ y }}" {{ 'selected' if fy == y }}>{{ y }}年度</option>
+        {% endfor %}
+      </select></div>
+    <div class="search-group"><label for="sec">区分番号</label>
+      <select id="sec" name="sec" style="width:210px">
+        <option value="">すべて</option>
+        {% for no, nm in sections %}
+        <option value="{{ no }}" {{ 'selected' if sec == no }}>{{ no }}　{{ nm }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="search-group"><label for="q">検査項目名</label>
+      <input type="text" id="q" name="q" value="{{ q }}" style="width:190px"
+             placeholder="例：BMI"></div>
+    <div class="search-group"><label for="code">代表コード</label>
+      <input type="text" id="code" name="code" value="{{ code }}" style="width:190px"
+             placeholder="例：9N011"></div>
+  </form>
+  <p class="hint">
+    {% if cid %}この企業の基準を編集します。企業の基準が無い項目は<b>健保共通</b>の基準が使われます。
+    {% else %}健保全体で使う共通の基準です。企業ごとに変える場合は、上で企業を選んでください。{% endif %}
+    区分番号・代表コードはHIA総合管理の検査マスタと同じものです。
+    判定区分は参考情報で、受診の必要性や就業上の措置の最終判断は産業医・医師が行います。</p>
+</div>
+
+<div class="block list-card">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>判定マスタ一覧</h2>
+      <span class="count">件数: {{ items|length }}{% if items|length != n_all %}
+        （全{{ n_all }}件中）{% endif %}</span></div>
+  </div>
+  {% if items %}
+  <div class="table-scroll ms-list-scroll">
+  <table class="result-table ms-table" style="min-width:{{ 1120 if cid else 1000 }}px">
+    <colgroup>
+      <col class="col-text"><col class="col-flag"><col class="col-mail">
+      <col class="col-long"><col class="col-xml"><col class="col-flag">
+      <col class="col-flag"><col class="col-status">
+      {% if cid %}<col class="col-status">{% endif %}
+    </colgroup>
+    <thead><tr>
+      <th class="tl">区分番号</th><th>必須</th><th class="tl">代表コード</th>
+      <th class="tl">検査項目名</th><th class="col-xml">XMLデータ型</th><th>単位</th><th>コード数</th>
+      <th>{{ '企業の基準' if cid else '判定基準' }}</th>
+      {% if cid %}<th>健保共通</th>{% endif %}
+    </tr></thead>
+    <tbody>
+    {% for it in items %}
+    {% set rs = mine.get(it.id, []) %}
+    <tr class="ls-row">
+      <td class="tl" title="{{ it.sec_no }}　{{ SECTION_NAME.get(it.sec_no, '') }}">
+        <b class="code">{{ it.sec_no or '—' }}</b>
+        {{ SECTION_NAME.get(it.sec_no, '') }}</td>
+      <td>{% if it.required %}<span class="st-label warn">必須</span>
+        {% else %}<span class="hint">—</span>{% endif %}</td>
+      <td class="tl code">{{ it.code }}</td>
+      {# 判定の中身は編集画面で見るため、一覧では項目名だけを出します
+         （HIA総合管理の検査マスタと同じ作り）。設定の有無は判定基準の列でわかります #}
+      <td class="tl" title="{% for r in rs %}{{ r.judge }}{% if r.sex != '共通' %}（{{ r.sex }}）{% endif %}：{{ r.lo or '—' }}〜{{ r.hi or '—' }}{% if not loop.last %}／{% endif %}{% endfor %}">
+        <b>{{ it.name }}</b></td>
+      <td class="code">{{ it.xml_type or '—' }}</td>
+      <td>{{ it.unit or '—' }}</td>
+      <td>1</td>
+      {# 判定基準のボタンが編集の入口です（HIA総合管理の検査マスタと同じ作り） #}
+      <td>
+        <a class="ms-set{{ ' is-on' if rs else '' }}" style="text-decoration:none"
+           title="{{ '判定基準を編集' if rs else '判定基準を設定' }}"
+           href="{{ url_for('criteria_edit', item_id=it.id, company_id=cid, fy=fy) }}">
+          {{ '設定済' if rs else '未設定' }}</a>
+      </td>
+      {% if cid %}
+      <td>{% if common.get(it.id) %}<span class="st-label ok">あり {{ common.get(it.id)|length }}件</span>
+        {% else %}<span class="st-label">なし</span>{% endif %}</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div class="empty-box">条件に一致する検査項目がありません。</div>{% endif %}
+</div>
+
+<script>
+/* 企業・年度・区分番号は選んだその場で、項目名・コードは入力が止まってから絞り込む */
+(function(){
+  var form = document.getElementById('crSearch');
+  if(!form) return;
+  ['company_id', 'fy', 'sec'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener('change', function(){ form.submit(); });
+  });
+  var t = null;
+  ['q', 'code'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('input', function(){
+      clearTimeout(t);
+      t = setTimeout(function(){ form.submit(); }, 600);
+    });
+    el.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){ clearTimeout(t); form.submit(); }
+    });
+  });
+})();
+</script>
+{% endblock %}

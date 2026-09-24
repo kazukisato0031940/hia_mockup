@@ -103,7 +103,7 @@ def load_samples(con):
         con.execute(
             "INSERT INTO company (kenpo_id, ext_code, code, name, kana, cert_mark, zip,"
             " tel, address, email) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (kid, (row.get("事業所（企業）コード") or "").strip() or None,
+            (kid, (row.get("企業コード") or "").strip() or None,
              internal_company_code("ひかり健康保険組合", name),
              name, row.get("企業名（フリガナ）", ""),
              row.get("被保険者証記号", ""), row.get("郵便番号", ""),
@@ -142,18 +142,18 @@ def load_samples(con):
         cid = get_company((r.get("企業名") or "").strip(), r)
         oid = add_office(cid, (r.get("部署名") or "").strip(),
                          r.get("部署名（フリガナ）", ""),
-                         ext=(r.get("所属コード") or "").strip() or None)
+                         ext=(r.get("事業所コード") or "").strip() or None)
         add_dept(oid, "総務部", "ソウムブ")
         add_dept(oid, "営業部", "エイギョウブ")
     # 2) 部署の追加分
     for r in read_sample("office_sample.csv"):
         c = con.execute("SELECT id FROM company WHERE kenpo_id=? AND ext_code=?",
-                        (kid, (r.get("事業所（企業）コード") or "").strip())).fetchone()
+                        (kid, (r.get("企業コード") or "").strip())).fetchone()
         if c:
             oid = add_office(c["id"], (r.get("部署名") or "").strip(),
                              r.get("部署名（フリガナ）", ""), r.get("郵便番号", ""),
                              r.get("住所", ""), r.get("電話番号", ""),
-                             ext=(r.get("所属コード") or "").strip() or None)
+                             ext=(r.get("事業所コード") or "").strip() or None)
             add_dept(oid, "総務部", "ソウムブ")
     # 3) 加入者（前半は紐づけ済み、後半は未紐づけにして紐づけページを試せるようにする）
     rows = read_sample("subscriber_sample.csv")
@@ -162,11 +162,11 @@ def load_samples(con):
         cid = oid = did = None
         if i < len(rows) - 3:      # 最後の3件は未紐づけのまま残す
             c = con.execute("SELECT id FROM company WHERE kenpo_id=? AND ext_code=?",
-                            (kid, g("事業所（企業）コード"))).fetchone()
+                            (kid, g("企業コード"))).fetchone()
             if c:
                 cid = c["id"]
                 o = con.execute("SELECT id FROM office WHERE company_id=? AND ext_code=?",
-                                (cid, g("所属コード"))).fetchone()
+                                (cid, g("事業所コード"))).fetchone()
                 oid = o["id"] if o else None
                 if oid:      # 先頭の部署に入れておく
                     d = con.execute("SELECT id FROM department WHERE office_id=?"
@@ -183,7 +183,7 @@ def load_samples(con):
              g("対象者氏名（カナ）"), g("性別"), norm_date(g("生年月日")),
              norm_date(g("資格取得日（家族認定日）")), norm_date(g("資格喪失日（家族削除日）")),
              g("郵便番号"), g("住所"), g("住所（建物名）"), g("電話番号"),
-             g("メールアドレス"), g("社員コード"), str(mseq).zfill(8)))
+             g("メールアドレス"), (g("社員番号") or g("社員コード")), str(mseq).zfill(8)))
 
     set_seq(con, "company", str(kid), cseq)
     for cid, n in oseq.items():
@@ -195,16 +195,16 @@ def load_samples(con):
     # 動作確認用のアカウント
     ph = generate_password_hash(SAMPLE_PW)
     con.execute(
-        "INSERT INTO account (email, name, role, view_scope, can_download, is_primary,"
+        "INSERT INTO account (email, name, role, view_scope, can_download,"
         " kenpo_id, status, password_hash, created_by)"
-        " VALUES (?,?,'kenpo_user','kenpo_all',1,1,?,'active',?,'seed')",
+        " VALUES (?,?,'kenpo_user','kenpo_all',1,?,'active',?,'seed')",
         ("kenpo@example.local", "ひかり健保 担当", kid, ph))
     first = con.execute("SELECT id FROM company WHERE kenpo_id=? ORDER BY id",
                         (kid,)).fetchone()
     con.execute(
-        "INSERT INTO account (email, name, role, view_scope, can_download, is_primary,"
+        "INSERT INTO account (email, name, role, view_scope, can_download,"
         " kenpo_id, company_id, status, password_hash, created_by)"
-        " VALUES (?,?,'company_user','own_company',0,1,?,?,'active',?,'seed')",
+        " VALUES (?,?,'company_user','own_company',0,?,?,'active',?,'seed')",
         ("company@example.local", "光通信 担当", kid, first["id"], ph))
     aid = con.execute("SELECT id FROM account WHERE email='company@example.local'"
                       ).fetchone()["id"]
@@ -335,9 +335,9 @@ def main():
             pw = os.environ.get("HIA_ADMIN_PASSWORD") or ADMIN_DEFAULT_PASSWORD
             con.execute(
                 "INSERT INTO account (email, name, role, view_scope, can_download,"
-                " is_primary, status, password_hash, created_by)"
-                " VALUES (?,?,?,?,?,?,'active',?,'seed')",
-                (ADMIN_EMAIL, ADMIN_NAME, "system_admin", "all", 1, 0,
+                " status, password_hash, created_by)"
+                " VALUES (?,?,?,?,?,'active',?,'seed')",
+                (ADMIN_EMAIL, ADMIN_NAME, "system_admin", "all", 1,
                  generate_password_hash(pw)))
             con.execute("INSERT INTO audit_log (shell, category, action, result,"
                         " actor_email, ip, target, detail) VALUES"
@@ -411,9 +411,9 @@ def main():
 
     pw = os.environ.get("HIA_ADMIN_PASSWORD") or ADMIN_DEFAULT_PASSWORD
     con.execute(
-        "INSERT INTO account (email, name, role, view_scope, can_download, is_primary,"
-        " status, password_hash, created_by) VALUES (?,?,?,?,?,?,'active',?,'seed')",
-        (ADMIN_EMAIL, ADMIN_NAME, "system_admin", "all", 1, 0,
+        "INSERT INTO account (email, name, role, view_scope, can_download,"
+        " status, password_hash, created_by) VALUES (?,?,?,?,?,'active',?,'seed')",
+        (ADMIN_EMAIL, ADMIN_NAME, "system_admin", "all", 1,
          generate_password_hash(pw)))
     con.execute("INSERT INTO audit_log (shell, category, action, result, actor_email, ip,"
                 " target, detail) VALUES ('km','master','初期データを投入','success','seed',"

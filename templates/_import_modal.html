@@ -3,21 +3,25 @@
   mid       … モーダルのID
   title     … 見出し
   action    … 送信先URL
-  tpl_url   … テンプレートCSVのURL
-  columns   … [(列名, 必須か, 説明), ...]
   kenpos    … 健康保険組合の選択が必要な場合のみ
 #}
-{% macro import_modal(mid, title, action, tpl_url, columns, kenpos=None, sample=None) -%}
+{% macro import_modal(mid, title, action, kenpos=None) -%}
 <div class="modal-back" id="{{ mid }}">
-  <div class="modal-card" role="dialog" aria-modal="true" aria-label="{{ title }}">
+  <div class="modal-card imp-card" role="dialog" aria-modal="true" aria-label="{{ title }}">
     <div class="modal-head">
       <h2>{{ title }}</h2>
       <button type="button" class="modal-x" onclick="closeImport('{{ mid }}')" aria-label="閉じる">&times;</button>
     </div>
     <form method="post" action="{{ action }}" enctype="multipart/form-data" id="{{ mid }}-form">
       <div class="modal-body">
+        <ol class="imp-steps">
+          <li class="on"><span class="imp-n">1</span>ファイルを選ぶ</li>
+          <li><span class="imp-n">2</span>内容を確認する</li>
+          <li><span class="imp-n">3</span>登録する</li>
+        </ol>
+
         {% if kenpos %}
-        <div class="search-group" style="max-width:320px;margin-bottom:16px">
+        <div class="search-group imp-kenpo">
           <label for="{{ mid }}-kenpo">登録先の健康保険組合</label>
           <select id="{{ mid }}-kenpo" name="kenpo_id" required>
             {% for k in kenpos %}<option value="{{ k.id }}">{{ k.name }}</option>{% endfor %}
@@ -28,43 +32,33 @@
         <div class="drop" id="{{ mid }}-drop" tabindex="0"
              onclick="document.getElementById('{{ mid }}-file').click()"
              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('{{ mid }}-file').click();}">
-          <div class="drop-ico">⬆</div>
+          <span class="drop-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 15V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/>
+              <path d="M4 14.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3.5"/>
+            </svg>
+          </span>
           <div class="drop-main">ここにCSVファイルをドラッグ＆ドロップ</div>
-          <div class="drop-sub">またはクリックしてファイルを選択<br>
-            文字コードは Shift_JIS または UTF-8、拡張子は .csv</div>
+          <div class="drop-sub">またはクリックしてファイルを選択</div>
+          <div class="drop-tags"><span>.csv</span><span>Shift_JIS / UTF-8</span></div>
           <input type="file" id="{{ mid }}-file" name="file" accept=".csv,text/csv" required>
         </div>
         <div class="drop-file" id="{{ mid }}-info">
-          <span class="fn" id="{{ mid }}-name"></span>
-          <span class="fs" id="{{ mid }}-size"></span>
-          <button type="button" class="btn-sm" style="float:right;"
-                  onclick="clearImport('{{ mid }}')">取り消す</button>
+          <span class="df-ico" aria-hidden="true">CSV</span>
+          <span class="df-body">
+            <span class="fn" id="{{ mid }}-name"></span>
+            <span class="fs" id="{{ mid }}-size"></span>
+          </span>
+          <button type="button" class="df-x" onclick="clearImport('{{ mid }}')"
+                  title="取り消す" aria-label="取り消す">&times;</button>
         </div>
         <div class="drop-err" id="{{ mid }}-err"></div>
 
-        <details class="col-help">
-          <summary>必要な列を確認する</summary>
-          <div class="table-scroll">
-          <table class="result-table" style="table-layout:auto">
-            <thead><tr><th style="width:130px">列名</th><th style="width:70px">必須</th><th class="tl">説明</th></tr></thead>
-            <tbody>
-            {% for name, req, desc in columns %}
-            <tr><td class="code">{{ name }}</td><td>{{ req }}</td>
-              <td class="tl">{{ desc }}</td></tr>
-            {% endfor %}
-            </tbody>
-          </table>
-          </div>
-          <p class="hint" style="margin-top:8px;">
-            この操作では登録されません。次の画面で内容とエラーを確認したうえで確定します。</p>
-        </details>
+        <p class="imp-note">この操作では<b>まだ登録されません</b>。
+          次の画面で内容とエラーを確認したうえで確定します。</p>
       </div>
       <div class="modal-foot">
-        <a class="btn-sm" href="{{ tpl_url }}" style="text-decoration:none">フォーマットをダウンロード</a>
-        {% if sample %}
-        <a class="btn-sm" href="{{ sample }}" style="text-decoration:none"
-           title="部署や家族まで入った、そのまま取り込めるサンプルです">サンプルをダウンロード</a>
-        {% endif %}
         <span style="flex:1"></span>
         <button type="button" class="btn-back" onclick="closeImport('{{ mid }}')">キャンセル</button>
         <button class="btn-submit" id="{{ mid }}-go" disabled>内容を確認する</button>

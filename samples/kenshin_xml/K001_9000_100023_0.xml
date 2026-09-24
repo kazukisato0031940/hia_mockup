@@ -61,12 +61,12 @@
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="3D010000001926101" codeSystem="1.2.392.200119.6.1005" displayName="空腹時血糖"/>
-      <value xsi:type="PQ" value="142" unit="mg/dL"
+      <value xsi:type="PQ" value="141" unit="mg/dL"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="3F077000002327101" codeSystem="1.2.392.200119.6.1005" displayName="ＬＤＬコレステロール"/>
-      <value xsi:type="PQ" value="172" unit="mg/dL"
+      <value xsi:type="PQ" value="171" unit="mg/dL"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
@@ -76,7 +76,7 @@
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="3F015000002327201" codeSystem="1.2.392.200119.6.1005" displayName="中性脂肪"/>
-      <value xsi:type="PQ" value="328" unit="mg/dL"
+      <value xsi:type="PQ" value="325" unit="mg/dL"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
@@ -86,17 +86,17 @@
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="3B045000002327101" codeSystem="1.2.392.200119.6.1005" displayName="ＡＬＴ（ＧＰＴ）"/>
-      <value xsi:type="PQ" value="56" unit="U/L"
+      <value xsi:type="PQ" value="55" unit="U/L"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="3B090000002327101" codeSystem="1.2.392.200119.6.1005" displayName="γ－ＧＴ（γ－ＧＴＰ）"/>
-      <value xsi:type="PQ" value="123" unit="U/L"
+      <value xsi:type="PQ" value="122" unit="U/L"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">
       <code code="9N016000000000001" codeSystem="1.2.392.200119.6.1005" displayName="ＢＭＩ"/>
-      <value xsi:type="PQ" value="28.7" unit="kg/m2"
+      <value xsi:type="PQ" value="28.6" unit="kg/m2"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>
     </observation></entry>
     <entry><observation classCode="OBS" moodCode="EVN">

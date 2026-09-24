@@ -3,7 +3,7 @@
 {% block body %}
 {% if not EMBED %}
 <h1 class="page-title">産業医面談 メール配信</h1>
-<p class="page-lead">面談受診勧奨とストレスチェック受検案内を1画面で配信します。</p>
+<p class="page-lead">面談受診勧奨とストレスチェック受検案内を1画面で配信します。案内を送ったあと返事がない方へのリマインドもここから送ります。</p>
 {% endif %}
 
 
@@ -39,16 +39,23 @@
       <div class="search-group"><label for="dl">回答締切</label>
         <input type="date" id="dl" name="deadline" style="width:150px" onchange="mailPrev()"></div>
       <div class="search-group" style="flex:1;min-width:220px">
-        <label for="bu">予約・受検URL（差し込み）</label>
+        <label for="bu">予約・受検・マイページURL（差し込み）</label>
         <input type="text" id="bu" name="book_url" style="width:100%"
                placeholder="例）https://yoyaku.example.local/sanmen" onchange="mailPrev()"></div>
+      <div class="search-group" style="flex:1;min-width:200px">
+        <label for="desk">担当窓口（差し込み）</label>
+        <input type="text" id="desk" name="desk" style="width:100%"
+               placeholder="例）健康管理室（内線1234）" onchange="mailPrev()"></div>
     </div>
     <div class="mail-prev" style="margin-top:14px">
       <div class="mail-prev-head" id="mailSubj">（件名のプレビュー）</div>
       <div class="mail-prev-body keep" id="mailBody">（本文のプレビュー）</div>
     </div>
     <p class="oh-note">差し込み項目：<code>{{ '{{氏名}}' }}</code>・<code>{{ '{{予約URL}}' }}</code>・<code>{{ '{{回答期限}}' }}</code>
-      は送信時に自動で置き換わります。</p>
+      （健康管理のお知らせでは <code>{{ '{{年度}}' }}</code>・<code>{{ '{{受診日}}' }}</code>・<code>{{ '{{期限}}' }}</code>・<code>{{ '{{URL}}' }}</code>・<code>{{ '{{担当窓口}}' }}</code> も）
+      は送信時に自動で置き換わります。<br>
+      「健康管理のお知らせ」のテンプレートもこの画面で編集でき、配信履歴もここにまとまります
+      （個人別・一括の送信は「加入者健康一覧」から行います）。</p>
   </div>
   </form>
 
@@ -84,6 +91,96 @@
   </div>
 </div>
 
+{# ================= リマインド ================= #}
+{# 案内を送ったあと返事（面談の予約・再検査の結果の提出）がない方に、もう一度案内を送ります #}
+<form method="post" action="{{ url_for('oh.oh_mail_remind') }}" id="remindForm">
+<input type="hidden" name="fy" value="{{ fy }}">
+<input type="hidden" name="rdays" value="{{ rdays }}">
+<div class="block" style="margin-top:16px">
+  <div class="blk-head">
+    <div class="blk-head-left"><h2>リマインド</h2>
+      <span class="count">{{ remind|length }}名</span>
+      <span class="hint">案内を送ったあと、面談の予約・再検査の結果の提出がない方です。</span></div>
+    <div class="actions">
+      <label class="fld-label" for="rdays" style="margin:0">経過日数</label>
+      <select id="rdays" style="width:130px"
+              onchange="location.href='{{ url_for('oh.oh_mail', fy=fy) }}&rdays='+this.value">
+        {% for d in REMIND_DAYS %}
+        <option value="{{ d }}" {{ 'selected' if d == rdays }}>{{ d }}日以上</option>
+        {% endfor %}
+      </select>
+      <button class="btn-sm primary" type="submit" id="remindSend"
+              {{ 'disabled' if not remind }}>選択した方にリマインドを送る</button>
+    </div>
+  </div>
+
+  <div class="oh-sec" style="margin-bottom:12px">
+    <div class="oh-sec-title">リマインドの内容</div>
+    <div class="oh-grid">
+      {% for kind in ['面談受診勧奨', '健康管理のお知らせ'] %}
+      <div class="fld">
+        <label class="fld-label" for="tpl-{{ loop.index }}">{{ kind }}のテンプレート</label>
+        <select id="tpl-{{ loop.index }}" name="tpl_{{ kind }}" style="width:100%">
+          {% for t in remind_tpls if t.kind == kind %}
+          <option value="{{ t.id }}">{{ t.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+      <div class="fld">
+        <label class="fld-label" for="rdl">期限（差し込み）</label>
+        <input type="date" id="rdl" name="deadline" style="width:100%">
+      </div>
+      <div class="fld">
+        <label class="fld-label" for="rbu">予約・マイページURL（差し込み）</label>
+        <input type="text" id="rbu" name="book_url" style="width:100%"
+               placeholder="例）https://yoyaku.example.local/sanmen">
+      </div>
+      <div class="fld">
+        <label class="fld-label" for="rdesk">担当窓口（差し込み）</label>
+        <input type="text" id="rdesk" name="desk" style="width:100%"
+               placeholder="例）健康管理室（内線1234）">
+      </div>
+    </div>
+    <p class="fld-help" style="margin-top:8px">テンプレート名に「リマインド」を含むものが選べます
+      （配信テンプレートの編集で追加できます）。ステータスは変えず、送った回数だけが増えます。</p>
+  </div>
+
+  {% if remind %}
+  <div class="table-scroll paged">
+  <table class="result-table oh-table" style="min-width:900px">
+    <colgroup><col class="col-chk"><col class="col-text"><col class="col-mail">
+      <col class="col-date"><col class="col-flag"><col class="col-flag">
+      <col class="col-status-w"><col class="col-date"></colgroup>
+    <thead><tr>
+      <th class="col-chk"><input type="checkbox" id="rAll"
+        onclick="document.querySelectorAll('.r-chk').forEach(c=>c.checked=this.checked)"></th>
+      <th class="tl">氏名</th><th class="tl">種別</th><th>最終送信日</th>
+      <th>経過</th><th>送信回数</th><th>ステータス</th><th>対応期限</th>
+    </tr></thead>
+    <tbody>
+    {% for r in remind %}
+    <tr class="ls-row">
+      <td><input type="checkbox" class="r-chk" name="targets" value="{{ r.id }}:{{ r.kind }}"></td>
+      <td class="tl"><b>{{ r.m.name }}</b>
+        <div class="hint">{{ r.m.dept_name or '—' }}</div></td>
+      <td class="tl">{{ r.kind }}</td>
+      <td class="code">{{ r.last_at }}</td>
+      <td class="num"><b>{{ r.days }}</b>日</td>
+      <td class="num">{{ r.n }}回</td>
+      <td><span class="st-label {{ 'warn' if r.days >= 14 else 'info' }}">{{ r.state }}</span></td>
+      <td class="code">{{ r.due or '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-box">{{ rdays }}日以上たっても返事がない方はいません。</div>
+  {% endif %}
+</div>
+</form>
+
 
 <script>
 /* 案内のプレビュー（差し込み項目を反映） */
@@ -92,10 +189,16 @@ function mailPrev(){
   var op = sel && sel.selectedOptions[0];
   if (!op){ return; }
   var dl = document.getElementById('dl').value || '（未設定）';
-  var u  = document.getElementById('bu').value || '（予約URLは配信設定で指定します）';
+  var u  = document.getElementById('bu').value || '（URLは配信設定で指定します）';
+  var dk = (document.getElementById('desk') || {}).value || '健康管理のご担当窓口';
   function fill(t){
     return (t || '').replace(/\{\{氏名\}\}/g, '山田 太郎')
                     .replace(/\{\{予約URL\}\}/g, u)
+                    .replace(/\{\{URL\}\}/g, u)
+                    .replace(/\{\{期限\}\}/g, dl)
+                    .replace(/\{\{年度\}\}/g, '{{ fy }}')
+                    .replace(/\{\{受診日\}\}/g, '（受診日）')
+                    .replace(/\{\{担当窓口\}\}/g, dk)
                     .replace(/\{\{回答期限\}\}/g, dl);
   }
   document.getElementById('mailSubj').textContent = fill(op.dataset.subject);

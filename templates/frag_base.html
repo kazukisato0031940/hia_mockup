@@ -7,9 +7,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500;700;900&family=Noto+Sans+JP:wght@300;400;500;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ ASSET_V }}">
+<script>/* 枠（iframe）の中では親の表示倍率がそのまま伝わるため、単独で開いたときだけ表示倍率のスタイルを読み込む */
+if(window.top===window){document.write('<link rel="stylesheet" href="/ui/zoom.css">');}</script>
 <style>body{margin:0;background:transparent}</style>
 </head>
-<body class="theme-{{ SHELL }}{% if FIXED_HEIGHT is defined and FIXED_HEIGHT %} fixed-h{% endif %}">
+<body class="theme-{{ SHELL }}{% if TONE %} tone-{{ TONE }}{% endif %}{% if FIXED_HEIGHT is defined and FIXED_HEIGHT %} fixed-h{% endif %}">
 <div class="frag">
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
@@ -25,26 +27,55 @@ function hiaCenterModal(card){
   try{
     var fe = window.frameElement;
     if(!fe || !card){ if(card) card.style.marginTop = '40px'; return; }
-    var r  = fe.getBoundingClientRect();
-    var ph = window.parent.innerHeight;
-    var h  = card.offsetHeight;
-
-    var visTop = Math.max(0, -r.top);              // iframe内で見え始める位置
-    var visBot = Math.min(r.height, ph - r.top);   // iframe内で見え終わる位置
-    if(visBot - visTop < 120){                     // ほぼ見えていない場合
+    var PAD = 40;                                  // .modal-back の上下パディング
+    /* 外側の文書に表示倍率（zoom）が掛かっていると、枠の位置・表示領域の高さは
+       画面の実寸で返るので、倍率で割ってこの文書の座標に直す */
+    var z = 1;
+    try{ z = parseFloat(getComputedStyle(window.parent.document.documentElement).zoom) || 1; }catch(e){}
+    var rect = function(){
+      var b = fe.getBoundingClientRect();
+      return {top: b.top / z, height: b.height / z};
+    };
+    var fit = function(){
+      var r  = rect();
+      var ph = window.parent.innerHeight / z;
+      var visTop = Math.max(0, -r.top);            // iframe内で見え始める位置
+      var visBot = Math.min(r.height, ph - r.top); // iframe内で見え終わる位置
+      return {top: visTop, h: visBot - visTop};
+    };
+    var v = fit();
+    if(v.h < 200){                                 // ほとんど見えていないときは枠を出す
       fe.scrollIntoView({block:'start'});
-      card.style.marginTop = '40px';
-      return;
+      v = fit();
     }
-    var mt     = (ph / 2 - r.top) - h / 2;         // 表示領域の中央に合わせる
-    var minTop = visTop + 20;
-    var maxTop = visBot - h - 20;
-    if(maxTop < minTop) maxTop = minTop;
-    mt = Math.min(Math.max(mt, minTop), maxTop);
+    /* 表示領域より背が高いときは中だけスクロールさせ、必ず画面に収める */
+    var maxH = Math.max(200, Math.round(v.h - PAD));
+    card.style.maxHeight = maxH + 'px';
+    var h  = Math.min(card.offsetHeight, maxH);
+    var r  = rect();
+    var ph = window.parent.innerHeight / z;
+    /* ブラウザの表示領域の中央に合わせ、枠の見えている範囲に収める */
+    var top = (ph - h) / 2 - r.top;                // 枠の中の座標に直す
+    var lo  = v.top + 20, hi = v.top + v.h - h - 20;
+    if(hi < lo) hi = lo;
+    top = Math.min(Math.max(top, lo), hi);
+    var mt = top - PAD;
+    if(mt < -PAD) mt = -PAD;
     card.style.marginTop = Math.round(mt) + 'px';
-  }catch(e){ if(card) card.style.marginTop = '40px'; }
+  }catch(e){ if(card){ card.style.marginTop = '40px'; card.style.maxHeight = ''; } }
 }
 window.hiaCenterModal = hiaCenterModal;
+
+/* 1つだけ選ぶボタン（ステータスなど）は、選んでいるものをもう一度押すと解除します。
+   ほかのボタンを押したときは change が起きるので、各画面の検索で反映されます。 */
+function hiaToggleChip(el){
+  var lab = el.closest('.oh-jchip');
+  if(!(lab && lab.classList.contains('is-on'))) return;
+  el.checked = false;
+  lab.classList.remove('is-on');
+  if(el.form) el.form.submit();
+}
+window.hiaToggleChip = hiaToggleChip;
 
 /* モーダルを開いている間は、外側の画面（ヘッダー・サイドバー・枠の外側）も
    同じ黒（55%＋ぼかし）で覆う。枠の中だけが暗くなるのを防ぐため。 */
@@ -80,11 +111,7 @@ function reportHeight(){
       if (window.parent.SYS.fitHeight) window.parent.SYS.fitHeight(window.frameElement);
       return;
     }
-    /* iframe の実コンテンツ高さを親へ伝える。
-       documentElement.scrollHeight は iframe のビューポート高さが下限になるため、
-       親が高さを広げると次回さらに広がる…という増殖ループになる。
-       body 基準（ビューポート下限なし）で測る。 */
-    var h = Math.max(document.body.scrollHeight, document.body.offsetHeight);
+    var h = document.documentElement.scrollHeight;
     window.parent.SYS.resize(window.frameElement, h);
   }catch(e){}
 }
@@ -97,7 +124,8 @@ function reportHeader(){
   try{
     if (window.parent && window.parent !== window && window.parent.SYS
         && window.parent.SYS.setHeader) {
-      var own = !!document.querySelector('.frag > h1.page-title');
+      /* 見出しは .frag の直下か、.frag-head（見出し＋戻るボタン）の中に置きます */
+      var own = !!document.querySelector('.frag > h1.page-title, .frag > .frag-head > h1.page-title');
       window.parent.SYS.setHeader(window.frameElement, own);
     }
   }catch(e){}

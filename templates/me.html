@@ -10,7 +10,6 @@
     <span class="st {{ 'st-own' if row.view_scope=='own_company' else 'st-all' }}">
       {{ SCOPE_LABELS.get(row.view_scope, row.view_scope) }}</span>
     <span class="st st-{{ row.status }}">{{ STATUS_LABELS.get(row.status, row.status) }}</span>
-    {% if row.is_primary %}<span class="st st-role">代表者</span>{% endif %}
   </div>
   <div class="actions">
     <a class="btn-sm" href="{{ url_for('accounts') }}"
@@ -88,8 +87,6 @@
         <td class="tl wrap">{{ scope_label }}</td></tr>
       <tr class="ls-row"><td class="tl">CSVのダウンロード</td>
         <td class="tl">{{ '可' if row.can_download else '不可' }}</td></tr>
-      <tr class="ls-row"><td class="tl">区分</td>
-        <td class="tl">{{ '代表者' if row.is_primary else '一般' }}</td></tr>
       <tr class="ls-row"><td class="tl">最終ログイン</td>
         <td class="tl code">{{ row.last_login_at or '—' }}</td></tr>
     </tbody>

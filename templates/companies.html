@@ -2,14 +2,16 @@
 {% extends LAYOUT %}
 {% from "_import_modal.html" import import_modal, import_script %}
 {% from "_listsearch.html" import search_card, search_script, rows_script %}
+{% from "_org_tabs.html" import org_tabs %}
 {% block body %}
 {# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
 {% if not EMBED %}
-<h1 class="page-title">企業情報</h1>
-<p class="page-lead">企業の登録・編集・削除を行います。事業所（企業）コードは健保が管理する番号を登録します（当社内部コードは自動で割り振ります）。</p>
+<h1 class="page-title">企業・事業所・部署</h1>
+<p class="page-lead">企業・事業所・部署のマスタを1つの画面で登録・編集・削除します。企業コードは健保が管理する番号を登録します（当社内部コードは自動で割り振ります）。</p>
 {% endif %}
+{{ org_tabs('company') }}
 
-{{ search_card([('code', '事業所（企業）コード・内部コード', '200px'),
+{{ search_card([('code', '企業コード', '200px'),
                 ('name', '企業名・フリガナ', '260px'),
                 ('tel', '電話番号', '170px')], f) }}
 
@@ -33,26 +35,18 @@
   <div class="table-scroll paged grow" data-rows-url="{{ url_for('companies_rows') }}"
        data-loaded="{{ rows|length }}" data-total="{{ total }}">
   <table class="result-table" style="width:100%">
-    <!-- 列幅は「列幅の標準」（.col-*）に合わせています。
-         企業名（漢字）とフリガナは列を分け、残り幅を等分します
-         （操作列が画面の外に出ないよう、横スクロールなしで収めます） -->
+    <!-- 列は 企業コード・企業名・住所・電話番号・操作 だけ（8-55）。
+         コード類は .col-num（120px）、企業名・住所は残り幅を等分（.col-long。表は横幅いっぱい）。
+         内部コード・フリガナ・被保険者証記号・部署数・加入者数・更新日時は一覧には出しません（詳細（編集）画面で見られます）。 -->
     <colgroup>
-      <col class="col-num"><col class="col-num">
-      <col><col>
-      <col class="col-num"><col class="col-num">
-      <col class="col-flag"><col class="col-flag">
-      <col class="col-dt"><col class="col-ops">
+      <col class="col-num"><col class="col-long"><col class="col-long">
+      <col class="col-num"><col class="col-ops">
     </colgroup>
     <thead><tr>
-      <th>事業所（企業）<br>コード</th>
-      <th>内部コード</th>
-      <th>企業名</th>
-      <th>企業名<br>（フリガナ）</th>
-      <th>被保険者<br>証記号</th>
+      <th>企業コード</th>
+      <th class="tl col-long">企業名</th>
+      <th class="tl col-long">住所</th>
       <th>電話番号</th>
-      <th>部署</th>
-      <th>加入者</th>
-      <th>更新日時</th>
       <th class="ops">操作</th>
     </tr></thead>
     <tbody>
@@ -68,21 +62,7 @@
 {{ search_script([('code','code'), ('name','name'), ('tel','tel')]) }}
 {{ rows_script() }}
 {% if can_add %}
-{{ import_modal('imp-company', '企業の一括インポート', url_for('companies_import'),
-   url_for('companies_template'),
-   [('事業所（企業）コード','必須','企業を識別するコード。健保内で一意'),
-    ('保険者番号','必須','登録済みの健康保険組合の番号'),
-    ('被保険者証記号','任意','—'),
-    ('企業名','必須','コードが空欄のときは名称で照合します'),
-    ('企業名（フリガナ）','任意','—'),
-    ('郵便番号','任意','—'),
-    ('住所','任意','—'),
-    ('電話番号','任意','—'),
-    ('担当メールアドレス','任意','—'),
-    ('所属コード','推奨','企業が管理する番号。**この番号で照合して更新**します'),
-    ('部署名','必須','事業所名として登録します。コードが空欄のときは名称で照合'),
-    ('部署名（フリガナ）','任意','—')],
-   sample=url_for('sample_csv', name='company')) }}
+{{ import_modal('imp-company', '企業の一括インポート', url_for('companies_import')) }}
 {{ import_script() }}
 {% endif %}
 {% endblock %}

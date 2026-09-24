@@ -2,7 +2,7 @@
 """産業医面談管理の動作確認用データを投入する。
 
   1. 企業担当者＋サブロール（産業医・人事）のアカウントを作成する
-  2. 加入者に社員コード・深夜業従事区分を割り当てる
+  2. 加入者に社員番号・深夜業従事区分を割り当てる
   3. 健診結果（総合判定・明細・前年分）、月次の労働時間、ストレスチェックを投入する
   4. 配信テンプレートとストレスチェック設問を投入する
 
@@ -25,6 +25,7 @@ SAMPLE_PW = os.environ.get("HIA_SAMPLE_PASSWORD", "Sample1234pass")
 
 DOCTOR_EMAIL = "doctor@example.local"
 HR_EMAIL = "hr@example.local"
+NURSE_EMAIL = "nurse@example.local"
 
 # 検査項目（値の範囲・単位・判定のしきい値）。判定は学会区分 A〜E で持つ。
 ITEMS = [
@@ -103,11 +104,12 @@ def main():
     comps = con.execute("SELECT * FROM company WHERE kenpo_id=? ORDER BY id",
                         (kenpo["id"],)).fetchall()
 
-    # ---------- 1. 産業医・人事のアカウント ----------
-    # 産業医・人事は「企業担当者＋サブロール」で作る
+    # ---------- 1. 産業医・人事・保健師のアカウント ----------
+    # 産業医・人事・保健師は「企業担当者＋サブロール」で作る
     ph = generate_password_hash(SAMPLE_PW)
     for email, name, srole in ((DOCTOR_EMAIL, "田中 一郎", "doctor"),
-                               (HR_EMAIL, "佐藤 花子", "hr")):
+                               (HR_EMAIL, "佐藤 花子", "hr"),
+                               (NURSE_EMAIL, "鈴木 美咲", "nurse")):
         row = con.execute("SELECT * FROM account WHERE lower(email)=lower(?)",
                           (email,)).fetchone()
         if row:
@@ -181,7 +183,7 @@ def main():
             n_add += 1
     con.commit()
 
-    # ---------- 2-2. 加入者の社員コード・深夜業従事区分 ----------
+    # ---------- 2-2. 加入者の社員番号・深夜業従事区分 ----------
     # 健診・労働時間・ストレスチェックは「従業員（本人）」に対して登録します。
     members = con.execute("SELECT * FROM member ORDER BY kenpo_id, id").fetchall()
     if not members:
@@ -388,6 +390,16 @@ def main():
                  "勧奨メール送信済", "面談予約済", None, "面談完了",
                  "面談対象（承認済）", None]
         n_done = 0
+        # (対応区分, 就業区分, 対応期限, 次回フォロー予定日, 対応完了日)
+        HR_PLAN = [
+            ("未判定", None, None, None, None),
+            ("産業医依頼中", None, f"{fy}-10-31", None, None),
+            ("通常勤務", "通常勤務", f"{fy}-10-31", None, None),
+            ("就業制限", "就業制限", f"{fy}-10-31", None, None),
+            ("要休業", "要休業", f"{fy}-10-31", None, None),
+            ("保健師対応中", "就業制限", f"{fy}-10-31", f"{fy}-11-20", None),
+            ("再検査対応済み", "通常勤務", f"{fy}-10-31", f"{fy}-11-20", f"{fy}-12-05"),
+        ]
         for pos, mid in enumerate(cand_ids):
             status = cycle[pos % len(cycle)]
             if not status:
@@ -396,14 +408,15 @@ def main():
             if status == "面談完了":
                 di = (n_done + pos) % len(done_plan)
                 n_done += 1
-            wc = "就業制限" if status == "面談完了" and pos % 3 == 0 else "通常勤務"
+            # 対応区分（ステータス）は、確認しやすいように7区分すべてを配ります
+            hc, wc, due, fol, done = HR_PLAN[pos % len(HR_PLAN)]
             mailed = status in ("勧奨メール送信済", "面談予約済", "面談完了")
             con.execute(
                 "INSERT INTO oh_candidate (member_id, fiscal_year, reasons, status,"
-                " work_class, hr_class, approved_by, approved_at, mail_count,"
-                " last_mail_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                (mid, str(fy), "", status, wc,
-                 "経過観察" if status == "面談完了" else "未判定",
+                " work_class, hr_class, due_on, follow_on, done_on, approved_by,"
+                " approved_at, mail_count, last_mail_at, updated_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (mid, str(fy), "", status, wc, hc, due, fol, done,
                  "山田 一郎", f"{fy}-07-01 10:00", 1 if mailed else 0,
                  f"{fy}-08-20 09:15" if mailed else None, f"{fy}-08-20 09:15"))
             if status == "面談完了" and di is not None:
@@ -432,6 +445,30 @@ def main():
                          "前年度の面談記録です。", float(55 + di * 4), "山田 一郎"))
                     n_iv += 1
     con.commit()
+
+    # ---------- 7. リマインドの確認用（案内を送ったあと返事がない方） ----------
+    # 「勧奨メール送信済」の方には面談受診勧奨の、「保健師対応中」の方には
+    # 健康管理のお知らせの送信記録を、10日ほど前の日付で残しておきます。
+    # （メール配信管理の「リマインド」のカードに並びます。すでに記録がある方は触りません）
+    tpl = {r["kind"]: r for r in con.execute("SELECT * FROM oh_mail_template ORDER BY kind, id")}
+    remind_plan = [("勧奨メール送信済", "status", "面談受診勧奨", f"{fy}-09-04 10:05"),
+                   ("保健師対応中", "hr_class", "健康管理のお知らせ", f"{fy}-09-05 09:30")]
+    n_rm = 0
+    for want, col, kind, sent_at in remind_plan:
+        for c in con.execute(f"SELECT member_id FROM oh_candidate WHERE fiscal_year=?"
+                             f" AND {col}=?", (str(fy), want)).fetchall():
+            has = con.execute("SELECT COUNT(*) c FROM oh_mail_log WHERE member_id=? AND kind=?"
+                              " AND result='success'", (c["member_id"], kind)).fetchone()["c"]
+            if has:
+                continue
+            t = tpl.get(kind)
+            con.execute("INSERT INTO oh_mail_log (kind, template_id, member_id, subject,"
+                        " sent_at, actor, result, detail) VALUES (?,?,?,?,?,?,?,?)",
+                        (kind, t["id"] if t else None, c["member_id"],
+                         t["subject"] if t else kind, sent_at, "hr@example.local",
+                         "success", "メールで送付"))
+            n_rm += 1
+    con.commit()
     con.close()
 
     print("=" * 62)
@@ -443,6 +480,7 @@ def main():
     print(f"  労働時間      : {n_ot}件")
     print(f"  ストレスチェック: {n_st}件")
     print(f"  面談記録      : {n_iv}件（ダッシュボードの月次推移の確認用）")
+    print(f"  リマインド用の送信記録: {n_rm}件（メール配信管理の「リマインド」に並びます）")
     print("  ログイン用アカウント（いずれも 企業担当者＋サブロール）")
     print(f"    産業医 : {DOCTOR_EMAIL} / {SAMPLE_PW}")
     print(f"    人事   : {HR_EMAIL} / {SAMPLE_PW}")

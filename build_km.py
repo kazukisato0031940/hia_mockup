@@ -39,6 +39,8 @@ HEAD_CSS = '''<style>
 /* 社内LANで Google Fonts に到達できない場合のフォールバック */
 *{font-family:"Noto Sans JP","Yu Gothic UI","Yu Gothic","Hiragino Kaku Gothic ProN",Meiryo,"MS PGothic",sans-serif}
 </style>
+<!-- 表示倍率（90%相当）。いちばん外側の文書だけが読み込む -->
+<link rel="stylesheet" href="/ui/zoom.css">
 </head>'''
 
 HEADER_JS = '''
@@ -103,8 +105,9 @@ const SYS = {
   fitHeight(frameEl){
     if(!frameEl) return;
     window.scrollTo(0, 0);                       /* 画面内に収めるため先頭へ */
-    const top = frameEl.getBoundingClientRect().top;
-    const h = Math.max(320, Math.round(window.innerHeight - top - 28));
+    const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;  /* 表示倍率で割って文書の座標に直す */
+    const top = frameEl.getBoundingClientRect().top / z;
+    const h = Math.max(320, Math.round(window.innerHeight / z - top - 28));
     frameEl.style.height = h + 'px';
     SYS._fitTarget = frameEl;
   }
@@ -129,25 +132,85 @@ const KenpoDB = {
     el.textContent = text || '';
     el.style.color = ok ? '#15803d' : '#e53e3e';
   },
+  /* 編集中の健保（null なら新規登録）。一覧の「編集」で入る */
+  editingId: null,
+  rows: [],
+  /* 編集画面の入力欄に値を入れる（row が無ければ空にする） */
+  fill(row){
+    const no = document.getElementById('ke-no');
+    const nm = document.getElementById('ke-name');
+    if(no){ no.value = row ? (row.code || '') : ''; }
+    if(nm){ nm.value = row ? (row.name || '') : ''; }
+    if(typeof KE !== 'undefined'){
+      if(KE.updatePath) KE.updatePath();
+      if(KE.setConsent) KE.setConsent(row ? (row.consent_text || '') : []);
+    }
+    /* サイト公開期間（健診代行・インフル補助） */
+    [['ke-ks-siteStart','kenshin_site_start'],['ke-ks-siteEnd','kenshin_site_end'],
+     ['ke-fl-siteStart','flu_site_start'],['ke-fl-siteEnd','flu_site_end']].forEach(function(x){
+      var el = document.getElementById(x[0]);
+      if(el) el.value = row ? (row[x[1]] || '') : '';
+    });
+    const t = document.getElementById('ke-editTitle');
+    if(t) t.textContent = row ? '健康保険組合編集（' + (row.name || '') + '）' : '健康保険組合登録';
+    const sb = document.getElementById('ke-saveBtn');
+    if(sb) sb.textContent = row ? '更新' : '登録';
+  },
+  /* 「新規作成」：空の編集画面を開く */
+  newKenpo(){
+    this.editingId = null;
+    this.msg('', true);
+    navigate('kenpo-edit');
+    this.fill(null);
+    if(typeof KE !== 'undefined' && KE.switchTab) KE.switchTab('basic');
+  },
+  /* 「編集」：データベースの値を読み込んで編集画面を開く */
+  edit(id){
+    this.editingId = Number(id);
+    this.msg('', true);
+    navigate('kenpo-edit');
+    if(typeof KE !== 'undefined' && KE.switchTab) KE.switchTab('basic');
+    const cached = this.rows.find(r => Number(r.id) === this.editingId);
+    if(cached) this.fill(cached);
+    fetch('/api/kenpos/' + this.editingId, {credentials: 'same-origin'})
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if(!d || !d.ok || Number(this.editingId) !== Number(d.row.id)) return;
+        this.fill(d.row);
+      }).catch(() => {});
+  },
   save(btn){
     const no = (document.getElementById('ke-no') || {}).value || '';
     const nm = (document.getElementById('ke-name') || {}).value || '';
+    const consent = (typeof KE !== 'undefined' && KE.getConsent) ? KE.getConsent() : [];
+    const editing = this.editingId;
     this.msg('', true);
     btn.disabled = true;
-    fetch('/api/kenpos', {
+    fetch(editing ? '/api/kenpos/' + editing : '/api/kenpos', {
       method: 'POST', credentials: 'same-origin',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({code: no, name: nm})
+      body: JSON.stringify({code: no, name: nm, consent_text: consent,
+        kenshin_site_start: (document.getElementById('ke-ks-siteStart') || {}).value || '',
+        kenshin_site_end: (document.getElementById('ke-ks-siteEnd') || {}).value || '',
+        flu_site_start: (document.getElementById('ke-fl-siteStart') || {}).value || '',
+        flu_site_end: (document.getElementById('ke-fl-siteEnd') || {}).value || ''})
     }).then(r => r.json()).then(d => {
       btn.disabled = false;
       this.msg(d.message, !!d.ok);
       if(d.ok){
-        document.getElementById('ke-no').value = '';
-        document.getElementById('ke-name').value = '';
+        if(editing){
+          if(d.row){
+            const i = this.rows.findIndex(r => Number(r.id) === Number(editing));
+            if(i >= 0) this.rows[i] = Object.assign({}, this.rows[i], d.row);
+            this.fill(d.row);
+          }
+        }else{
+          this.fill(null);
+        }
       }
     }).catch(() => {
       btn.disabled = false;
-      this.msg('登録できませんでした。通信状態を確認してください。', false);
+      this.msg((editing ? '更新' : '登録') + 'できませんでした。通信状態を確認してください。', false);
     });
   },
   goList(){ navigate('kenpo-list-table'); },
@@ -175,6 +238,7 @@ const KenpoDB = {
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if(!d || !d.rows) return;
+        KenpoDB.rows = d.rows;
         tb.innerHTML = '';
         d.rows.forEach((row, i) => {
           const tr = document.createElement('tr');
@@ -182,7 +246,6 @@ const KenpoDB = {
           tr.dataset.code = row.code;
           tr.dataset.name = row.name;
           tr.innerHTML =
-            '<td class="kl-no">' + (i + 1) + '</td>' +
             '<td>' + (row.created_at || '').slice(0, 10) + '</td>' +
             '<td>' + esc(row.code) + '</td>' +
             '<td class="kl-name" title="' + esc(row.name) + '">' + esc(row.name) + '</td>' +
@@ -198,7 +261,7 @@ const KenpoDB = {
           opTd.innerHTML =
             '<button class="tbl-btn kl-support" title="この健保の画面に入ってサポートします"' +
             ' onclick="supportLogin(' + row.id + ')">サポートログイン</button>' +
-            '<button class="tbl-btn tbl-btn-edit" data-go="kenpo-edit">編集</button>';
+            '<button class="tbl-btn tbl-btn-edit" data-go="kenpo-edit" data-id="' + row.id + '">編集</button>';
           tr.appendChild(opTd);
           tb.appendChild(tr);
         });
@@ -208,7 +271,8 @@ const KenpoDB = {
           tb.dataset.bound = '1';
           tb.addEventListener('click', function(e){
             const b = e.target.closest('[data-go]');
-            if(b) navigate(b.dataset.go);
+            if(!b) return;
+            if(b.dataset.id){ KenpoDB.edit(b.dataset.id); } else { navigate(b.dataset.go); }
           });
         }
       }).catch(() => {});
@@ -255,17 +319,35 @@ function klSetFlag(id, key, el){
 window.klToggle = klToggle;
 window.klSetFlag = klSetFlag;
 
-/* 健康保険組合のサポートログイン（当社スタッフのみ）*/
+/* 健康保険組合のサポートログイン（当社スタッフのみ）。確認はモーダル（#sl-modal）で行う */
+let _slKenpoId = null;
 function supportLogin(kenpoId){
   const tr = [...document.querySelectorAll('#kl-table tbody tr')]
     .find(r => r.dataset.id === String(kenpoId));
-  const name = tr ? tr.dataset.name : '';
-  const msg = ['この健康保険組合の画面に入ります。よろしいですか？', ''].concat(
-    name ? ['対象：' + name] : [],
-    ['・サポート対応のための機能です',
-     '・操作はすべて記録されます',
-     '・終了するまで当社の画面には戻れません']).join(String.fromCharCode(10));
-  if(!confirm(msg)) return;
+  const name = tr ? (tr.dataset.name || '') : '';
+  const code = tr ? (tr.dataset.code || '') : '';
+  _slKenpoId = kenpoId;
+  const tg = document.getElementById('sl-target');
+  if(tg) tg.textContent = name ? (name + (code ? '（保険者番号 ' + code + '）' : '')) : '（健康保険組合）';
+  const ov = document.getElementById('sl-modal');
+  if(!ov){ slGo(); return; }
+  ov.style.display = 'flex';
+  setTimeout(() => ov.classList.add('open'), 10);
+  const go = document.getElementById('sl-go');
+  if(go){ go.disabled = false; setTimeout(() => go.focus(), 60); }
+}
+function slClose(){
+  const ov = document.getElementById('sl-modal');
+  if(!ov) return;
+  ov.classList.remove('open');
+  setTimeout(() => ov.style.display = 'none', 200);
+  _slKenpoId = null;
+}
+function slGo(){
+  const kenpoId = _slKenpoId;
+  if(!kenpoId) return;
+  const go = document.getElementById('sl-go');
+  if(go) go.disabled = true;
   const f = document.createElement('form');
   f.method = 'post'; f.action = '/support/start';
   const i = document.createElement('input');
@@ -273,6 +355,17 @@ function supportLogin(kenpoId){
   f.appendChild(i); document.body.appendChild(f); f.submit();
 }
 window.supportLogin = supportLogin;
+window.slClose = slClose;
+window.slGo = slGo;
+/* Esc で閉じる／覆いをクリックで閉じる */
+document.addEventListener('keydown', function(e){
+  const ov = document.getElementById('sl-modal');
+  if(e.key === 'Escape' && ov && ov.classList.contains('open')) slClose();
+});
+document.addEventListener('click', function(e){
+  const ov = document.getElementById('sl-modal');
+  if(ov && e.target === ov) slClose();
+});
 '''
 
 CARD_ACCOUNT = '''        <div class="top-card" onclick="navigate('sys-account')">
@@ -280,7 +373,7 @@ CARD_ACCOUNT = '''        <div class="top-card" onclick="navigate('sys-account')
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M17 11l2 2 4-4"/></svg>
           </div>
           <div class="top-card-title">アカウント管理<span class="sys-flag" style="margin-left:8px">サーバ連携</span></div>
-          <div class="top-card-desc">アカウントの一覧確認・検索、代表者アカウントの発行、権限の登録・編集・削除</div>
+          <div class="top-card-desc">アカウントの一覧確認・検索、アカウントの発行、権限の登録・編集・削除</div>
         </div>
         <div class="top-card" onclick="navigate('sys-log')">
           <div class="top-card-icon">
@@ -307,12 +400,23 @@ def view(vid, title, desc, path, back='settings'):
 '''
 
 
+def kl_header(html):
+    """健康保険組合一覧の見出し行。8列は同じ幅、組合名は固定幅にする（幅は CSS の .kl-c 等で持つ）"""
+    new = ('<th class="kl-c">登録日</th><th class="kl-c">保険者番号</th><th class="kl-name-h">健康保険組合名</th>\n'
+           '              <th class="kl-c">登録企業数</th><th class="kl-c">登録医療機関数</th><th class="kl-c">公開権限</th>'
+           '<th class="kl-c">健診代行権限</th><th class="kl-c">保健指導権限</th><th class="kl-c">インフル機能</th>'
+           '<th class="kl-op-h">操作</th>')
+    return re.sub(r'<th[^>]*>(?:No</th><th[^>]*>)?登録日</th>.*?操作</th>', new, html, count=1, flags=re.S)
+
+
 def build():
     s = io.open(SRC, encoding="utf-8").read()
     orig = len(s)
 
     # 1) スタイル
     s = s.replace("</head>", HEAD_CSS, 1)
+    # 表示倍率（--ui-zoom）の分だけ 100vh が短くなるので割り戻す
+    s = s.replace("height:calc(100vh - 52px);", "height:calc(100vh / var(--ui-zoom,1) - 52px);", 1)
 
     # 2) VIEWS に追加ビューを登録し、統合したモック（account-list）を外す
     s = s.replace("""  'chat-2fa':'view-chat-2fa',
@@ -383,7 +487,7 @@ def build():
                 '例：血糖＝空腹時血糖＋HbA1c のうち重い判定を採用。'
                 '検査マスタの検査項目に対応します。', '/risk/groups', back='master')
            + view('view-sys-account', 'アカウント管理',
-                '各健保・企業の代表者アカウントを発行し、権限の登録・編集・削除と一覧確認を行います。',
+                '各健保・企業のアカウントを発行し、権限の登録・編集・削除と一覧確認を行います。',
                 '/accounts')
            + view('view-sys-log', '操作ログ管理',
                   'HIA総合管理とHIA健保管理の操作ログを1つのデータベースに集約しています。',
@@ -758,14 +862,14 @@ select:disabled { background-color: #f7fafc !important; color: #718096; cursor: 
               <th style="width:180px;">判定区分</th>
               <th style="width:80px;">性別</th>
               <th>下限値(以上)</th>
-              <th>上限値(未満)</th>
+              <th>上限値(以下)</th>
               <th style="width:70px;">操作</th>''',
         '''              <th style="width:56px;">No</th>
-              <th style="width:240px;">判定区分</th>
-              <th style="width:120px;">性別</th>
-              <th style="width:190px;">下限値(以上)</th>
-              <th style="width:190px;">上限値(未満)</th>
-              <th style="width:96px;">操作</th>''')
+              <th>判定区分</th>
+              <th style="width:14%;">性別</th>
+              <th style="width:22%;">下限値(以上)</th>
+              <th style="width:22%;">上限値(以下)</th>
+              <th style="width:110px;">操作</th>''')
     # 判定基準の表はインラインの width:100% を外す（値の欄が広がりすぎるため）
     k = s.find('id="view-master-judgment-edit"')
     if k >= 0:
@@ -808,14 +912,32 @@ button, .tbl-btn, .back-btn, .btn-save, .btn-submit-page, .btn-cancel-page,
 #ms-critWrap td { padding: 6px 10px; height: 52px }
 #ms-critWrap input[type="number"], #ms-critWrap input[type="text"] { text-align: right }
 /* 判定マスタ編集：表を内容の幅にとどめる（値の欄が広がりすぎないように）*/
-.ms-crit-table { width: 900px; max-width: 100%; table-layout: fixed }
+.ms-crit-table { width: 100%; table-layout: fixed }
+/* No の欄は中央ぞろえ。操作の欄はボタンがはみ出さないようにする */
+#ms-critWrap td.ms-crit-no { text-align: center; color: #64748b; font-weight: 600 }
+.ms-crit-table th:last-child, #ms-critWrap td:last-child { text-align: center }
+#ms-critWrap td:last-child .tbl-btn { min-width: 0 }
+/* 表がカードからはみ出さないように、狭いときは表だけ横スクロールする */
+.ms-table-scroll { overflow-x: auto; max-width: 100% }
+/* 条件・金額編集：No の欄は中央ぞろえ */
+#ms-condWrap td.ms-cond-no { text-align: center; color: #64748b; font-weight: 600 }
+#ms-condWrap td:last-child, #ms-condWrap td:last-child .tbl-btn { text-align: center; min-width: 0 }
 </style>""", 1)
 
-    # ---- サイドバーの横幅を96pxにする（本文の左余白もあわせる）----
-    s = s.replace("left:0;width:88px;height:calc(100vh - 52px);",
-                  "left:0;width:96px;height:calc(100vh - 52px);")
-    s = s.replace("body{background:#f7f8f9;color:#333;margin-left:88px;}",
-                  "body{background:#f7f8f9;color:#333;margin-left:96px;}")
+    # ---- サイドバーの横幅は 88px（原本のまま。本文の左余白・ヘッダーの幅もあわせる）----
+    s = s.replace("margin-left:-96px;width:calc(100% + 96px);",
+                  "margin-left:-88px;width:calc(100% + 88px);")
+
+    # ---- 健康保険組合一覧：8列を同じ幅（120px）、組合名は240px、操作は260px ----
+    s = kl_header(s)
+    s = s.replace("#kl-table th:nth-child(4){text-align:left;max-width:220px}\n", "")
+    s = s.replace("#kl-table td.kl-name{max-width:220px}\n", "")
+    s = s.replace("#kl-table th:last-child,#kl-table td:last-child{width:206px}\n", "")
+    s = s.replace("#kl-table{table-layout:fixed;width:100%}",
+                  "#kl-table th.kl-c{width:120px}\n"
+                  "#kl-table th.kl-name-h{width:240px;text-align:left}\n"
+                  "#kl-table th.kl-op-h{width:260px}\n"
+                  "#kl-table{table-layout:fixed;width:100%;min-width:1460px}")
 
     io.open(OUT, "w", encoding="utf-8").write(s)
     return orig, len(s), s

@@ -1,0 +1,18 @@
+{% extends LAYOUT %}{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">健康マイページ</h1>
+<p class="page-lead">ご自身の健診結果・時間外労働・ストレスチェック・面談の記録を
+  まとめて確認できる画面です。</p>
+{% endif %}
+
+<div class="block">
+  <div class="blk-head"><div class="blk-head-left"><h2>加入者情報が見つかりません</h2></div></div>
+  <div class="empty-box">
+    ログイン中のメールアドレス（<b>{{ email or '—' }}</b>）と一致する加入者が
+    登録されていないため、マイページを表示できません。
+  </div>
+  <p class="hint">加入者マスタのメールアドレスと、ログインに使うメールアドレスが
+    同じ場合にご本人の情報を表示します。心当たりのない場合は、ご担当窓口
+    （または当社スタッフ）へご連絡ください。</p>
+</div>
+{% endblock %}

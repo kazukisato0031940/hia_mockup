@@ -12,14 +12,6 @@
     <div class="search-group"><label for="name">利用者名</label>
       <input type="text" id="name" name="name" required style="width:100%"
         value="{{ (form.name if form else row.name) }}"></div>
-    <hr class="switch-sep">
-    <label class="switch">
-      <input type="checkbox" name="is_primary" value="1"
-        {{ 'checked' if (form.is_primary if form else row.is_primary) }}>
-      <span class="track"></span>
-      <span class="sw-body"><b>代表者アカウント</b>
-        <span>健保・企業の代表者として登録します。一覧の先頭に表示されます。</span></span>
-    </label>
     <div class="search-group" style="margin-top:12px"><label>登録日時 ／ 登録者</label>
       <p class="mono">{{ row.created_at or '—' }} ／ {{ row.created_by or '—' }}</p></div>
     <div class="search-group"><label>最終ログイン</label>
@@ -49,17 +41,18 @@
           <input type="radio" name="sub_role" value="" {{ 'checked' if not cursub }}>
           <span class="role-box"><b>なし（通常）</b><em>マスタ・加入者情報などの通常業務</em></span>
         </label>
+        {% for sr in SUB_ROLES %}
         <label class="role-btn">
-          <input type="radio" name="sub_role" value="doctor" {{ 'checked' if cursub=='doctor' }}>
-          <span class="role-box"><b>産業医</b><em>面談の承認・就業区分・面談記録・記名</em></span>
+          <input type="radio" name="sub_role" value="{{ sr }}"{{ ' checked' if cursub == sr }}>
+          <span class="role-box"><b>{{ SUB_ROLE_LABELS[sr] }}</b>
+            <em>{{ SUB_ROLE_DESC[sr] }}</em></span>
         </label>
-        <label class="role-btn">
-          <input type="radio" name="sub_role" value="hr" {{ 'checked' if cursub=='hr' }}>
-          <span class="role-box"><b>人事</b><em>取込・メール配信・対応区分・出力</em></span>
-        </label>
+        {% endfor %}
       </div>
-      <p class="fld-help">産業医面談の権限です。<b>医学的判断（承認・就業区分・面談記録・記名）は産業医のみ</b>が行えます。
-        産業医はデータ取込とメール配信を行えません。</p>
+      <p class="fld-help">産業医面談・健康管理の権限です。
+        <b>医学的判断（承認・就業区分・面談記録・記名）は産業医のみ</b>が行えます。
+        産業医はデータ取込とメール配信を行えません。
+        保健師は加入者の健康管理（対応区分の変更・案内メール）を行い、判定は行いません。</p>
     </div>
     <hr class="switch-sep">
     <label class="switch">
@@ -98,44 +91,43 @@
 {% if acc.role == 'system_admin' %}
 {{ kenpo_picker(kenpos, (form.kenpo_id if form and form.kenpo_id else row.kenpo_id)) }}
 {% endif %}
+<div class="scope-row" id="scope-row">
 {{ company_picker(comps, selected, acc) }}
 
-{# ---- 健保 → 企業 → 事業所 → 部署 の連動。事業所・部署は選んだ企業の配下だけ ---- #}
+{# ---- 事業所・部署の担当範囲（企業を跨いで選べる） ---- #}
 <div class="block" id="card-scope">
-  <h2>担当する事業所・部署（任意）</h2>
-  <p class="note" style="margin-bottom:12px">
-    上で選んだ企業の<b>すべての加入者</b>が担当対象です。
-    特定の事業所・部署だけに絞りたい場合は、以下で選択してください
-    （<b>企業を選ぶと候補が表示されます</b>。企業を跨いだ指定はできません）。</p>
-  <div class="scope-cols">
-    <div>
+  <h2>担当する事業所・部署<span class="opt">任意</span></h2>
+  <p class="note" style="margin-bottom:12px;">
+    企業・事業所・部署は<b>跨いで何件でも</b>選べます。選んだものすべての加入者が対象になります。</p>
+  <div class="ribbon-empty" id="sc-both-empty" style="display:none"></div>
+  <div class="scope-cols" id="sc-cols">
+    <div id="sc-o-col">
       <div class="scope-head">事業所
         <span class="count"><span id="sc-o-n">0</span>件選択中</span></div>
       <div class="search-group" style="margin-bottom:6px">
-        <input type="text" id="sc-oq" placeholder="事業所名で絞り込む"
+        <input type="text" id="sc-oq" placeholder="企業名・事業所名で絞り込む"
                autocomplete="off" style="width:100%"></div>
       <div class="pick-rows" id="sc-offs">
         {% for o in offs %}
-        <label class="pick-row chk-row" data-company="{{ o.company_id }}"
-               data-text="{{ o.company_name }} {{ o.name }} {{ o.ext_code or o.code }}">
+        <label class="pick-row chk-row" data-text="{{ o.company_name }} {{ o.name }} {{ o.ext_code or o.code }}">
           <input type="checkbox" name="office_ids" value="{{ o.id }}"
                  {{ 'checked' if o.id in sel_offices }}>
           <span class="pr-code">{{ o.ext_code or o.code }}</span>
           <span class="pr-name">{{ o.company_name }}　／　{{ o.name }}</span>
         </label>
         {% endfor %}
-        <div class="ribbon-empty" id="sc-offs-empty">先に「対象の企業」で企業を選択してください。</div>
+        {% if not offs %}<div class="ribbon-empty">選べる事業所がありません。</div>{% endif %}
       </div>
     </div>
-    <div>
+    <div id="sc-d-col">
       <div class="scope-head">部署
         <span class="count"><span id="sc-d-n">0</span>件選択中</span></div>
       <div class="search-group" style="margin-bottom:6px">
-        <input type="text" id="sc-dq" placeholder="部署名で絞り込む"
+        <input type="text" id="sc-dq" placeholder="企業名・事業所名・部署名で絞り込む"
                autocomplete="off" style="width:100%"></div>
       <div class="pick-rows" id="sc-depts">
         {% for d in depts %}
-        <label class="pick-row chk-row" data-office="{{ d.office_id }}"
+        <label class="pick-row chk-row"
                data-text="{{ d.company_name }} {{ d.office_name }} {{ d.name }} {{ d.ext_code or d.code }}">
           <input type="checkbox" name="dept_ids" value="{{ d.id }}"
                  {{ 'checked' if d.id in sel_depts }}>
@@ -143,13 +135,94 @@
           <span class="pr-name">{{ d.company_name }}　／　{{ d.office_name }}　／　{{ d.name }}</span>
         </label>
         {% endfor %}
-        <div class="ribbon-empty" id="sc-depts-empty">先に事業所を選択してください。</div>
+        {% if not depts %}<div class="ribbon-empty">選べる部署がありません。</div>{% endif %}
       </div>
     </div>
   </div>
 </div>
+</div>
 
-{% include "_scope_cascade.html" %}
+<script>
+/* 担当する事業所・部署の選択と絞り込み */
+(function(){
+  function wire(boxId, qId, outId){
+    var box = document.getElementById(boxId);
+    var q = document.getElementById(qId);
+    var out = document.getElementById(outId);
+    if(!box) return;
+    function upd(){
+      out.textContent = box.querySelectorAll('input[type=checkbox]:checked').length;
+    }
+    box.addEventListener('change', upd);
+    if(q) q.addEventListener('input', function(){
+      var t = q.value.trim().toLowerCase();
+      [].slice.call(box.querySelectorAll('.chk-row')).forEach(function(r){
+        r.style.display = (!t || (r.dataset.text || '').toLowerCase().indexOf(t) >= 0)
+          ? '' : 'none';
+      });
+    });
+    upd();
+    return upd;
+  }
+  var a = wire('sc-offs', 'sc-oq', 'sc-o-n');
+  var b = wire('sc-depts', 'sc-dq', 'sc-d-n');
+  window.scUpd = function(){ if(a) a(); if(b) b(); };
+
+  /* 選んだ企業の事業所・部署だけを候補に出す（企業を外したらその分の選択も外す） */
+  function selectedCompanies(){
+    var out = {};
+    [].forEach.call(
+      document.querySelectorAll('#compcard-list input[name="company_ids"]'),
+      function(c){ if(c.checked) out[c.value] = true; });
+    return out;
+  }
+  function side(boxId, emptyId, none, empty){
+    var box = document.getElementById(boxId);
+    var msg = document.getElementById(emptyId);
+    if(!box) return;
+    var cids = selectedCompanies();
+    var any = Object.keys(cids).length > 0;
+    var shown = 0;
+    [].forEach.call(box.querySelectorAll('.chk-row'), function(r){
+      var ok = any && !!cids[r.dataset.cid];
+      r.style.display = ok ? '' : 'none';
+      if(ok) shown++;
+      else {
+        var c = r.querySelector('input[type=checkbox]');
+        if(c && c.checked) c.checked = false;   /* 対象外になった選択は外す */
+      }
+    });
+    if(msg){
+      msg.textContent = any ? (shown ? '' : empty) : none;
+      msg.style.display = (msg.textContent) ? '' : 'none';
+    }
+    return shown;
+  }
+  window.scopeSync = function(){
+    var picked = Object.keys(selectedCompanies()).length > 0;
+    var n_o = side('sc-offs', 'sc-o-empty', '先に対象の企業を選んでください。', '');
+    var n_d = side('sc-depts', 'sc-d-empty', '先に対象の企業を選んでください。', '');
+    /* 企業を選んだあとは、候補がある側だけを出す
+       （事業所を持たない企業なら部署だけ、部署が無ければ事業所だけになる） */
+    var oc = document.getElementById('sc-o-col');
+    var dc = document.getElementById('sc-d-col');
+    var cols = document.getElementById('sc-cols');
+    var both = document.getElementById('sc-both-empty');
+    if(oc) oc.style.display = (!picked || n_o) ? '' : 'none';
+    if(dc) dc.style.display = (!picked || n_d) ? '' : 'none';
+    if(cols) cols.style.gridTemplateColumns =
+      (picked && (!n_o || !n_d) && (n_o || n_d)) ? '1fr' : '';
+    if(both){
+      var none = picked && !n_o && !n_d;
+      both.textContent = none
+        ? '選んだ企業には事業所・部署が登録されていません（企業全体が担当範囲になります）。' : '';
+      both.style.display = none ? '' : 'none';
+    }
+    window.scUpd();
+  };
+  window.scopeSync();
+})();
+</script>
 
 {# ============ パスワードの設定（案内リンク／その場で設定）============
    以前は一覧の「リンク」「PW」ボタンから別画面に移っていたものを、
@@ -365,23 +438,15 @@ function accCopy(srcId, btnId){
   function upd(){
     var el=document.querySelector('input[name="role"]:checked');
     var v = el ? el.value : '';
-    /* 健保の選択カードは、健保担当者と企業担当者で共通のUIを使う */
-    var kshow = (v==='kenpo_user' || v==='company_user');
-    show('kenpocard-search', kshow);
-    show('kenpocard-list',   kshow);
+    show('kenpocard-search', v==='kenpo_user');
+    show('kenpocard-list',   v==='kenpo_user');
     show('compcard-search',  v==='company_user');
     show('compcard-list',    v==='company_user');
-    show('card-scope',       v==='company_user');
     show('subrole-group',    v==='company_user');
-    var hint = document.getElementById('kp-hint');
-    if(hint) hint.textContent = (v==='company_user')
-      ? '選んだ健康保険組合に属する企業だけが、下の「対象の企業」に表示されます。'
-      : '健保担当者は、選んだ健康保険組合に所属する全企業の加入者を閲覧できます。';
     if(v !== 'company_user'){
       var none = document.querySelector('input[name="sub_role"][value=""]');
       if(none) none.checked = true;
     }
-    if(v==='company_user' && typeof cpKenpoSync==='function') cpKenpoSync();
   }
   radios.forEach(function(r){ r.addEventListener('change', upd); });
   upd();

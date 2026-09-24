@@ -1,6 +1,7 @@
 {% extends LAYOUT %}
 {% block body %}
-{% if not request.args.get('preview') %}
+{% set PREVIEW = request.args.get('preview') %}
+{% if not PREVIEW %}
 <div class="oh-toolbar oh-noprint">
   <button class="btn-sm primary" type="button" onclick="ohPdf()">PDFをダウンロード</button>
   <button class="btn-sm" type="button" onclick="window.print()">印刷（PDFとして保存）</button>
@@ -9,119 +10,341 @@
 {% endif %}
 
 {% if kind == 'kenshin' %}
-{# ============ 定期健康診断結果報告書（労働安全衛生規則 様式第6号 準拠） ============ #}
-<div class="oh-doc" id="ohDoc1">
-  <h1>定期健康診断結果報告書</h1>
-  <p class="oh-doc-sub">労働安全衛生規則 様式第6号 準拠　／　{{ fy }}年度
-    {% if s.kenpo %}　{{ s.kenpo.name }}{% endif %}</p>
-
-  <h2>1. 健康診断の実施状況</h2>
-  <table>
-    <tr><th>健診年度</th><td class="num">{{ fy }}年度（{{ fy }}年4月〜{{ fy|int + 1 }}年3月）</td></tr>
-    <tr><th>在籍労働者数</th><td class="num">{{ s.total }} 人</td></tr>
-    <tr><th>受診労働者数</th><td class="num">{{ s.done }} 人</td></tr>
-    <tr><th>未受診者数</th><td class="num">{{ s.notdone }} 人</td></tr>
-    <tr><th>受診率</th><td class="num">{{ '%.1f'|format(s.rate) }} ％</td></tr>
-    <tr><th>有所見者数（C判定以上）</th><td class="num">{{ s.finding }} 人</td></tr>
-    <tr><th>深夜業従事者（特定業務従事者）の対象者数</th>
-      <td class="num">{{ s.night_total }} 人</td></tr>
-    <tr><th>　うち深夜健診の受診者数</th><td class="num">{{ s.night_done }} 人</td></tr>
-  </table>
-
-  <h2>2. 総合判定区分の内訳</h2>
-  <table>
-    {% for j in JUDGES %}
-    <tr><th>{{ j }}　{{ JUDGE_LABEL[j] }}</th><td class="num">{{ s.judges[j] }} 人</td></tr>
-    {% endfor %}
-    <tr><th>判定なし（未受診を含む）</th>
-      <td class="num">{{ s.total - s.judges.values()|sum }} 人</td></tr>
-  </table>
-  <p class="oh-foot">
-    ※ 判定区分は日本人間ドック・予防医療学会の判定区分（2026年4月1日改定）に準拠。
-    A：異常なし／B：軽度異常／C：要再検査・生活改善／D：要精密検査・治療／E：治療中。
-    C判定以上を有所見として集計している。</p>
-
-  <h2>3. 医師による面接指導の実施状況</h2>
-  <table>
-    <tr><th>面接指導の対象者数</th><td class="num">{{ s.iv_target }} 人</td></tr>
-    <tr><th>面接指導を実施した人数</th><td class="num">{{ s.iv_done }} 人</td></tr>
-    <tr><th>未実施の人数</th><td class="num">{{ s.iv_rest }} 人</td></tr>
-    {% for w, n in s.work.items() %}
-    <tr><th>就業区分の判定：{{ w }}</th><td class="num">{{ n }} 人</td></tr>
-    {% endfor %}
-  </table>
-  <p class="oh-foot">
-    ※ 面接指導の対象者は、健診有所見（C判定以上）・時間外労働が月80時間超・
-    高ストレスのいずれかに該当した者。就業区分は産業医の判定による。</p>
-
-  <div class="oh-sign">
-    <div class="oh-sign-l">産業医　記名・サイン</div>
-    {% if sign %}
-    <div class="oh-sign-name">{{ sign.name }}</div>
-    <div style="margin-top:4px">{{ sign.title or '' }}</div>
-    <div style="margin-top:4px;font-size:11px;color:#4a5568">
-      記名日時：{{ sign.signed_at[:16] }}</div>
-    {% else %}
-    <div class="oh-sign-name" style="color:#a0aec0">（未記名）</div>
-    <div style="margin-top:4px;font-size:11px;color:#4a5568">
-      労基署報告の画面から、産業医が記名してください。</div>
-    {% endif %}
+{# ============ 定期健康診断結果報告書（労働安全衛生規則 様式第6号）============
+   厚生労働省の様式（様式第6号・第52条関係）の記入欄にならべています。
+   人数は健診結果から集計し、事業場・実施機関・産業医などは登録した内容を入れます。 #}
+{% macro cells(v, n, cls='') %}
+{%- set t = ('' if v is none else v|string) -%}
+{%- set t = (t[-n:] if t|length > n else t) -%}
+{%- set pad = n - t|length -%}
+<span class="f6-cells {{ cls }}">
+  {%- for _ in range(pad) %}<span class="f6-c"></span>{% endfor -%}
+  {%- for ch in t %}<span class="f6-c">{{ ch }}</span>{% endfor -%}
+</span>
+{%- endmacro %}
+{% macro num(v, n=5) %}{{ cells(v if v is not none else '', n, 'f6-num') }}{% endmacro %}
+{# 労働保険番号は 府県2・所掌1・管轄2・基幹番号6・枝番号3・被一括事業場番号5 #}
+{% set lin = (f6.labor_insurance_no or '') | replace('-', '') | replace(' ', '') %}
+{% set ey = (f6.target_year or fy) | int %}
+{% set ed = (f6.examination_date or '') %}
+<div class="oh-doc f6-doc" id="ohDoc1">
+  <div class="f6-top">
+    <span class="f6-kind">様式第6号（第52条関係）（表面）</span>
+    <h1>定期健康診断結果報告書</h1>
   </div>
+
+  {# 列幅を決めて、労働保険番号の欄（府県〜被一括事業場番号）が1行に収まるようにします #}
+  <table class="f6-t f6-t1">
+    <colgroup><col class="f6-c1"><col class="f6-c2"><col class="f6-c3"><col></colgroup>
+    <tr>
+      <td class="f6-lbl">帳票種別</td>
+      <td>{{ cells('80311', 5) }}</td>
+      <td class="f6-lbl">労働保険<br>番号</td>
+      <td class="f6-lin">
+        <span class="f6-lin-g"><span class="f6-sub">府県</span>{{ cells(lin[0:2], 2, 'f6-sm') }}</span>
+        <span class="f6-lin-g"><span class="f6-sub">所掌</span>{{ cells(lin[2:3], 1, 'f6-sm') }}</span>
+        <span class="f6-lin-g"><span class="f6-sub">管轄</span>{{ cells(lin[3:5], 2, 'f6-sm') }}</span>
+        <span class="f6-lin-g"><span class="f6-sub">基幹番号</span>{{ cells(lin[5:11], 6, 'f6-sm') }}</span>
+        <span class="f6-lin-g"><span class="f6-sub">枝番号</span>{{ cells(lin[11:14], 3, 'f6-sm') }}</span>
+        <span class="f6-lin-g"><span class="f6-sub">被一括事業場番号</span>{{ cells(lin[14:19], 5, 'f6-sm') }}</span>
+      </td>
+    </tr>
+    <tr>
+      <td class="f6-lbl">対象年</td>
+      <td class="f6-nowrap">
+        <span class="f6-sub">7：平成<br>9：令和</span>{{ cells('9', 1) }}
+        {{ cells('%02d'|format(ey - 2018) if ey >= 2019 else '', 2) }}
+        <span class="f6-sub">年</span>
+        <span class="f6-sub">（</span>{{ cells('04', 2, 'f6-sm') }}<span class="f6-sub">月～</span>
+        {{ cells('03', 2, 'f6-sm') }}<span class="f6-sub">月分）（報告</span>
+        {{ cells(f6.report_count or '1', 1, 'f6-sm') }}<span class="f6-sub">回目）</span>
+      </td>
+      <td class="f6-lbl">健診<br>年月日</td>
+      <td class="f6-nowrap">
+        <span class="f6-sub">7：平成<br>9：令和</span>{{ cells('9', 1) }}
+        {{ cells('%02d'|format(ed[0:4]|int - 2018) if ed else '', 2) }}
+        <span class="f6-sub">年</span>{{ cells(ed[5:7] if ed else '', 2) }}
+        <span class="f6-sub">月</span>{{ cells(ed[8:10] if ed else '', 2) }}
+        <span class="f6-sub">日</span>
+      </td>
+    </tr>
+    <tr>
+      <td class="f6-lbl">事業の<br>種類</td>
+      <td class="f6-free">{{ f6.industry_type or '' }}</td>
+      <td class="f6-lbl">事業場の<br>名称</td>
+      <td class="f6-free">{{ f6.workplace_name or '' }}</td>
+    </tr>
+    <tr>
+      <td class="f6-lbl">事業場の<br>所在地</td>
+      <td class="f6-free" colspan="3">
+        <span class="f6-sub">郵便番号（</span>{{ f6.workplace_zip or '　　　　' }}<span class="f6-sub">）</span>
+        <span class="f6-addr">{{ f6.workplace_address or '' }}</span>
+        <span class="f6-sub" style="margin-left:14px">電話（</span>{{ f6.workplace_tel or '　　　　　' }}<span class="f6-sub">）</span>
+      </td>
+    </tr>
+  </table>
+
+  <table class="f6-t">
+    <tr>
+      <td class="f6-lbl" style="width:112px">健康診断実施<br>機関の名称</td>
+      <td class="f6-free">{{ f6.institution_name or '' }}</td>
+      <td class="f6-lbl" style="width:104px">在籍労働者数</td>
+      <td style="width:190px">{{ num(f6c.employees, 5) }}
+        <div class="f6-note">右に詰めて記入する↑</div></td>
+    </tr>
+    <tr>
+      <td class="f6-lbl">健康診断実施<br>機関の所在地</td>
+      <td class="f6-free">{{ f6.institution_address or '' }}</td>
+      <td class="f6-lbl">受診労働者数</td>
+      <td>{{ num(f6c.examinees, 5) }}</td>
+    </tr>
+  </table>
+
+  <table class="f6-t">
+    <tr><td class="f6-band-head" colspan="2">
+      （※）年齢階層別受診労働者数（{{ f6c.bands | map(attribute='label') | join('、') }}の順に左から記入する）
+    </td></tr>
+    <tr>
+      <td class="f6-bands">
+        {% for b in f6c.bands %}
+        <span class="f6-band" title="{{ b.label }}">{{ num(b.n, 4) }}<span class="f6-sub">人</span></span>
+        {% endfor %}
+      </td>
+      <td class="f6-bands-total"><span class="f6-sub">計</span>{{ num(f6c.bands_total, 5) }}
+        <span class="f6-sub">人</span></td>
+    </tr>
+  </table>
+
+  <table class="f6-t f6-items">
+    <tr>
+      <td class="f6-lbl f6-vert" rowspan="8">健<br>康<br>診<br>断<br>項<br>目</td>
+      <td class="f6-ih"></td><td class="f6-ih">受診労働者数</td><td class="f6-ih">有所見者数</td>
+      <td class="f6-ih"></td><td class="f6-ih">受診労働者数</td><td class="f6-ih">有所見者数</td>
+    </tr>
+    {% set left = f6c.print_rows[:7] %}
+    {% set right = f6c.print_rows[7:] %}
+    {% for i in range(7) %}
+    <tr>
+      <td class="f6-iname">{{ left[i].label }}</td>
+      <td>{{ num(left[i].n, 5) }}</td>
+      <td>{{ num(left[i].ng, 5) }}</td>
+      {% if i < right|length %}
+      <td class="f6-iname">{{ right[i].label }}</td>
+      <td>{{ num(right[i].n, 5) }}</td>
+      <td>{{ num(right[i].ng, 5) }}</td>
+      {% else %}
+      <td class="f6-iname"></td><td></td><td></td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </table>
+
+  <table class="f6-t">
+    <tr>
+      <td class="f6-lbl" style="width:150px">所見のあった者の人数</td>
+      <td style="width:200px">{{ num(f6c.abnormal, 5) }}</td>
+      <td class="f6-lbl" style="width:120px">医師の<br>指示人数</td>
+      <td>{{ num(f6c.instruction, 4) }}</td>
+    </tr>
+  </table>
+
+  <table class="f6-t">
+    <tr>
+      <td class="f6-lbl f6-vert" rowspan="2" style="width:44px">産<br>業<br>医</td>
+      <td class="f6-lbl" style="width:104px">氏　名</td>
+      <td class="f6-free">{{ f6.physician_name or (sign.name if sign else '') }}</td>
+    </tr>
+    <tr>
+      <td class="f6-lbl">所属機関の<br>名称及び所在地</td>
+      <td class="f6-free">{{ f6.physician_address or '' }}</td>
+    </tr>
+  </table>
+
+  <div class="f6-foot">
+    <div class="f6-foot-l">
+      <div class="f6-date">
+        {{ cells('', 2) }}<span class="f6-sub">年</span>{{ cells('', 2) }}<span class="f6-sub">月</span>{{ cells('', 2) }}<span class="f6-sub">日</span>
+      </div>
+      <div class="f6-emp"><span class="f6-sub">事業者職氏名</span>
+        <span class="f6-emp-name">{{ f6.employer_name_title or '' }}</span></div>
+      <div class="f6-kantoku">労働基準監督署長殿</div>
+    </div>
+    <div class="f6-stamp">受　付　印</div>
+  </div>
+
+</div>
+
+{# 注記は様式の外（紙の下）に置きます。紙そのものは A4 1枚に収めます #}
+<div class="oh-doc-notes">
+  {% if sign %}
+  <p class="oh-foot">産業医の記名：{{ sign.name }}{% if sign.title %}（{{ sign.title }}）{% endif %}
+    　記名日時：{{ sign.signed_at[:16] }}</p>
+  {% else %}
+  <p class="oh-foot">産業医の記名はまだありません（労基署報告の画面から記名できます）。</p>
+  {% endif %}
   <p class="oh-foot">
-    作成日：{{ fy }}年度分　／　出力者：{{ acc.name }}（{{ ROLE_NAME }}）<br>
-    提出前に、事業場名・労働保険番号・業種などの様式記載欄を所轄労働基準監督署の様式に転記し、
-    内容をご確認ください。集計は本システムの登録データから自動算出したものです。</p>
+    ※ 人数は本システムに登録・取込した健診結果から集計しています。有所見はHIA健保管理の
+    判定マスタの条件でC判定以上となった者です。提出前に所轄労働基準監督署の様式・記載要領と
+    内容をご確認ください。受診の必要性や就業上の措置の最終判断は産業医・医師が行います。</p>
 </div>
 
 {% else %}
-{# ============ 心理的な負担の程度を把握するための検査結果等報告書 ============ #}
-<div class="oh-doc" id="ohDoc1">
-  <h1>心理的な負担の程度を把握するための検査結果等報告書</h1>
-  <p class="oh-doc-sub">ストレスチェック結果等報告書　／　{{ fy }}年度
-    {% if s.kenpo %}　{{ s.kenpo.name }}{% endif %}</p>
-
-  <h2>1. 検査の実施状況</h2>
-  <table>
-    <tr><th>実施年度</th><td class="num">{{ fy }}年度</td></tr>
-    {% if s.camp %}
-    <tr><th>実施期間</th>
-      <td class="num">{{ s.camp.period_from or '—' }} 〜 {{ s.camp.period_to or '—' }}</td></tr>
-    <tr><th>回答締切</th><td class="num">{{ s.camp.deadline or '—' }}</td></tr>
-    <tr><th>案内の送信数</th><td class="num">{{ s.camp.sent }} 件</td></tr>
-    {% endif %}
-    <tr><th>検査の対象労働者数</th><td class="num">{{ s.st_total }} 人</td></tr>
-    <tr><th>検査を受けた労働者数</th><td class="num">{{ s.st_done }} 人</td></tr>
-    <tr><th>受検率</th>
-      <td class="num">{{ '%.1f'|format(s.st_done / s.st_total * 100 if s.st_total else 0) }} ％</td></tr>
-  </table>
-
-  <h2>2. 高ストレス者と面接指導の状況</h2>
-  <table>
-    <tr><th>高ストレス者と判定された労働者数</th><td class="num">{{ s.st_high }} 人</td></tr>
-    <tr><th>面接指導の申出を行った労働者数</th><td class="num">{{ s.st_apply }} 人</td></tr>
-    <tr><th>医師による面接指導を受けた労働者数</th><td class="num">{{ s.st_iv }} 人</td></tr>
-  </table>
-  <p class="oh-foot">
-    ※ 検査の結果は法令にもとづき保護され、人事評価の目的には利用していない。
-    面接指導は本人の申出にもとづき実施している。</p>
-
-  <div class="oh-sign">
-    <div class="oh-sign-l">検査を実施した医師（産業医）　記名・サイン</div>
-    {% if sign %}
-    <div class="oh-sign-name">{{ sign.name }}</div>
-    <div style="margin-top:4px">{{ sign.title or '' }}</div>
-    <div style="margin-top:4px;font-size:11px;color:#4a5568">
-      記名日時：{{ sign.signed_at[:16] }}</div>
-    {% else %}
-    <div class="oh-sign-name" style="color:#a0aec0">（未記名）</div>
-    <div style="margin-top:4px;font-size:11px;color:#4a5568">
-      労基署報告の画面から、産業医が記名してください。</div>
-    {% endif %}
+{# ============ 心理的な負担の程度を把握するための検査結果等報告書 ============
+   労働安全衛生規則 様式第6号の2（第52条の21関係）（表面）の記入欄にならべています。
+   人数はストレスチェックの実施結果から集計し、事業場・産業医などは登録した内容を入れます。 #}
+{% macro cells(v, n, cls='') %}
+{%- set t = ('' if v is none else v|string) -%}
+{%- set t = (t[-n:] if t|length > n else t) -%}
+{%- set pad = n - t|length -%}
+<span class="f6-cells {{ cls }}">
+  {%- for _ in range(pad) %}<span class="f6-c"></span>{% endfor -%}
+  {%- for ch in t %}<span class="f6-c">{{ ch }}</span>{% endfor -%}
+</span>
+{%- endmacro %}
+{% macro num(v, n=5) %}{{ cells(v if v is not none else '', n, 'f6-num') }}{% endmacro %}
+{% set lin = (f6.labor_insurance_no or '') | replace('-', '') | replace(' ', '') %}
+{% set ey = (f6.target_year or fy) | int %}
+{% set ed = (s.camp.period_to if s.camp and s.camp.period_to else '') %}
+<div class="oh-doc f6-doc" id="ohDoc1">
+  <div class="f6-top">
+    <span class="f6-kind">様式第6号の2（第52条の21関係）（表面）</span>
+    <h1>心理的な負担の程度を把握するための検査結果等報告書</h1>
   </div>
+
+  <table class="f6-t">
+    <tr>
+      <td class="f6-lbl" style="width:112px">帳票種別</td>
+      <td>{{ cells('80501', 5) }}</td>
+      <td class="f6-lbl">労働保険<br>番号</td>
+      <td class="f6-lin">
+        <span class="f6-lin-g"><span class="f6-sub">府県</span>{{ cells(lin[0:2], 2, 'f6-sm') }}</span>
+        <span class="f6-lin-g"><span class="f6-sub">所掌</span>{{ cells(lin[2:3], 1, 'f6-sm') }}</span>
+        <span class="f6-lin-g"><span class="f6-sub">管轄</span>{{ cells(lin[3:5], 2, 'f6-sm') }}</span>
+        <span class="f6-lin-g"><span class="f6-sub">基幹番号</span>{{ cells(lin[5:11], 6, 'f6-sm') }}</span>
+        <span class="f6-lin-g"><span class="f6-sub">枝番号</span>{{ cells(lin[11:14], 3, 'f6-sm') }}</span>
+        <span class="f6-lin-g"><span class="f6-sub">被一括事業場番号</span>{{ cells(lin[14:19], 5, 'f6-sm') }}</span>
+      </td>
+    </tr>
+    <tr>
+      <td class="f6-lbl">対象年</td>
+      <td class="f6-nowrap">
+        <span class="f6-sub">7：平成<br>9：令和</span>{{ cells('9', 1) }}
+        {{ cells('%02d'|format(ey - 2018) if ey >= 2019 else '', 2) }}
+        <span class="f6-sub">年分</span>
+        <div class="f6-note2">1〜3月は前年</div>
+      </td>
+      <td class="f6-lbl">検査実施年月</td>
+      <td class="f6-nowrap">
+        <span class="f6-sub">7：平成<br>9：令和</span>{{ cells('9' if ed else '', 1) }}
+        {{ cells('%02d'|format(ed[0:4]|int - 2018) if ed else '', 2) }}
+        <span class="f6-sub">年</span>{{ cells(ed[5:7] if ed else '', 2) }}
+        <span class="f6-sub">月</span>
+        <div class="f6-note2">1〜3月は前年　／　1〜3月分</div>
+      </td>
+    </tr>
+    <tr>
+      <td class="f6-lbl">事業の種類</td>
+      <td class="f6-free">{{ f6.industry_type or '' }}</td>
+      <td class="f6-lbl">事業場の<br>名称</td>
+      <td class="f6-free">{{ f6.workplace_name or '' }}</td>
+    </tr>
+    <tr>
+      <td class="f6-lbl">事業場の<br>所在地</td>
+      <td class="f6-free" colspan="3">
+        <span class="f6-sub">郵便番号（</span>{{ f6.workplace_zip or '　　　　' }}<span class="f6-sub">）</span>
+        <span class="f6-addr">{{ f6.workplace_address or '' }}</span>
+        <span class="f6-sub" style="margin-left:14px">電話（</span>{{ f6.workplace_tel or '　　　　　' }}<span class="f6-sub">）</span>
+      </td>
+    </tr>
+  </table>
+
+  <table class="f6-t">
+    <tr>
+      <td class="f6-lbl" style="width:150px">在籍労働者数</td>
+      <td colspan="2">{{ num(f6c.employees, 5) }}
+        <div class="f6-note">右に詰めて記入する↑</div></td>
+    </tr>
+    <tr>
+      <td class="f6-lbl">検査を実施した者</td>
+      <td class="f6-chk">
+        {{ cells('', 1) }}
+        <ol class="f6-opts">
+          <li>事業場選任の産業医</li>
+          <li>事業場所属の医師（1以外の医師に限る。）、保健師、歯科医師、看護師、
+            精神保健福祉士、公認心理師</li>
+          <li>外部委託先の医師、保健師、歯科医師、看護師、精神保健福祉士、公認心理師</li>
+        </ol>
+      </td>
+      <td class="f6-chk-n">
+        <div class="f6-lbl2">検査を受けた<br>労働者数</div>
+        {{ num(s.st_done, 5) }}</td>
+    </tr>
+    <tr>
+      <td class="f6-lbl">面接指導を実施した医師</td>
+      <td class="f6-chk">
+        {{ cells('', 1) }}
+        <ol class="f6-opts">
+          <li>事業場選任の産業医</li>
+          <li>事業場所属の医師（1以外の医師に限る。）</li>
+          <li>外部委託先の医師</li>
+        </ol>
+      </td>
+      <td class="f6-chk-n">
+        <div class="f6-lbl2">面接指導を受けた<br>労働者数</div>
+        {{ num(s.st_iv, 5) }}</td>
+    </tr>
+    <tr>
+      <td class="f6-lbl">集団ごとの分析の<br>実施の有無</td>
+      <td class="f6-chk" colspan="2">
+        {{ cells('', 1) }}
+        <ol class="f6-opts">
+          <li>検査結果の集団ごとの分析を行った</li>
+          <li>検査結果の集団ごとの分析を行っていない</li>
+        </ol>
+      </td>
+    </tr>
+  </table>
+
+  <table class="f6-t">
+    <tr>
+      <td class="f6-lbl f6-vert" rowspan="2" style="width:44px">産<br>業<br>医</td>
+      <td class="f6-lbl" style="width:104px">氏　名</td>
+      <td class="f6-free">{{ f6.physician_name or (sign.name if sign else '') }}</td>
+    </tr>
+    <tr>
+      <td class="f6-lbl">所属機関の<br>名称及び所在地</td>
+      <td class="f6-free">{{ f6.physician_address or '' }}</td>
+    </tr>
+  </table>
+
+  <div class="f6-foot">
+    <div class="f6-foot-l">
+      <div class="f6-date">
+        {{ cells('', 2) }}<span class="f6-sub">年</span>{{ cells('', 2) }}<span class="f6-sub">月</span>{{ cells('', 2) }}<span class="f6-sub">日</span>
+      </div>
+      <div class="f6-emp"><span class="f6-sub">事業者職氏名</span>
+        <span class="f6-emp-name">{{ f6.employer_name_title or '' }}</span></div>
+      <div class="f6-kantoku">労働基準監督署長殿</div>
+    </div>
+    <div class="f6-stamp">受　付　印</div>
+  </div>
+
+</div>
+
+{# 注記は様式の外（紙の下）に置きます。紙そのものは A4 1枚に収めます #}
+<div class="oh-doc-notes">
+  {% if sign %}
+  <p class="oh-foot">産業医の記名：{{ sign.name }}{% if sign.title %}（{{ sign.title }}）{% endif %}
+    　記名日時：{{ sign.signed_at[:16] }}</p>
+  {% else %}
+  <p class="oh-foot">産業医の記名はまだありません（労基署報告の画面から記名できます）。</p>
+  {% endif %}
   <p class="oh-foot">
-    出力者：{{ acc.name }}（{{ ROLE_NAME }}）<br>
-    提出前に、事業場名・労働保険番号・実施者情報などの様式記載欄を
-    所轄労働基準監督署の様式に転記し、内容をご確認ください。</p>
+    ※ 人数は本システムに登録したストレスチェックの結果から集計しています
+    （検査を受けた労働者数 {{ s.st_done }}人／高ストレス者 {{ s.st_high }}人／
+    面接指導の申出 {{ s.st_apply }}人）。該当番号（検査を実施した者・面接指導を実施した医師・
+    集団ごとの分析）は提出時にご記入ください。提出前に所轄労働基準監督署の様式・記載要領と
+    内容をご確認ください。検査結果は法令にもとづき保護され、人事評価には利用しません。</p>
 </div>
 {% endif %}
 
@@ -156,4 +379,53 @@ function ohPdf(){
   next();
 }
 </script>
+
+<script>
+/* 様式が A4（1枚）に収まらないときは、紙のなかみを少しだけ縮めて1枚に収めます。
+   印刷・PDFでも同じ見た目にしたいので、プレビューかどうかにかかわらず行います。 */
+(function(){
+  var A4H = 277 * 96 / 25.4;   /* A4の本文の高さ（上下10mmの余白を除く） */
+  var A4W = 190 * 96 / 25.4;   /* A4の本文の幅 */
+  window.ohFitSheet = function(){
+    document.querySelectorAll('.oh-doc').forEach(function(d){
+      d.style.zoom = '';
+      var z = Math.min(A4H / d.scrollHeight, A4W / d.scrollWidth, 1);
+      if (z < 1) d.style.zoom = Math.max(0.55, z - 0.005);
+    });
+  };
+  window.ohFitSheet();
+  window.addEventListener('load', window.ohFitSheet);
+  setTimeout(window.ohFitSheet, 400);
+})();
+</script>
+
+{% if PREVIEW %}
+<script>
+/* プレビューは、A4の紙（幅190mm）をそのまま枠の幅に合わせて縮めて全体を見せます */
+(function(){
+  document.body.classList.add('is-preview');
+  var doc = document.querySelector('.oh-doc');
+  if(!doc) return;
+  var wrap = document.createElement('div');
+  wrap.className = 'oh-prev-sheet';
+  doc.parentNode.insertBefore(wrap, doc);
+  wrap.appendChild(doc);
+  function fit(){
+    doc.style.transform = '';
+    wrap.style.width = wrap.style.height = '';
+    var w = window.innerWidth - 8, h = window.innerHeight - 8;
+    var sw = doc.offsetWidth, sh = doc.offsetHeight;
+    if(!sw || !sh) return;
+    /* 幅と高さの両方で見て、A4の紙が枠のなかにまるごと入る倍率にします */
+    var sc = Math.min(1, w / sw, h / sh);
+    doc.style.transform = 'scale(' + sc + ')';
+    wrap.style.width = Math.floor(sw * sc) + 'px';
+    wrap.style.height = Math.floor(sh * sc) + 'px';
+  }
+  fit();
+  window.addEventListener('resize', fit);
+  setTimeout(fit, 300);
+})();
+</script>
+{% endif %}
 {% endblock %}

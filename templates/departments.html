@@ -1,11 +1,14 @@
 {% set FIXED_HEIGHT = true %}
 {% extends LAYOUT %}
+{% from "_import_modal.html" import import_modal, import_script %}
 {% from "_listsearch.html" import search_card, search_script, rows_script %}
+{% from "_org_tabs.html" import org_tabs %}
 {% block body %}
 {% if not EMBED %}
-<h1 class="page-title">部署情報</h1>
-<p class="page-lead">部署の登録・編集・削除を行います。部署は事業所の下に置きます。</p>
+<h1 class="page-title">企業・事業所・部署</h1>
+<p class="page-lead">企業・事業所・部署のマスタを1つの画面で登録・編集・削除します。部署は事業所の下に置きます。</p>
 {% endif %}
+{{ org_tabs('dept') }}
 
 {{ search_card([('cname', '企業名', '220px'), ('oname', '事業所名', '200px'),
                 ('code', '部署コード', '140px'), ('name', '部署名', '200px')], f) }}
@@ -14,6 +17,11 @@
   <div class="blk-head">
     <div class="blk-head-left">
       <h2>登録済みの部署</h2>
+      <div class="actions">
+        {% if CAN_MASTER %}
+        <button type="button" class="btn-sm" onclick="openImport('imp-dept')">一括インポート</button>
+        {% endif %}
+      </div>
     </div>
     <div class="actions">
       {% if CAN_MASTER %}
@@ -25,15 +33,15 @@
   {% if rows %}
   <div class="table-scroll paged grow" data-rows-url="{{ url_for('departments_rows') }}"
        data-loaded="{{ rows|length }}" data-total="{{ total }}">
-  <table class="result-table" style="table-layout:auto">
+  <table class="result-table" style="width:100%">
+    <!-- 列は 部署コード・部署名・加入者・操作 だけ（8-55）。コード・件数 120px、部署名は残り幅 -->
+    <colgroup>
+      <col class="col-num"><col class="col-long"><col class="col-num"><col class="col-ops">
+    </colgroup>
     <thead><tr>
-      <th class="tl">企業名</th>
-      <th style="width:110px">所属コード</th>
-      <th class="tl" style="width:200px">事業所名</th>
-      <th style="width:105px">部署コード</th>
-      <th style="width:90px">内部コード</th>
-      <th class="tl" style="width:220px">部署名</th>
-      <th style="width:95px">加入者</th>
+      <th>部署コード</th>
+      <th class="tl col-long">部署名</th>
+      <th>加入者</th>
       <th class="ops">操作</th>
     </tr></thead>
     <tbody>
@@ -47,6 +55,10 @@
   </div>{% endif %}
 </div>
 
+{% if CAN_MASTER %}
+{{ import_modal('imp-dept', '部署の一括インポート', url_for('departments_import')) }}
+{% endif %}
+{{ import_script() }}
 {{ search_script([('cname','cname'), ('oname','oname'), ('code','code'), ('name','name')]) }}
 {{ rows_script() }}
 {% endblock %}
