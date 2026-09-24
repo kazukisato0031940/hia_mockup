@@ -141,7 +141,7 @@ def load_samples(con):
         return con.execute("SELECT id FROM office WHERE company_id=? AND name=?",
                            (cid, name)).fetchone()["id"]
 
-    # 1) 企業＋事業所＋部署（マスタ一括取込の様式）。各事業所に部署を2つ置く
+    # 1) 企業＋事業所＋部署（企業・事業所・部署一括取込の様式）。各事業所に部署を2つ置く
     for r in read_sample("bulk_sample.csv"):
         cid = get_company((r.get("企業名") or "").strip(), r)
         oid = add_office(cid, (r.get("事業所名") or "").strip(),

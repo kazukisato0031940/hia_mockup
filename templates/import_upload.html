@@ -2,7 +2,7 @@
 {% from "_csv_columns.html" import csv_columns %}
 {% block body %}
 {% if not EMBED %}
-<h1 class="page-title">{% if bulk %}マスタ一括取込{% else %}CSVで取り込む{% endif %}</h1>
+<h1 class="page-title">{% if bulk %}企業・事業所・部署一括取込{% else %}CSVで取り込む{% endif %}</h1>
 {% endif %}
 <p class="page-lead">
   {% if bulk %}企業・事業所・部署を<b>1行にまとめて</b>取り込みます。
@@ -56,7 +56,7 @@
   <div class="drop-err" id="imp-err"></div>
   <p class="hint" style="margin-top:10px">
     <b>様式を選ぶ欄はありません。</b>見出しの行から
-    {% if bulk %}マスタ一括取込の様式かどうかを判別します
+    {% if bulk %}企業・事業所・部署一括取込の様式かどうかを判別します
     {% else %}企業登録／事業所登録／部署登録／加入者情報のどれかを判別します{% endif %}。
     判別できない場合は、もっとも近い様式と不足している列をお知らせします。</p>
 </div>

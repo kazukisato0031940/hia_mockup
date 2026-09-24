@@ -35,7 +35,7 @@
         <a class="btn-sm" href="{{ url_for('import_upload', kind='dept') }}"
            style="text-decoration:none">部署をCSVで取り込む</a>
         <a class="btn-sm" href="{{ url_for('import_upload_bulk') }}"
-           style="text-decoration:none">マスタ一括取込</a>
+           style="text-decoration:none">企業・事業所・部署一括取込</a>
       </div>
       {% endif %}
     </div>
@@ -71,9 +71,8 @@
       <td class="ops"><div class="org-ops">
         <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}" href="{{ url_for('company_edit', cid=c.id) }}" style="text-decoration:none" title="企業の詳細。事業所・部署の追加もここから">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
         {% if CAN_MASTER %}
-        <form method="post" action="{{ url_for('company_delete', cid=c.id) }}" style="display:inline"
-              onsubmit="return confirm('「{{ c.name }}」を削除します。よろしいですか？\n\n事業所・加入者・アカウントが紐づいている場合は削除できません。')">
-          <button class="btn-sm btn-del">削除</button></form>
+        <a class="btn-sm btn-del" href="{{ url_for('company_delete', cid=c.id) }}"
+           style="text-decoration:none" title="確認画面で紐づきを見てから削除します">削除</a>
         {% endif %}
       </div></td>
     </tr>
@@ -94,9 +93,8 @@
              href="{{ url_for('department_edit', did=d.id) }}" style="text-decoration:none">
             {{ '編集' if SHELL == 'km' else '詳細表示' }}</a>
           {% if CAN_MASTER %}
-          <form method="post" action="{{ url_for('department_delete', did=d.id) }}" style="display:inline"
-                onsubmit="return confirm('「{{ d.name }}」を削除します。よろしいですか？')">
-            <button class="btn-sm btn-del">削除</button></form>
+          <a class="btn-sm btn-del" href="{{ url_for('department_delete', did=d.id) }}"
+             style="text-decoration:none" title="確認画面で紐づきを見てから削除します">削除</a>
           {% endif %}
         </div></td>
       </tr>
@@ -114,9 +112,8 @@
         <td class="ops"><div class="org-ops">
           <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}" href="{{ url_for('office_edit', oid=o.id) }}" style="text-decoration:none">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
           {% if CAN_MASTER %}
-          <form method="post" action="{{ url_for('office_delete', oid=o.id) }}" style="display:inline"
-                onsubmit="return confirm('「{{ o.name }}」を削除します。よろしいですか？\n\n加入者が紐づいている場合は削除できません。')">
-            <button class="btn-sm btn-del">削除</button></form>
+          <a class="btn-sm btn-del" href="{{ url_for('office_delete', oid=o.id) }}"
+             style="text-decoration:none" title="確認画面で紐づきを見てから削除します">削除</a>
           {% endif %}
         </div></td>
       </tr>
@@ -133,9 +130,8 @@
           <td class="ops"><div class="org-ops">
             <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}" href="{{ url_for('department_edit', did=d.id) }}" style="text-decoration:none">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
             {% if CAN_MASTER %}
-            <form method="post" action="{{ url_for('department_delete', did=d.id) }}" style="display:inline"
-                  onsubmit="return confirm('「{{ d.name }}」を削除します。よろしいですか？\n\n加入者・管理者が紐づいている場合は削除できません。')">
-              <button class="btn-sm btn-del">削除</button></form>
+            <a class="btn-sm btn-del" href="{{ url_for('department_delete', did=d.id) }}"
+               style="text-decoration:none" title="確認画面で紐づきを見てから削除します">削除</a>
             {% endif %}
           </div></td>
         </tr>

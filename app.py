@@ -3001,6 +3001,14 @@ def fetch_nsips(acc, kid, endpoint):
 PAGE_ROWS = 30      # 一覧の初期表示件数。以降はスクロールで読み込む
 
 
+def _back_url(default_endpoint):
+    """戻り先のURL（削除の確認画面の「戻る」に使う）。next があればそこへ。"""
+    nxt = request.form.get("next") or request.args.get("next") or ""
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return nxt
+    return url_for(default_endpoint)
+
+
 def _back_to(default_endpoint):
     """削除などのあとの戻り先。企業の詳細表示から操作したときは next（同一サイト内のパス）に戻る"""
     nxt = request.form.get("next") or request.args.get("next") or ""
@@ -3196,13 +3204,15 @@ def company_new():
                (kenpo_id, ext or None, code, name, g("kana"), g("cert_mark"), g("zip"),
                 g("tel"), g("address"), g("email")))
     db.commit()
+    cid = db.execute("SELECT id FROM company WHERE kenpo_id=? AND name=?"
+                     " ORDER BY id DESC LIMIT 1", (kenpo_id, name)).fetchone()["id"]
     log("master", "企業を登録", "success", target=name,
-        detail=f"企業コード={ext or '（未設定）'}／当社内部コード={code}")
+        detail=f"企業コード={ext or '（未設定）'}／企業ID={cid}")
     flash(f"「{name}」を登録しました。"
           + (f"企業コードは {ext} です。" if ext
              else "企業コードは未設定です。")
-          + f"（当社内部コード {code}）", "ok")
-    return redirect(url_for("companies"))
+          + f"（企業ID {cid}）", "ok")
+    return _back_to("orgs")
 
 
 @app.route("/companies/<int:cid>/edit", methods=["GET", "POST"])
@@ -3212,7 +3222,7 @@ def company_edit(cid):
     if not owns_company(acc, cid):
         log("master", "企業編集をブロック", "blocked", target=str(cid), detail="スコープ外")
         flash("対象の企業を操作する権限がありません。", "error")
-        return redirect(url_for("companies"))
+        return _back_to("orgs")
     row = db.execute("SELECT * FROM company WHERE id=?", (cid,)).fetchone()
     if request.method == "GET":
         stat = db.execute(
@@ -3273,32 +3283,60 @@ def company_edit(cid):
         + ("／" + "、".join(changes) if changes else ""))
     flash(f"「{name}」の情報を更新しました。"
           + (f"（事業所・部署 {len(changes)} 件を反映）" if changes else ""), "ok")
-    return redirect(url_for("companies"))
+    return _back_to("orgs")
 
 
-@app.route("/companies/<int:cid>/delete", methods=["POST"])
+def _count(sql, *p):
+    return get_db().execute(sql, p).fetchone()[0]
+
+
+def _account_scope_count(kind, rid):
+    """担当範囲としてこの企業・事業所・部署を指しているアカウントの数"""
+    return _count("SELECT COUNT(*) FROM account_scope s JOIN account a ON a.id=s.account_id"
+                  " WHERE s.kind=? AND s.ref_id=? AND a.status<>'deleted'", kind, rid)
+
+
+@app.route("/companies/<int:cid>/delete", methods=["GET", "POST"])
 @roles_required("system_admin", "kenpo_user")
 def company_delete(cid):
+    """企業の削除。GET は確認画面、POST は実行。
+    この企業の事業所・部署・加入者・アカウントが1件でも残っていれば削除できない。"""
     db, acc = get_db(), current_account()
     if not owns_company(acc, cid):
         flash("対象の企業を操作する権限がありません。", "error")
-        return redirect(url_for("companies"))
+        return _back_to("orgs")
     row = db.execute("SELECT * FROM company WHERE id=?", (cid,)).fetchone()
-    n_off = db.execute("SELECT COUNT(*) c FROM office WHERE company_id=?", (cid,)).fetchone()["c"]
-    n_mem = db.execute("SELECT COUNT(*) c FROM member WHERE company_id=?", (cid,)).fetchone()["c"]
-    n_acc = db.execute("SELECT COUNT(*) c FROM account WHERE company_id=? AND status<>'deleted'",
-                       (cid,)).fetchone()["c"]
-    if n_off or n_mem or n_acc:
+    if not row:
+        flash("対象の企業が見つかりません。", "error")
+        return _back_to("orgs")
+    blockers = [
+        ("事業所", _count("SELECT COUNT(*) FROM office WHERE company_id=?", cid),
+         "事業所を削除してください（事業所の企業は変更できません）"),
+        ("部署", _count("SELECT COUNT(*) FROM department WHERE company_id=?", cid),
+         "部署を削除してください（部署の企業は変更できません）"),
+        ("加入者", _count("SELECT COUNT(*) FROM member WHERE company_id=?", cid),
+         "加入者一覧の「選択したN件を紐づける」または「企業・部署の紐づけ」で所属先を付け替えるか、未紐づけに戻してください"),
+        ("担当するアカウント",
+         _count("SELECT COUNT(*) FROM account WHERE company_id=? AND status<>'deleted'", cid)
+         + _account_scope_count("company", cid),
+         "アカウント管理で担当範囲からこの企業を外してください"),
+    ]
+    blocked = any(n for _, n, _ in blockers)
+    if request.method == "GET":
+        return render_template(
+            "delete_confirm.html", what="企業", blockers=blockers,
+            subject={"name": row["name"], "sub": row["kana"] or "", "id_label": "企業ID",
+                     "id": cid}, notes=[], alt=None, back_url=_back_url("orgs"))
+    if blocked:
         log("master", "企業削除をブロック", "blocked", target=row["name"],
-            detail=f"事業所{n_off}件／加入者{n_mem}件／アカウント{n_acc}件が残っている")
-        flash(f"「{row['name']}」には事業所 {n_off} 件・加入者 {n_mem} 件・"
-              f"アカウント {n_acc} 件が紐づいています。先に削除してください。", "error")
-        return redirect(url_for("companies"))
+            detail="／".join(f"{l}{n}件" for l, n, _ in blockers if n) + "が残っている")
+        flash(f"「{row['name']}」には紐づいているデータがあるため削除できません。", "error")
+        return redirect(url_for("company_delete", cid=cid))
     db.execute("DELETE FROM company WHERE id=?", (cid,))
     db.commit()
-    log("master", "企業を削除", "success", target=row["name"], detail=f"企業コード={row['code']}")
+    log("master", "企業を削除", "success", target=row["name"], detail=f"企業ID={cid}")
     flash(f"「{row['name']}」を削除しました。", "ok")
-    return redirect(url_for("companies"))
+    return _back_to("orgs")
 
 
 # ================================================================ 事業所
@@ -3351,12 +3389,14 @@ def office_new():
                (cid, ext or None, code, name, g("kana"), g("zip"), g("tel"), g("address")))
     db.commit()
     cn = db.execute("SELECT name FROM company WHERE id=?", (cid,)).fetchone()["name"]
+    oid = db.execute("SELECT id FROM office WHERE company_id=? AND name=?"
+                     " ORDER BY id DESC LIMIT 1", (cid, name)).fetchone()["id"]
     log("master", "事業所を登録", "success", target=f"{cn}／{name}",
-        detail=f"事業所コード={ext or '（未設定）'}／当社内部コード={code}（自動発番）")
+        detail=f"事業所コード={ext or '（未設定）'}／事業所ID={oid}")
     flash(f"「{name}」を登録しました。"
           + (f"事業所コードは {ext} です。" if ext else "事業所コードは未設定です。")
-          + f"（当社内部コード {code}）", "ok")
-    return redirect(url_for("offices"))
+          + f"（事業所ID {oid}）", "ok")
+    return _back_to("orgs")
 
 
 @app.route("/offices/<int:oid>/edit", methods=["GET", "POST"])
@@ -3366,7 +3406,7 @@ def office_edit(oid):
     if not owns_office(acc, oid):
         log("master", "事業所編集をブロック", "blocked", target=str(oid), detail="スコープ外")
         flash("対象の事業所を操作する権限がありません。", "error")
-        return redirect(url_for("offices"))
+        return _back_to("orgs")
     row = db.execute(
         "SELECT o.*, c.name AS company_name, c.code AS company_code,"
         " c.ext_code AS company_ext FROM office o JOIN company c ON c.id=o.company_id"
@@ -3401,31 +3441,53 @@ def office_edit(oid):
     log("master", "事業所情報を編集", "success", target=f"{row['company_name']}／{name}",
         detail=f"事業所コード={row['code']}／変更前: {before}")
     flash(f"「{name}」の情報を更新しました。", "ok")
-    return redirect(url_for("offices"))
+    return _back_to("orgs")
 
 
-@app.route("/offices/<int:oid>/delete", methods=["POST"])
+@app.route("/offices/<int:oid>/delete", methods=["GET", "POST"])
 @login_required
 def office_delete(oid):
+    """事業所の削除。GET は確認画面、POST は実行。
+    この事業所の部署・加入者は自動では「事業所なし」に付け替えない（黙って付け替わるのを防ぐ）。
+    残っている間は削除できず、付け替えてから削除する。"""
     db, acc = get_db(), current_account()
     if not owns_office(acc, oid):
         flash("対象の事業所を操作する権限がありません。", "error")
-        return _back_to("offices")
+        return _back_to("orgs")
     row = db.execute(
         "SELECT o.*, c.name AS company_name FROM office o JOIN company c ON c.id=o.company_id"
         " WHERE o.id=?", (oid,)).fetchone()
-    n = db.execute("SELECT COUNT(*) c FROM member WHERE office_id=?", (oid,)).fetchone()["c"]
-    if n:
+    if not row:
+        flash("対象の事業所が見つかりません。", "error")
+        return _back_to("orgs")
+    blockers = [
+        ("部署", _count("SELECT COUNT(*) FROM department WHERE office_id=?", oid),
+         "部署を削除してください（部署の事業所は変更できません）"),
+        ("加入者", _count("SELECT COUNT(*) FROM member WHERE office_id=?", oid),
+         "加入者一覧の「選択したN件を紐づける」または「企業・部署の紐づけ」で所属先を付け替えてください"),
+        ("担当するアカウント", _account_scope_count("office", oid),
+         "アカウント管理で担当範囲からこの事業所を外してください"),
+    ]
+    blocked = any(n for _, n, _ in blockers)
+    if request.method == "GET":
+        return render_template(
+            "delete_confirm.html", what="事業所", blockers=blockers,
+            subject={"name": row["name"], "sub": row["company_name"],
+                     "id_label": "事業所ID", "id": oid},
+            notes=["この事業所の部署・加入者を<b>自動で「事業所なし」に付け替えることはしません</b>。"
+                   "黙って付け替わるのを防ぐため、先に付け替えてから削除してください。"],
+            alt=None, back_url=_back_url("orgs"))
+    if blocked:
         log("master", "事業所削除をブロック", "blocked", target=row["name"],
-            detail=f"加入者{n}件が残っている")
-        flash(f"「{row['name']}」には加入者 {n} 件が紐づいています。先に削除してください。", "error")
-        return _back_to("offices")
+            detail="／".join(f"{l}{n}件" for l, n, _ in blockers if n) + "が残っている")
+        flash(f"「{row['name']}」には紐づいているデータがあるため削除できません。", "error")
+        return redirect(url_for("office_delete", oid=oid))
     db.execute("DELETE FROM office WHERE id=?", (oid,))
     db.commit()
     log("master", "事業所を削除", "success", target=f"{row['company_name']}／{row['name']}",
-        detail=f"事業所コード={row['code']}")
+        detail=f"事業所ID={oid}")
     flash(f"「{row['name']}」を削除しました。", "ok")
-    return _back_to("offices")
+    return _back_to("orgs")
 
 
 # ================================================================ 部署
@@ -3547,7 +3609,7 @@ def department_new():
     if dup_code:
         flash(f"部署コード {ext} は、この企業の別の部署でも使われています。"
               f"取込のときに照合できず、その行はエラーになります。", "error")
-    return redirect(url_for("departments"))
+    return _back_to("orgs")
 
 
 @app.route("/departments/<int:did>/edit", methods=["GET", "POST"])
@@ -3557,7 +3619,7 @@ def department_edit(did):
     if not owns_department(acc, did):
         log("master", "部署編集をブロック", "blocked", target=str(did), detail="スコープ外")
         flash("対象の部署を操作する権限がありません。", "error")
-        return redirect(url_for("departments"))
+        return _back_to("orgs")
     row = next(d for d in scoped_departments(acc) if d["id"] == did)
     n_mem = db.execute("SELECT COUNT(*) c FROM member WHERE dept_id=?", (did,)).fetchone()["c"]
     if request.method == "GET":
@@ -3585,7 +3647,7 @@ def department_edit(did):
     if dup_code:
         flash(f"部署コード {ext} は、この企業の別の部署でも使われています。"
               f"取込のときに照合できず、その行はエラーになります。", "error")
-    return redirect(url_for("departments"))
+    return _back_to("orgs")
 
 
 @app.route("/departments/<int:did>/delete", methods=["GET", "POST"])
@@ -3595,11 +3657,11 @@ def department_delete(did):
     db, acc = get_db(), current_account()
     if not owns_department(acc, did):
         flash("対象の部署を操作する権限がありません。", "error")
-        return redirect(url_for("departments"))
+        return _back_to("orgs")
     row = next((d for d in scoped_departments(acc) if d["id"] == did), None)
     if not row:
         flash("対象の部署が見つかりません。", "error")
-        return redirect(url_for("departments"))
+        return _back_to("orgs")
     place = _dept_place(row["company_id"], row["office_id"])
     blockers = [
         ("加入者", _count("SELECT COUNT(*) FROM member WHERE dept_id=?", did),
@@ -3612,7 +3674,7 @@ def department_delete(did):
         return render_template(
             "delete_confirm.html", what="部署", blockers=blockers,
             subject={"name": row["name"], "sub": place, "id_label": "部署ID", "id": did},
-            notes=[], alt=None, back_url=url_for("departments"))
+            notes=[], alt=None, back_url=_back_url("orgs"))
     if blocked:
         log("master", "部署の削除をブロック", "blocked", target=row["name"],
             detail="／".join(f"{l}{n}件" for l, n, _ in blockers if n) + "が残っている")
@@ -3622,7 +3684,7 @@ def department_delete(did):
     db.commit()
     log("master", "部署を削除", "success", target=row["name"], detail=place)
     flash(f"「{row['name']}」を削除しました。", "ok")
-    return redirect(url_for("departments"))
+    return _back_to("orgs")
 
 
 # ================================================================ 加入者
@@ -4835,7 +4897,7 @@ CSV_FORMATS = {
     "member": {"label": "加入者情報", "columns": MEMBER_COLUMNS, "help": MEMBER_HELP,
                "required": ["被保険者証番号", "対象者氏名（漢字）"], "unit": "加入者1名",
                "parent": None, "back": "members", "file": "member"},
-    "bulk": {"label": "マスタ一括取込", "columns": BULK_COLUMNS, "help": BULK_HELP,
+    "bulk": {"label": "企業・事業所・部署一括取込", "columns": BULK_COLUMNS, "help": BULK_HELP,
              "required": ["企業名"], "unit": "企業＋事業所＋部署", "parent": None,
              "back": "companies", "file": "bulk"},
 }
@@ -5698,7 +5760,7 @@ def import_upload():
 @app.route("/import/bulk")
 @roles_required("system_admin", "kenpo_user")
 def import_upload_bulk():
-    """入口②：マスタ一括取込（初期投入・全体の入れ替え用）"""
+    """入口②：企業・事業所・部署一括取込（初期投入・全体の入れ替え用）"""
     return render_template("import_upload.html", bulk=True,
                            **_import_ctx(current_account(), "bulk"))
 
@@ -5735,12 +5797,12 @@ def import_receive():
               f"（不足：{'、'.join(missing)}）。", "error")
         return redirect(back)
     if bulk and kind != "bulk":
-        flash(f"この画面はマスタ一括取込の様式だけを受け付けます"
+        flash(f"この画面は企業・事業所・部署一括取込の様式だけを受け付けます"
               f"（読み取った様式：{CSV_FORMATS[kind]['label']}）。"
               f"階層ごとの取込は各マスタ画面から行ってください。", "error")
         return redirect(back)
     if not bulk and kind == "bulk":
-        flash("マスタ一括取込の様式です。「マスタ一括取込」の画面から取り込んでください。",
+        flash("企業・事業所・部署一括取込の様式です。「企業・事業所・部署一括取込」の画面から取り込んでください。",
               "error")
         return redirect(back)
 
