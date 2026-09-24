@@ -3143,11 +3143,13 @@ def orgs():
             depts_no_office.setdefault(d["company_id"], []).append(d)
     mem_by_company = {r["id"]: r["c"] for r in db.execute(
         "SELECT company_id AS id, COUNT(*) c FROM member WHERE company_id IS NOT NULL GROUP BY company_id")}
+    # 企業の登録・削除は HIAスタッフと健保担当者だけ（企業担当者は編集のみ）
     return render_template("orgs.html", comps=comps, offs=offs, depts=depts,
                            offs_by_company=offs_by_company, depts_by_office=depts_by_office,
                            depts_no_office=depts_no_office,
                            mem_by_company=mem_by_company, mem_by_office=_office_counts(),
-                           mem_by_dept=_dept_counts())
+                           mem_by_dept=_dept_counts(),
+                           can_add=acc["role"] in ("system_admin", "kenpo_user"))
 
 
 @app.route("/companies")
