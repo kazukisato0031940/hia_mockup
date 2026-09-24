@@ -3373,7 +3373,7 @@ def office_new():
                                   (cid, ext)).fetchone():
         errs.append(f"事業所コード {ext} は、この企業で既に使われています。")
     if not name:
-        errs.append("部署名を入力してください。")
+        errs.append("事業所名を入力してください。")
     elif cid and db.execute("SELECT 1 FROM office WHERE company_id=? AND name=?",
                             (cid, name)).fetchone():
         log("master", "事業所登録の重複を検知", "blocked", target=name)
