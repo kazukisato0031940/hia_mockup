@@ -884,15 +884,19 @@ def account_scope_ids(aid):
     return out
 
 
-def set_account_scopes(aid, scopes):
-    """担当範囲を置き換える。企業は従来の account_company にも反映する。"""
+def set_account_scopes(aid, scopes, companies=None):
+    """担当範囲を置き換える。企業は従来の account_company にも反映する。
+    companies を渡すと account_company にはそちら（まるごと＋絞り込み対象の親企業）を入れる。
+    渡さなければ従来どおり scopes["company"] を使う。"""
     db = get_db()
     db.execute("DELETE FROM account_scope WHERE account_id=?", (aid,))
     for kind in ("company", "office", "dept"):
         for rid in dict.fromkeys(scopes.get(kind) or []):
             db.execute("INSERT OR IGNORE INTO account_scope (account_id, kind, ref_id)"
                        " VALUES (?,?,?)", (aid, kind, rid))
-    set_account_companies(aid, scopes.get("company") or [])
+    if companies is None:
+        companies = scopes.get("company") or []
+    set_account_companies(aid, list(dict.fromkeys(companies)))
 
 
 def scope_summary(scopes):
