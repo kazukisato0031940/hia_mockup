@@ -170,6 +170,14 @@ def apply_sanmen(con, log):
     if "consent_text" not in cols(con, "kenpo"):
         con.execute("ALTER TABLE kenpo ADD COLUMN consent_text TEXT NOT NULL DEFAULT ''")
         log.append("kenpo に consent_text（クローズサイトに表示する同意文）を追加")
+    # 健診代行・インフル補助の「サイト公開期間」（8-56）
+    for col, label in (("kenshin_site_start", "健診代行 サイト公開期間 開始日"),
+                       ("kenshin_site_end", "健診代行 サイト公開期間 終了日"),
+                       ("flu_site_start", "インフル補助 サイト公開期間 開始日"),
+                       ("flu_site_end", "インフル補助 サイト公開期間 終了日")):
+        if col not in cols(con, "kenpo"):
+            con.execute(f"ALTER TABLE kenpo ADD COLUMN {col} TEXT")
+            log.append(f"kenpo に {col}（{label}）を追加")
     added = sorted(t for t in tables(con) - before if t.startswith("oh_"))
     if added:
         log.append(f"産業医面談管理のテーブルを追加（{len(added)}件）")
@@ -622,7 +630,7 @@ def ensure_schema(db_path=DB, verbose=False):
 
     # ---------- 5.42 先方が管理する番号（ext_code）を追加 ----------
     for table, label in (("company", "企業コード"),
-                         ("office", "所属コード"),
+                         ("office", "事業所コード"),
                          ("department", "部署コード")):
         if table in tables(con) and "ext_code" not in cols(con, table):
             con.execute(f"ALTER TABLE {table} ADD COLUMN ext_code TEXT")
@@ -709,7 +717,7 @@ def ensure_schema(db_path=DB, verbose=False):
 
     # ---------- 5.455 取込時のコードを加入者に残す ----------
     for col, label in (("src_company_code", "取込時の企業コード"),
-                       ("src_office_code", "取込時の所属コード")):
+                       ("src_office_code", "取込時の事業所コード")):
         if col not in cols(con, "member"):
             con.execute(f"ALTER TABLE member ADD COLUMN {col} TEXT")
             log.append(f"member に {col}（{label}）を追加")

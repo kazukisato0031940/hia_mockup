@@ -542,6 +542,8 @@ table td:has(.oh-full){overflow:visible;}
 .result-table th.col-ops{width:260px}
 .result-table th.col-text{width:200px;max-width:200px}
 .result-table th.col-long{width:auto;min-width:200px}
+/* 残り幅を受ける名称の列も、収まらない分は「…」で省略します（title で全文） */
+.result-table td.col-long{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .result-table th.col-sex{width:88px}
 .result-table th.col-val{width:104px}
 .result-table th.col-cnt{width:72px}
@@ -2040,6 +2042,28 @@ a.hm-stat-box:hover{border-color:var(--accent);box-shadow:0 1px 4px rgba(26,54,9
   font-size:13px;font-weight:600;cursor:pointer;position:relative;top:1px;
   transition:.15s;font-family:inherit}
 .hm-tab:hover{color:var(--primary);border-color:var(--accent)}
+/* 企業・事業所・部署の一覧（1つの表）：1行＝1レコード。所属する企業・事業所は列で示し、種別はラベルで示す（8-59） */
+.org-table td.ops{white-space:nowrap;padding-left:0;padding-right:0}
+/* 9列あるので、名称・住所の最低幅は 150px に抑える */
+.org-table .col-long,.org-table th.col-long{min-width:150px}
+.org-table .org-ops{display:flex;gap:1px;justify-content:center;align-items:center}
+.org-table .org-ops form{display:contents}
+.org-table .org-ops .btn-sm{margin:0 !important;padding:0 6px}
+.org-kind{display:inline-block;min-width:56px;text-align:center}
+.org-kind-company{background:#e8f0fb;color:#2563b0}
+.org-kind-office{background:#e6f4ef;color:#1f8f6e}
+.org-kind-dept{background:#eef1f3;color:#4c5761}
+body.theme-km .org-kind-company{background:#e8f4ec;color:#15803d}
+/* 企業の詳細表示（編集画面）の「事業所・部署」カード：行ごとに入力欄を持つ表。＋ボタンで行を増やし「更新」でまとめて保存する */
+.org-sub{overflow-x:auto}
+.org-sub .result-table td{padding:5px 6px}
+.org-sub .result-table td input,.org-sub .result-table td select{width:100%;height:40px;min-height:40px;
+  font-size:14px;padding:0 10px;margin:0;box-sizing:border-box}
+.org-sub .result-table td.ops{padding-left:0;padding-right:0}
+.org-sub .result-table td.ops .btn-sm{margin:0 !important}
+.org-sub tr.is-new td{background:#fffbea}
+.org-sub-actions{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.org-sub-actions .hint{margin-left:auto}
 .hm-tab.is-on{background:var(--bg-light);color:var(--primary);
   border-color:var(--border);box-shadow:inset 0 3px 0 var(--accent)}
 .hm-tab[hidden]{display:none !important}

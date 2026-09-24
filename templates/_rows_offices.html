@@ -1,12 +1,10 @@
 {# 事業所一覧の行だけ #}
 {% for r in rows %}
 <tr class="ls-row" data-cname="{{ r.company_name }}" data-code="{{ r.code }}" data-name="{{ r.name }}">
-  <td class="code">{{ r.company_ext or r.company_code }}</td>
-  <td class="tl col-text" title="{{ r.company_name }}">{{ r.company_name }}</td>
   <td class="code">{{ r.ext_code or '—' }}</td>
-  <td class="tl col-text" title="{{ r.name }}">{{ r.name }}</td>
+  <td class="tl col-long" title="{{ r.name }}">{{ r.name }}</td>
+  <td class="tl col-long" title="{{ r.address or '' }}">{{ r.address or '—' }}</td>
   <td class="tl">{{ r.tel or '—' }}</td>
-  <td class="num">{{ counts.get(r.id, 0) }}</td>
   <td class="ops">
     {% if not CAN_MASTER %}<span class="hint">閲覧のみ</span>{% else %}
     <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}"
@@ -17,7 +15,6 @@
       <button class="btn-sm btn-del">削除</button></form>
     {% endif %}
   </td>
-  <td class="col-spacer"></td>
 </tr>
 {% endfor %}
 {% if more is defined %}<tr class="ls-more" data-more="{{ more }}" hidden></tr>{% endif %}

@@ -142,7 +142,7 @@ def load_samples(con):
         cid = get_company((r.get("企業名") or "").strip(), r)
         oid = add_office(cid, (r.get("部署名") or "").strip(),
                          r.get("部署名（フリガナ）", ""),
-                         ext=(r.get("所属コード") or "").strip() or None)
+                         ext=(r.get("事業所コード") or "").strip() or None)
         add_dept(oid, "総務部", "ソウムブ")
         add_dept(oid, "営業部", "エイギョウブ")
     # 2) 部署の追加分
@@ -153,7 +153,7 @@ def load_samples(con):
             oid = add_office(c["id"], (r.get("部署名") or "").strip(),
                              r.get("部署名（フリガナ）", ""), r.get("郵便番号", ""),
                              r.get("住所", ""), r.get("電話番号", ""),
-                             ext=(r.get("所属コード") or "").strip() or None)
+                             ext=(r.get("事業所コード") or "").strip() or None)
             add_dept(oid, "総務部", "ソウムブ")
     # 3) 加入者（前半は紐づけ済み、後半は未紐づけにして紐づけページを試せるようにする）
     rows = read_sample("subscriber_sample.csv")
@@ -166,7 +166,7 @@ def load_samples(con):
             if c:
                 cid = c["id"]
                 o = con.execute("SELECT id FROM office WHERE company_id=? AND ext_code=?",
-                                (cid, g("所属コード"))).fetchone()
+                                (cid, g("事業所コード"))).fetchone()
                 oid = o["id"] if o else None
                 if oid:      # 先頭の部署に入れておく
                     d = con.execute("SELECT id FROM department WHERE office_id=?"

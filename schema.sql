@@ -18,6 +18,10 @@ CREATE TABLE IF NOT EXISTS kenpo (
   auth_pattern  TEXT NOT NULL DEFAULT 'A',
   -- 加入者向けサイト（クローズサイト）に表示する同意文（本文・同意必須 の項目の JSON。空なら表示しない）
   consent_text  TEXT NOT NULL DEFAULT '',
+  kenshin_site_start TEXT,                     -- 健診代行：サイト公開期間（開始日）
+  kenshin_site_end   TEXT,                     -- 健診代行：サイト公開期間（終了日）
+  flu_site_start     TEXT,                     -- インフル補助：サイト公開期間（開始日）
+  flu_site_end       TEXT,                     -- インフル補助：サイト公開期間（終了日）
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -45,7 +49,7 @@ CREATE TABLE IF NOT EXISTS company (
 CREATE TABLE IF NOT EXISTS office (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   company_id INTEGER NOT NULL REFERENCES company(id),
-  ext_code   TEXT,                    -- 所属コード（企業が管理する番号）。取込の照合キー
+  ext_code   TEXT,                    -- 事業所コード（企業が管理する番号）。取込の照合キー
   code       TEXT NOT NULL,           -- 当社内部コード。登録順に自動発番
   name       TEXT NOT NULL,           -- 事業所名
   kana       TEXT,                    -- 部署名（フリガナ）
@@ -87,7 +91,7 @@ CREATE TABLE IF NOT EXISTS member (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   kenpo_id     INTEGER NOT NULL REFERENCES kenpo(id),
   company_id   INTEGER REFERENCES company(id),  -- あとから紐づける運用のため任意
-  office_id    INTEGER REFERENCES office(id),   -- 所属コードが空の場合は未設定
+  office_id    INTEGER REFERENCES office(id),   -- 事業所コードが空の場合は未設定
   dept_id      INTEGER REFERENCES department(id),  -- 部署（事業所の下）。任意
   member_no    TEXT NOT NULL,                  -- 被保険者証番号
   cert_mark    TEXT,                            -- 被保険者証記号
@@ -112,7 +116,7 @@ CREATE TABLE IF NOT EXISTS member (
   kenpo_member_id TEXT,                         -- 健保別加入者管理ID（健保が独自に管理する番号）
   subscriber_id TEXT,                           -- 加入者ID（当システムで採番）
   src_company_code TEXT,                        -- 取込時の企業コード
-  src_office_code  TEXT,                        -- 取込時の所属コード
+  src_office_code  TEXT,                        -- 取込時の事業所コード
   memo         TEXT,                            -- メモ（加入者ごとの申し送り。画面で編集）
   night_work   INTEGER NOT NULL DEFAULT 0,      -- 深夜業従事（1＝深夜健診の対象）
   excluded     INTEGER NOT NULL DEFAULT 0,      -- 健診の対象から除外（1＝除外）

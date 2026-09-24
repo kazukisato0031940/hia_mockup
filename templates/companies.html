@@ -2,12 +2,14 @@
 {% extends LAYOUT %}
 {% from "_import_modal.html" import import_modal, import_script %}
 {% from "_listsearch.html" import search_card, search_script, rows_script %}
+{% from "_org_tabs.html" import org_tabs %}
 {% block body %}
 {# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
 {% if not EMBED %}
-<h1 class="page-title">企業情報</h1>
-<p class="page-lead">企業の登録・編集・削除を行います。企業コードは健保が管理する番号を登録します（当社内部コードは自動で割り振ります）。</p>
+<h1 class="page-title">企業・事業所・部署</h1>
+<p class="page-lead">企業・事業所・部署のマスタを1つの画面で登録・編集・削除します。企業コードは健保が管理する番号を登録します（当社内部コードは自動で割り振ります）。</p>
 {% endif %}
+{{ org_tabs('company') }}
 
 {{ search_card([('code', '企業コード', '200px'),
                 ('name', '企業名・フリガナ', '260px'),
@@ -33,27 +35,19 @@
   <div class="table-scroll paged grow" data-rows-url="{{ url_for('companies_rows') }}"
        data-loaded="{{ rows|length }}" data-total="{{ total }}">
   <table class="result-table" style="width:100%">
-    <!-- 列幅は「列幅の標準」（.col-*）に合わせています。
-         コード類（企業コード・所属コード・部署コード）と件数（部署・加入者）は .col-num（120px）、
-         企業名・事業所名・部署名は .col-text（200px）で、企業・事業所・部署の一覧でそろえています。
-         内部コードとフリガナは一覧には出しません（詳細（編集）画面で見られます）。 -->
+    <!-- 列は 企業コード・企業名・住所・電話番号・操作 だけ（8-55）。
+         コード類は .col-num（120px）、企業名・住所は残り幅を等分（.col-long。表は横幅いっぱい）。
+         内部コード・フリガナ・被保険者証記号・部署数・加入者数・更新日時は一覧には出しません（詳細（編集）画面で見られます）。 -->
     <colgroup>
-      <col class="col-num">
-      <col class="col-text">
-      <col class="col-num"><col class="col-num">
-      <col class="col-num"><col class="col-num">
-      <col class="col-dt"><col class="col-ops"><col class="col-spacer">
+      <col class="col-num"><col class="col-long"><col class="col-long">
+      <col class="col-num"><col class="col-ops">
     </colgroup>
     <thead><tr>
       <th>企業コード</th>
-      <th class="tl col-text">企業名</th>
-      <th>被保険者<br>証記号</th>
+      <th class="tl col-long">企業名</th>
+      <th class="tl col-long">住所</th>
       <th>電話番号</th>
-      <th>部署</th>
-      <th>加入者</th>
-      <th>更新日時</th>
       <th class="ops">操作</th>
-      <th class="col-spacer"></th>
     </tr></thead>
     <tbody>
     {% include "_rows_companies.html" %}

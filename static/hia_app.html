@@ -1460,8 +1460,8 @@ button.cancel:hover, a.btn-cancel:hover {
           <div class="label">未予約</div>
           <div class="value"><span>3,148</span> <span class="total">/ 12,450</span></div>
         </div>
-        <div id="kd-box-ordered" class="summary-card" style="border-top-color:#805ad5;cursor:pointer;" onclick="navigateToListWithStatus('予約中')">
-          <div class="label">予約中</div>
+        <div id="kd-box-ordered" class="summary-card" style="border-top-color:#805ad5;cursor:pointer;" onclick="navigateToListWithStatus('予約日調整中')">
+          <div class="label">予約日調整中</div>
           <div class="value"><span>720</span> <span class="total">/ 12,450</span></div>
         </div>
         <div id="kd-box-confirmed" class="summary-card" style="border-top-color:#0694a2;cursor:pointer;" onclick="navigateToListWithStatus('予約確定')">
@@ -1496,7 +1496,7 @@ button.cancel:hover, a.btn-cancel:hover {
               </select>
               <select id="kd-chartSelector" class="control-select">
                 <option value="unordered">未予約</option>
-                <option value="ordered">予約中</option>
+                <option value="ordered">予約日調整中</option>
                 <option value="confirmed">予約確定</option>
                 <option value="examined">受診済み</option>
                 <option value="received">結果受領済み</option>
@@ -1598,7 +1598,7 @@ button.cancel:hover, a.btn-cancel:hover {
       <div class="sub-tabs kl-tabs-outer" id="kl-sub-tabs">
         <button type="button" class="sub-tab active" data-status="" onclick="klSetTab(this)">全て</button>
         <button type="button" class="sub-tab" data-status="未予約" onclick="klSetTab(this)">未予約</button>
-        <button type="button" class="sub-tab" data-status="予約中" onclick="klSetTab(this)">予約中</button>
+        <button type="button" class="sub-tab" data-status="予約日調整中" onclick="klSetTab(this)">予約日調整中</button>
         <button type="button" class="sub-tab" data-status="予約確定" onclick="klSetTab(this)">予約確定</button>
         <button type="button" class="sub-tab" data-status="受診済み" onclick="klSetTab(this)">受診済み</button>
         <button type="button" class="sub-tab" data-status="結果受領済み" onclick="klSetTab(this)">結果受領済み</button>
@@ -2834,7 +2834,7 @@ button.cancel:hover, a.btn-cancel:hover {
           <h1 class="page-title">疾患予測</h1>
           <button class="btn-back" onclick="sysBack('risk')">戻る</button>
         </div>
-        <p class="sys-note">健診結果をもとに加入者ひとりずつの3年後の生活習慣病リスクを予測し、リスク区分・年代・疾病・企業ごとの集計と加入者ごとの結果を1つの画面で確認します。行の「詳細表示」でその方のマイページ（疾患予測タブ）を開きます。予測は参考情報で、最終判断は医師・保健師等の専門家が行います。</p>
+        <p class="sys-note">健診結果をもとに予測した加入者の将来の生活習慣病リスクを、リスク区分・年代・性別・疾病・企業ごとに集計して1つの画面で確認します。加入者ごとの結果はマイページの「疾患予測」タブで確認します。予測は参考情報で、最終判断は医師・保健師等の専門家が行います。</p>
         <iframe class="sys-frame" data-src="/risk" title="疾患予測"></iframe>
       </div>
 
@@ -3131,26 +3131,15 @@ button.cancel:hover, a.btn-cancel:hover {
       </div>
 
       <!-- ======== 本システム: 企業情報 ======== -->
-      <div class="page" id="page-sys-company">
+      <div class="page" id="page-sys-org">
         <div class="sys-head">
-          <h1 class="page-title">企業情報</h1>
+          <h1 class="page-title">企業・事業所・部署</h1>
           <button class="btn-back" onclick="sysBack('master')">戻る</button>
         </div>
-        <p class="sys-note">企業の登録・編集・削除を行います。企業コードは健保が管理する番号を登録します。</p>
-        <iframe class="sys-frame" data-src="/companies" title="企業情報"></iframe>
+        <p class="sys-note">企業・事業所・部署のマスタを1つの一覧で登録・編集・削除します（1行が1レコードで、事業所・部署の行には所属する企業・事業所を列で示します。事業所・部署の追加は企業の「詳細表示」から行います）。企業コード・事業所コード・部署コードは健保・企業が管理する番号を登録します。</p>
+        <iframe class="sys-frame" data-src="/orgs" title="企業・事業所・部署"></iframe>
       </div>
 
-      <!-- ======== 本システム: 事業所情報 ======== -->
-      <div class="page" id="page-sys-office">
-        <div class="sys-head">
-          <h1 class="page-title">事業所情報</h1>
-          <button class="btn-back" onclick="sysBack('master')">戻る</button>
-        </div>
-        <p class="sys-note">事業所の登録・編集・削除を行います。事業所コードはシステムが自動採番します。</p>
-        <iframe class="sys-frame" data-src="/offices" title="事業所情報"></iframe>
-      </div>
-
-      <!-- ======== 本システム: 部署情報 ======== -->
       <!-- ======== 本システム: ストレスチェック設問 ======== -->
       <div class="page" id="page-sys-sc-question">
         <div class="sys-head">
@@ -3159,15 +3148,6 @@ button.cancel:hover, a.btn-cancel:hover {
         </div>
         <p class="sys-note">ストレスチェックの設問（カテゴリ・番号・設問内容）を登録・削除します。登録した設問は産業医面談管理のストレスチェック受検案内で使います。</p>
         <iframe class="sys-frame" data-src="/oh/questions" title="ストレスチェック設問"></iframe>
-      </div>
-
-      <div class="page" id="page-sys-dept">
-        <div class="sys-head">
-          <h1 class="page-title">部署情報</h1>
-          <button class="btn-back" onclick="sysBack('master')">戻る</button>
-        </div>
-        <p class="sys-note">部署の登録・編集・削除を行います。部署は事業所の下に置きます。</p>
-        <iframe class="sys-frame" data-src="/departments" title="部署情報"></iframe>
       </div>
 
       <!-- ======== 本システム: 加入者情報 ======== -->
@@ -3730,12 +3710,8 @@ var CAT_CARD_CONFIG = {
     subtitle: '企業・事業所・加入者の登録と編集',
     color: '#2b6cb0', iconBg: '#ebf8ff',
     cards: [
-      { page:'sys-company', feature:'master.view', label:'企業情報', desc:'企業の登録・編集・削除', tag:'マスタ', tagClass:'tag-sys',
+      { page:'sys-org', feature:'master.view', label:'企業・事業所・部署', desc:'企業・事業所・部署を1つの一覧で登録・編集・削除', tag:'マスタ', tagClass:'tag-sys',
         icon:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h6"/>' },
-      { page:'sys-office', feature:'master.view', label:'事業所情報', desc:'事業所の登録・編集・削除', tag:'マスタ', tagClass:'tag-sys',
-        icon:'<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>' },
-      { page:'sys-dept', feature:'master.view', label:'部署情報', desc:'部署の登録・編集・削除', tag:'マスタ', tagClass:'tag-sys',
-        icon:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="8" y="14" width="8" height="7" rx="1"/><path d="M6.5 10v2h11v-2M12 12v2"/>' },
       { page:'sys-member', feature:'master.view', label:'加入者情報', desc:'加入者の登録・編集・CSV取込', tag:'マスタ', tagClass:'tag-sys',
         icon:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>' },
       { page:'sys-criteria', feature:'master.view', label:'判定マスタ', desc:'検査項目ごとの判定基準を登録', tag:'マスタ', tagClass:'tag-sys',
@@ -3766,7 +3742,7 @@ var CAT_CARD_CONFIG = {
     subtitle: '病気リスクの確認・受診勧奨対象者の管理・案内文書の送付',
     color: '#1f8f6e', iconBg: '#e7f5f0',
     cards: [
-      { page:'sys-risk', feature:'risk', label:'疾患予測', desc:'予測の実行・リスクの集計・加入者ごとの結果', tag:'リスク管理', tagClass:'tag-sys',
+      { page:'sys-risk', feature:'risk', label:'疾患予測', desc:'リスク区分・年代・性別・疾病・企業ごとの集計', tag:'リスク管理', tagClass:'tag-sys',
         icon:'<path d="M3 12h4l2 6 4-13 2 7h6"/>' },
       { page:'risk-target', feature:'risk', label:'疾患予測対象者一覧', desc:'判定E対象者の管理と案内の送付', tag:'対象者管理', tagClass:'tag-sys',
         icon:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0.8-3.6 3-5.6 6-5.6s5.2 2 6 5.6"/><path d="M18 8v5M15.5 10.5h5"/>' },
@@ -4656,7 +4632,7 @@ function initKenshinDashboard() {
     var box = document.getElementById('kd-box-'+status);
     if (box) box.classList.add('is-active');
     // Ensure labels are always correct
-    var labelMap = { unordered:'未予約', ordered:'予約中', confirmed:'予約確定', examined:'受診済み', received:'結果受領済み', excluded:'除外' };
+    var labelMap = { unordered:'未予約', ordered:'予約日調整中', confirmed:'予約確定', examined:'受診済み', received:'結果受領済み', excluded:'除外' };
     Object.keys(labelMap).forEach(function(key) {
       var el = document.getElementById('kd-box-'+key);
       if (el) el.querySelector('.label').textContent = labelMap[key];
@@ -4692,7 +4668,7 @@ function initKenshinList() {
 function klRender(data) {
   var tbody = document.getElementById('kl-tbody');
   tbody.innerHTML = '';
-  var scMap = {受診済み:'status-complete',結果受領済み:'badge-blue',予約確定:'status-ongoing',予約中:'badge-blue',未予約:'status-init',除外:'status-drop'};
+  var scMap = {受診済み:'status-complete',結果受領済み:'badge-blue',予約確定:'status-ongoing',予約日調整中:'badge-blue',未予約:'status-init',除外:'status-drop'};
   var info = document.getElementById('kl-pager-info');
   if(info) info.textContent = (data.length ? '1-' + data.length : '0') + ' / ' + data.length + '件';
   if(!data.length){

@@ -11,7 +11,15 @@
         （取込のときはこの番号で照合します）。<b>当社内部コード</b>は自動で割り振ります{% if row %}：
         <b class="mono">{{ row.code }}</b>{% endif %}。</span></div>
     <div class="mt-tbl">
-      <label {{ 'for="kenpo_id"' if kenpos }} class="mt-label">健康保険組合{% if kenpos %}<span class="req">必須</span>{% endif %}</label><div class="mt-cell fld mt-w-l">{% if kenpos %}
+      <label for="ext_code" class="mt-label">企業コード</label><div class="mt-cell fld"><input type="text" id="ext_code" name="ext_code" maxlength="20"
+            value="{{ (form.ext_code if form else (row.ext_code if row else '')) or '' }}" placeholder="例：456"></div>
+      <label for="name" class="mt-label">企業名<span class="req">必須</span></label><div class="mt-cell fld mt-w-m"><input type="text" id="name" name="name" required
+            value="{{ (form.name if form else (row.name if row else '')) or '' }}" placeholder="例：光通信株式会社"></div>
+      <label for="kana" class="mt-label">企業名（フリガナ）</label><div class="mt-cell fld mt-w-m"><input type="text" id="kana" name="kana"
+            value="{{ (form.kana if form else (row.kana if row else '')) or '' }}" placeholder="例：ヒカリツウシン"></div>
+      <label for="cert_mark" class="mt-label">被保険者証記号</label><div class="mt-cell fld"><input type="text" id="cert_mark" name="cert_mark"
+            value="{{ (form.cert_mark if form else (row.cert_mark if row else '')) or '' }}" placeholder="例：1000"></div>
+      <label {{ 'for="kenpo_id"' if kenpos }} class="mt-label">健康保険組合{% if kenpos %}<span class="req">必須</span>{% endif %}</label><div class="mt-cell fld mt-w-l mt-span">{% if kenpos %}
         <select id="kenpo_id" name="kenpo_id" required
                 {{ 'disabled' if kenpos|length == 1 }}>
           {% for k in kenpos %}<option value="{{ k.id }}"
@@ -21,14 +29,6 @@
         {% else %}
         <input type="text" value="{{ kenpo.code ~ '　' ~ kenpo.name if kenpo else '—' }}" disabled>
         {% endif %}</div>
-      <label for="ext_code" class="mt-label">企業コード</label><div class="mt-cell fld"><input type="text" id="ext_code" name="ext_code" maxlength="20"
-            value="{{ (form.ext_code if form else (row.ext_code if row else '')) or '' }}" placeholder="例：456"></div>
-      <label for="name" class="mt-label">企業名<span class="req">必須</span></label><div class="mt-cell fld mt-w-m"><input type="text" id="name" name="name" required
-            value="{{ (form.name if form else (row.name if row else '')) or '' }}" placeholder="例：光通信株式会社"></div>
-      <label for="kana" class="mt-label">企業名（フリガナ）</label><div class="mt-cell fld mt-w-m"><input type="text" id="kana" name="kana"
-            value="{{ (form.kana if form else (row.kana if row else '')) or '' }}" placeholder="例：ヒカリツウシン"></div>
-      <label for="cert_mark" class="mt-label">被保険者証記号</label><div class="mt-cell fld mt-span"><input type="text" id="cert_mark" name="cert_mark"
-            value="{{ (form.cert_mark if form else (row.cert_mark if row else '')) or '' }}" placeholder="例：1000"></div>
     </div>
   </div>
 
@@ -47,6 +47,92 @@
     </div>
   </div>
 
+{% if row %}
+{# ================= 事業所・部署（この企業の配下をここで入力する。8-59） ================= #}
+  <div class="block mt-block" id="org-sub-card">
+    <div class="mt-head"><h2>事業所・部署</h2>
+      <span class="mt-note">この企業の事業所と、その下の部署です。行の入力欄を書き換えて「更新」を押すと企業情報と一緒に保存されます。
+        「＋事業所を追加」「＋部署を追加」で行を増やせます（追加したばかりの事業所にも部署を置けます）。</span></div>
+    <div class="org-sub">
+    <table class="result-table org-sub-tbl" id="org-sub-tbl">
+      <colgroup>
+        <col style="width:80px"><col style="width:200px"><col style="width:120px"><col class="col-long"><col class="col-long">
+        <col style="width:150px"><col style="width:80px"><col style="width:180px">
+      </colgroup>
+      <thead><tr>
+        <th>種別</th><th class="tl">事業所</th><th>コード</th><th class="tl">名称</th><th class="tl">住所</th>
+        <th>電話番号</th><th>加入者</th><th class="ops">操作</th>
+      </tr></thead>
+      <tbody id="org-sub-body">
+      {% for o in offs %}
+      <tr class="org-sub-row" data-kind="office" data-key="o{{ o.id }}">
+        <td><span class="st-label org-kind org-kind-office">事業所</span>
+          <input type="hidden" name="off_id" value="{{ o.id }}"><input type="hidden" name="off_key" value="o{{ o.id }}"></td>
+        <td class="tl">—</td>
+        <td><input type="text" name="off_ext" maxlength="20" value="{{ o.ext_code or '' }}" placeholder="例：8718" aria-label="事業所コード"></td>
+        <td><input type="text" name="off_name" class="off-name" value="{{ o.name }}" placeholder="事業所名（必須）" aria-label="事業所名"></td>
+        <td><input type="text" name="off_address" value="{{ o.address or '' }}" placeholder="住所" aria-label="住所"></td>
+        <td><input type="text" name="off_tel" value="{{ o.tel or '' }}" placeholder="電話番号" aria-label="電話番号"></td>
+        <td class="num">{{ mem_by_office.get(o.id, 0) }}</td>
+        <td class="ops">
+          <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}" href="{{ url_for('office_edit', oid=o.id) }}" style="text-decoration:none">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
+          {% if CAN_MASTER %}<button type="button" class="btn-sm btn-del" onclick="orgSubDelete(this, '{{ url_for('office_delete', oid=o.id) }}', '{{ o.name }}', '加入者が紐づいている場合は削除できません。')">削除</button>{% endif %}
+        </td>
+      </tr>
+        {% for d in depts_by_office.get(o.id, []) %}
+        <tr class="org-sub-row" data-kind="dept">
+          <td><span class="st-label org-kind org-kind-dept">部署</span>
+            <input type="hidden" name="dep_id" value="{{ d.id }}"><input type="hidden" name="dep_office" value="{{ o.id }}"></td>
+          <td class="tl col-long" title="{{ o.name }}">{{ o.name }}</td>
+          <td><input type="text" name="dep_ext" maxlength="20" value="{{ d.ext_code or '' }}" placeholder="例：01" aria-label="部署コード"></td>
+          <td><input type="text" name="dep_name" value="{{ d.name }}" placeholder="部署名（必須）" aria-label="部署名"></td>
+          <td class="tl">—</td>
+          <td class="tl">—</td>
+          <td class="num">{{ mem_by_dept.get(d.id, 0) }}</td>
+          <td class="ops">
+            <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}" href="{{ url_for('department_edit', did=d.id) }}" style="text-decoration:none">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
+            {% if CAN_MASTER %}<button type="button" class="btn-sm btn-del" onclick="orgSubDelete(this, '{{ url_for('department_delete', did=d.id) }}', '{{ d.name }}', '加入者・管理者が紐づいている場合は削除できません。')">削除</button>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      {% endfor %}
+      <tr id="org-sub-none"{% if offs %} style="display:none"{% endif %}><td colspan="8" style="padding:18px;color:#a0aec0;text-align:center">事業所がまだ登録されていません。「＋事業所を追加」から追加してください。</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="org-sub-actions">
+      <button type="button" class="btn-sm" id="org-add-office" onclick="orgSubAddOffice()">＋事業所を追加</button>
+      <button type="button" class="btn-sm" id="org-add-dept" onclick="orgSubAddDept()">＋部署を追加</button>
+      <span class="hint">追加した行は黄色で表示されます。「更新」を押すまで保存されません。</span>
+    </div>
+    <template id="tpl-off">
+      <tr class="org-sub-row is-new" data-kind="office">
+        <td><span class="st-label org-kind org-kind-office">事業所</span>
+          <input type="hidden" name="off_id" value=""><input type="hidden" name="off_key" value=""></td>
+        <td class="tl">—</td>
+        <td><input type="text" name="off_ext" maxlength="20" placeholder="例：8718" aria-label="事業所コード"></td>
+        <td><input type="text" name="off_name" class="off-name" placeholder="事業所名（必須）" aria-label="事業所名" oninput="orgSubRefreshOffices()"></td>
+        <td><input type="text" name="off_address" placeholder="住所" aria-label="住所"></td>
+        <td><input type="text" name="off_tel" placeholder="電話番号" aria-label="電話番号"></td>
+        <td class="num">0</td>
+        <td class="ops"><button type="button" class="btn-sm" onclick="orgSubRemove(this)">取り消す</button></td>
+      </tr>
+    </template>
+    <template id="tpl-dep">
+      <tr class="org-sub-row is-new" data-kind="dept">
+        <td><span class="st-label org-kind org-kind-dept">部署</span><input type="hidden" name="dep_id" value=""></td>
+        <td><select name="dep_office" class="dep-office" aria-label="事業所"></select></td>
+        <td><input type="text" name="dep_ext" maxlength="20" placeholder="例：01" aria-label="部署コード"></td>
+        <td><input type="text" name="dep_name" placeholder="部署名（必須）" aria-label="部署名"></td>
+        <td class="tl">—</td>
+        <td class="tl">—</td>
+        <td class="num">0</td>
+        <td class="ops"><button type="button" class="btn-sm" onclick="orgSubRemove(this)">取り消す</button></td>
+      </tr>
+    </template>
+  </div>
+{% endif %}
+
 {% if not row %}
 {# ================= 登録後の流れ ================= #}
 <div class="block next-steps">
@@ -54,7 +140,7 @@
   <ol class="steps-flow">
     <li><span class="sf-no">1</span>
       <span class="sf-body"><b>部署（事業所）を登録します</b><br>
-        <span class="hint">「事業所情報」から、この企業の部署を登録します。</span></span></li>
+        <span class="hint">「企業・事業所・部署」の一覧でこの企業の「詳細表示」を開き、事業所・部署を追加します。</span></span></li>
     <li><span class="sf-no">2</span>
       <span class="sf-body"><b>加入者を登録します</b><br>
         <span class="hint">「加入者情報」から登録、または一括インポートで取り込みます。</span></span></li>
@@ -83,6 +169,80 @@
   sel.addEventListener('change', upd);
   upd();
 })();
+</script>
+{% endif %}
+
+{% if row %}
+<script>
+/* 事業所・部署の行を増やす／取り消す／削除する（8-59）。新しい事業所には n1, n2… のキーを付け、
+   同じ画面で追加した部署の「事業所」にもその事業所を選べるようにする */
+var orgSubSeq = 0;
+function orgSubOffices(){
+  /* 既存の事業所（o<id>）と、この画面で追加した事業所（n<n>）の一覧 */
+  var out = [];
+  [].forEach.call(document.querySelectorAll('#org-sub-body tr[data-kind="office"]'), function(tr){
+    var key = tr.querySelector('input[name="off_key"]').value;
+    var id = tr.querySelector('input[name="off_id"]').value;
+    var nm = (tr.querySelector('input[name="off_name"]').value || '').trim();
+    out.push({value: id || key, label: nm || ('（新しい事業所 ' + key.replace('n', '') + '）'), isNew: !id});
+  });
+  return out;
+}
+function orgSubRefreshOffices(){
+  var offs = orgSubOffices();
+  [].forEach.call(document.querySelectorAll('#org-sub-body select.dep-office'), function(sel){
+    var cur = sel.value;
+    sel.innerHTML = '';
+    offs.forEach(function(o){
+      var op = document.createElement('option');
+      op.value = o.value; op.textContent = (o.isNew ? '★ ' : '') + o.label;
+      sel.appendChild(op);
+    });
+    if(cur && [].some.call(sel.options, function(op){ return op.value === cur; })) sel.value = cur;
+  });
+}
+function orgSubAddOffice(){
+  var tr = document.getElementById('tpl-off').content.firstElementChild.cloneNode(true);
+  var key = 'n' + (++orgSubSeq);
+  tr.dataset.key = key;
+  tr.querySelector('input[name="off_key"]').value = key;
+  document.getElementById('org-sub-body').insertBefore(tr, document.getElementById('org-sub-none'));
+  document.getElementById('org-sub-none').style.display = 'none';
+  orgSubRefreshOffices();
+  tr.querySelector('input[name="off_name"]').focus();
+}
+function orgSubAddDept(){
+  if(!orgSubOffices().length){ orgSubAddOffice(); }
+  var tr = document.getElementById('tpl-dep').content.firstElementChild.cloneNode(true);
+  document.getElementById('org-sub-body').insertBefore(tr, document.getElementById('org-sub-none'));
+  orgSubRefreshOffices();
+  var sel = tr.querySelector('select.dep-office');
+  if(sel.options.length) sel.selectedIndex = sel.options.length - 1;   /* 直近の事業所を既定にする */
+  tr.querySelector('input[name="dep_name"]').focus();
+}
+function orgSubRemove(btn){
+  var tr = btn.closest('tr');
+  var key = tr.dataset.key;
+  tr.parentNode.removeChild(tr);
+  if(key){
+    /* 取り消した事業所を選んでいた新しい部署の行も取り消す */
+    [].forEach.call(document.querySelectorAll('#org-sub-body tr.is-new[data-kind="dept"]'), function(d){
+      var sel = d.querySelector('select.dep-office');
+      if(sel && sel.value === key) d.parentNode.removeChild(d);
+    });
+  }
+  orgSubRefreshOffices();
+  var rows = document.querySelectorAll('#org-sub-body tr.org-sub-row').length;
+  document.getElementById('org-sub-none').style.display = rows ? 'none' : '';
+}
+function orgSubDelete(btn, url, name, note){
+  if(!confirm('「' + name + '」を削除します。よろしいですか？\n\n' + note)) return;
+  var f = document.createElement('form');
+  f.method = 'post'; f.action = url; f.style.display = 'none';
+  var n = document.createElement('input'); n.type = 'hidden'; n.name = 'next';
+  n.value = location.pathname + location.search;
+  f.appendChild(n); document.body.appendChild(f); f.submit();
+}
 </script>
 {% endif %}
 {% endblock %}

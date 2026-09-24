@@ -2612,6 +2612,24 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
       <div class="ke-tab-panel" id="ke-tab-kenshin" style="display:none;">
       <div class="panel-col">
 
+        <!-- サイト公開期間（健診代行）：加入者向けサイトに健診の予約ページを公開する期間 -->
+        <div class="right-panel no-flex" id="ke-ks-site">
+          <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:10px;">
+            <h2 class="m0">サイト公開期間</h2>
+            <span class="totals-text">加入者向けサイトに健診（予約・受診案内）のページを公開する期間。空欄なら期間の制限なし</span>
+          </div>
+          <div class="ms-grid-4">
+            <div class="form-group">
+              <label class="form-label" for="ke-ks-siteStart">開始日</label>
+              <input type="date" class="form-control" id="ke-ks-siteStart">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="ke-ks-siteEnd">終了日</label>
+              <input type="date" class="form-control" id="ke-ks-siteEnd">
+            </div>
+          </div>
+        </div>
+
         <!-- 達成度・単価設定（健診代行） -->
         <div class="right-panel no-flex">
           <h2 class="m0" style="margin-bottom:14px;">達成度・単価設定</h2>
@@ -2866,6 +2884,26 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
                   <label class="form-label">所在地</label>
                   <input type="text" class="form-control" id="fl-employer-addr" placeholder="例：東京都渋谷区〇〇1-2-3 ○○ビル 5F">
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid #e8edf2;margin:22px 0;">
+
+          <!-- サイト公開期間（インフル補助）：加入者向けサイトに申請ページを公開する期間 -->
+          <div id="ke-fl-site">
+            <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:10px;">
+              <h2 class="m0">サイト公開期間</h2>
+              <span class="totals-text">加入者向けサイトにインフルエンザ補助（予約・申請）のページを公開する期間。空欄なら期間の制限なし</span>
+            </div>
+            <div class="ms-grid-4">
+              <div class="form-group">
+                <label class="form-label" for="ke-fl-siteStart">開始日</label>
+                <input type="date" class="form-control" id="ke-fl-siteStart">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="ke-fl-siteEnd">終了日</label>
+                <input type="date" class="form-control" id="ke-fl-siteEnd">
               </div>
             </div>
           </div>
@@ -3306,26 +3344,12 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
       <h2 class="master-sec-title">情報</h2>
       <p class="master-sec-desc">企業・事業所・部署・加入者のマスタです。</p>
       <div class="top-cards theme-master" style="margin-top:4px;">
-        <div class="top-card" onclick="navigate('sys-company')" data-feature="master.view">
+        <div class="top-card" onclick="navigate('sys-org')" data-feature="master.view">
           <div class="top-card-icon">
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h6"/></svg>
           </div>
-          <h3 class="top-card-title">企業情報</h3>
-          <h4 class="top-card-desc">全健保の企業を登録・閲覧・編集・削除。健康保険組合を選んで登録します</h4>
-        </div>
-        <div class="top-card" onclick="navigate('sys-office')" data-feature="master.view">
-          <div class="top-card-icon">
-            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
-          </div>
-          <h3 class="top-card-title">事業所情報</h3>
-          <h4 class="top-card-desc">事業所の登録・閲覧・編集・削除とCSVの一括取込</h4>
-        </div>
-        <div class="top-card" onclick="navigate('sys-dept')" data-feature="master.view">
-          <div class="top-card-icon">
-            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="8" y="14" width="8" height="7" rx="1"/><path d="M6.5 10v2h11v-2M12 12v2"/></svg>
-          </div>
-          <h3 class="top-card-title">部署情報</h3>
-          <h4 class="top-card-desc">部署の登録・閲覧・編集・削除。部署は事業所の下に置きます</h4>
+          <h3 class="top-card-title">企業・事業所・部署</h3>
+          <h4 class="top-card-desc">全健保の企業・事業所・部署を1つの一覧で登録・閲覧・編集・削除</h4>
         </div>
         <div class="top-card" onclick="navigate('sys-member')" data-feature="master.view">
           <div class="top-card-icon">
@@ -3999,33 +4023,13 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     </div>
 
     <!-- ======== 本システム: 企業情報 ======== -->
-    <div class="view" id="view-sys-company">
+    <div class="view" id="view-sys-org">
       <div class="sys-head">
-        <h1>企業情報</h1>
+        <h1>企業・事業所・部署</h1>
         <button class="back-btn" onclick="sysBack('master')">戻る</button>
       </div>
-      <p class="sys-note">全健保の企業を登録・閲覧・編集・削除します。登録時に健康保険組合を選び、企業コードは健保が管理する番号を入れます（当社内部コードは自動で割り振ります）。</p>
-      <iframe class="sys-frame" data-src="/companies" title="企業情報"></iframe>
-    </div>
-
-    <!-- ======== 本システム: 事業所情報 ======== -->
-    <div class="view" id="view-sys-office">
-      <div class="sys-head">
-        <h1>事業所情報</h1>
-        <button class="back-btn" onclick="sysBack('master')">戻る</button>
-      </div>
-      <p class="sys-note">事業所の登録・閲覧・編集・削除とCSVの一括取込を行います。事業所コードはシステムが自動採番します。</p>
-      <iframe class="sys-frame" data-src="/offices" title="事業所情報"></iframe>
-    </div>
-
-    <!-- ======== 本システム: 部署情報 ======== -->
-    <div class="view" id="view-sys-dept">
-      <div class="sys-head">
-        <h1>部署情報</h1>
-        <button class="back-btn" onclick="sysBack('master')">戻る</button>
-      </div>
-      <p class="sys-note">部署の登録・閲覧・編集・削除を行います。部署は事業所の下に置き、同じ事業所内で名称・コードは重複できません。</p>
-      <iframe class="sys-frame" data-src="/departments" title="部署情報"></iframe>
+      <p class="sys-note">全健保の企業・事業所・部署を1つの一覧で登録・閲覧・編集・削除します（1行が1レコードで、事業所・部署の行には所属する企業・事業所を列で示します。事業所・部署の追加は企業の「詳細表示」から行います）。企業の登録時に健康保険組合を選び、企業コード・事業所コード・部署コードは健保・企業が管理する番号を入れます（当社内部コードは自動で割り振ります）。</p>
+      <iframe class="sys-frame" data-src="/orgs" title="企業・事業所・部署"></iframe>
     </div>
 
     <!-- ======== 本システム: 加入者情報 ======== -->
@@ -4470,9 +4474,7 @@ const VIEWS = {
   'sys-log':'view-sys-log',
   'sys-me':'view-sys-me',
   'sys-features':'view-sys-features',
-  'sys-company':'view-sys-company',
-  'sys-office':'view-sys-office',
-  'sys-dept':'view-sys-dept',
+  'sys-org':'view-sys-org',
   'sys-member':'view-sys-member'
 };
 const CLAIM_VIEWS = new Set(['claim-list','claim-kenpo','hospital-claim','patient-detail','payment-confirm','hospital-payment','meisai-create']);
@@ -4699,6 +4701,12 @@ const KenpoDB = {
       if(KE.updatePath) KE.updatePath();
       if(KE.setConsent) KE.setConsent(row ? (row.consent_text || '') : []);
     }
+    /* サイト公開期間（健診代行・インフル補助） */
+    [['ke-ks-siteStart','kenshin_site_start'],['ke-ks-siteEnd','kenshin_site_end'],
+     ['ke-fl-siteStart','flu_site_start'],['ke-fl-siteEnd','flu_site_end']].forEach(function(x){
+      var el = document.getElementById(x[0]);
+      if(el) el.value = row ? (row[x[1]] || '') : '';
+    });
     const t = document.getElementById('ke-editTitle');
     if(t) t.textContent = row ? '健康保険組合編集（' + (row.name || '') + '）' : '健康保険組合登録';
     const sb = document.getElementById('ke-saveBtn');
@@ -4737,7 +4745,11 @@ const KenpoDB = {
     fetch(editing ? '/api/kenpos/' + editing : '/api/kenpos', {
       method: 'POST', credentials: 'same-origin',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({code: no, name: nm, consent_text: consent})
+      body: JSON.stringify({code: no, name: nm, consent_text: consent,
+        kenshin_site_start: (document.getElementById('ke-ks-siteStart') || {}).value || '',
+        kenshin_site_end: (document.getElementById('ke-ks-siteEnd') || {}).value || '',
+        flu_site_start: (document.getElementById('ke-fl-siteStart') || {}).value || '',
+        flu_site_end: (document.getElementById('ke-fl-siteEnd') || {}).value || ''})
     }).then(r => r.json()).then(d => {
       btn.disabled = false;
       this.msg(d.message, !!d.ok);
@@ -4942,7 +4954,7 @@ function navigate(key){
   if(key==='kenpo-search'||key==='kenpo-search-2fa'||key==='kenpo-search-result'){ document.querySelector('[data-nav="kenpo-search"]').classList.add('active'); }
   if(CLAIM_VIEWS.has(key)){ document.querySelector('[data-nav="claim-list"]').classList.add('active'); }
   if(key==='chat'||key==='chat-2fa'||key==='chat-yoroku'||key==='chatbot-mgmt'||key==='chatbot-knowledge'){ document.querySelector('[data-nav="chat"]').classList.add('active'); }
-  if(key==='master'||key==='master-criteria'||key==='master-edit'||key==='master-judgment-edit'||key==='master-fee-edit'||key==='master-oid'||key==='sys-judge-group'||key==='sys-company'||key==='sys-office'||key==='sys-dept'||key==='sys-member'){ document.querySelector('[data-nav="master"]').classList.add('active'); }
+  if(key==='master'||key==='master-criteria'||key==='master-edit'||key==='master-judgment-edit'||key==='master-fee-edit'||key==='master-oid'||key==='sys-judge-group'||key==='sys-org'||key==='sys-member'){ document.querySelector('[data-nav="master"]').classList.add('active'); }
   if(key==='master-criteria') MS.render();
   if(key==='master-oid') OID.render();
   if(key==='flu-list'){ FL.switchTab('list'); FL.render(); }

@@ -8,7 +8,7 @@
 <form method="post">
   <div class="block mt-block">
     <div class="mt-head"><h2>基本情報</h2>
-      <span class="mt-note"><b>所属コード</b>は企業が管理している番号で、取込の照合キーになります。
+      <span class="mt-note"><b>事業所コード</b>は企業が管理している番号で、取込の照合キーになります。
         <b>当社内部コード</b>は登録順に自動発番します{% if row %}：<b class="mono">{{ row.code }}</b>{% else %}
         （この登録では <b class="mono" id="next-code">{{ nexts.values()|list|first if nexts else '001' }}</b>）{% endif %}。</span></div>
     <div class="mt-tbl">
@@ -22,7 +22,7 @@
         </select>
         {% if comps|length == 1 %}<input type="hidden" name="company_id" value="{{ comps[0].id }}">{% endif %}
         {% endif %}</div>
-      <label for="ext_code" class="mt-label">所属コード</label><div class="mt-cell fld"><input type="text" id="ext_code" name="ext_code" maxlength="20"
+      <label for="ext_code" class="mt-label">事業所コード</label><div class="mt-cell fld"><input type="text" id="ext_code" name="ext_code" maxlength="20"
             value="{{ (form.ext_code if form else (row.ext_code if row else '')) or '' }}" placeholder="例：8718"></div>
       <label for="name" class="mt-label">事業所名<span class="req">必須</span></label><div class="mt-cell fld mt-w-m"><input type="text" id="name" name="name" required
             value="{{ (form.name if form else (row.name if row else '')) or '' }}" placeholder="例：本社"></div>
@@ -66,7 +66,7 @@
 
 {% if comps and comps|length > 1 %}
 <script>
-/* 企業を変えると、採番される所属コードの表示も切り替える */
+/* 企業を変えると、採番される事業所コードの表示も切り替える */
 (function(){
   var sel = document.getElementById('company_id');
   var out = document.getElementById('next-code');
