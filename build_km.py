@@ -142,10 +142,15 @@ const KenpoDB = {
     if(no){ no.value = row ? (row.code || '') : ''; }
     if(nm){ nm.value = row ? (row.name || '') : ''; }
     if(typeof KE !== 'undefined'){
-      if(KE.setAuth) KE.setAuth(row ? (row.auth_pattern || 'A') : 'A');
       if(KE.updatePath) KE.updatePath();
       if(KE.setConsent) KE.setConsent(row ? (row.consent_text || '') : []);
     }
+    /* サイト公開期間（健診代行・インフル補助） */
+    [['ke-ks-siteStart','kenshin_site_start'],['ke-ks-siteEnd','kenshin_site_end'],
+     ['ke-fl-siteStart','flu_site_start'],['ke-fl-siteEnd','flu_site_end']].forEach(function(x){
+      var el = document.getElementById(x[0]);
+      if(el) el.value = row ? (row[x[1]] || '') : '';
+    });
     const t = document.getElementById('ke-editTitle');
     if(t) t.textContent = row ? '健康保険組合編集（' + (row.name || '') + '）' : '健康保険組合登録';
     const sb = document.getElementById('ke-saveBtn');
@@ -177,7 +182,6 @@ const KenpoDB = {
   save(btn){
     const no = (document.getElementById('ke-no') || {}).value || '';
     const nm = (document.getElementById('ke-name') || {}).value || '';
-    const auth = (document.getElementById('ke-auth') || {}).value || 'A';
     const consent = (typeof KE !== 'undefined' && KE.getConsent) ? KE.getConsent() : [];
     const editing = this.editingId;
     this.msg('', true);
@@ -185,7 +189,11 @@ const KenpoDB = {
     fetch(editing ? '/api/kenpos/' + editing : '/api/kenpos', {
       method: 'POST', credentials: 'same-origin',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({code: no, name: nm, auth_pattern: auth, consent_text: consent})
+      body: JSON.stringify({code: no, name: nm, consent_text: consent,
+        kenshin_site_start: (document.getElementById('ke-ks-siteStart') || {}).value || '',
+        kenshin_site_end: (document.getElementById('ke-ks-siteEnd') || {}).value || '',
+        flu_site_start: (document.getElementById('ke-fl-siteStart') || {}).value || '',
+        flu_site_end: (document.getElementById('ke-fl-siteEnd') || {}).value || ''})
     }).then(r => r.json()).then(d => {
       btn.disabled = false;
       this.msg(d.message, !!d.ok);

@@ -170,6 +170,14 @@ def apply_sanmen(con, log):
     if "consent_text" not in cols(con, "kenpo"):
         con.execute("ALTER TABLE kenpo ADD COLUMN consent_text TEXT NOT NULL DEFAULT ''")
         log.append("kenpo に consent_text（クローズサイトに表示する同意文）を追加")
+    # 健診代行・インフル補助の「サイト公開期間」（8-56）
+    for col, label in (("kenshin_site_start", "健診代行 サイト公開期間 開始日"),
+                       ("kenshin_site_end", "健診代行 サイト公開期間 終了日"),
+                       ("flu_site_start", "インフル補助 サイト公開期間 開始日"),
+                       ("flu_site_end", "インフル補助 サイト公開期間 終了日")):
+        if col not in cols(con, "kenpo"):
+            con.execute(f"ALTER TABLE kenpo ADD COLUMN {col} TEXT")
+            log.append(f"kenpo に {col}（{label}）を追加")
     added = sorted(t for t in tables(con) - before if t.startswith("oh_"))
     if added:
         log.append(f"産業医面談管理のテーブルを追加（{len(added)}件）")
@@ -622,8 +630,8 @@ def ensure_schema(db_path=DB, verbose=False):
         log.append("判定グループのテーブル（複合検査の判定）を追加")
 
     # ---------- 5.42 先方が管理する番号（ext_code）を追加 ----------
-    for table, label in (("company", "事業所（企業）コード"),
-                         ("office", "所属コード"),
+    for table, label in (("company", "企業コード"),
+                         ("office", "事業所コード"),
                          ("department", "部署コード")):
         if table in tables(con) and "ext_code" not in cols(con, table):
             con.execute(f"ALTER TABLE {table} ADD COLUMN ext_code TEXT")
@@ -688,6 +696,7 @@ def ensure_schema(db_path=DB, verbose=False):
                        ("qualified_at", "資格取得日"), ("lost_at", "資格喪失日"),
                        ("zip", "郵便番号"), ("address", "住所"),
                        ("address2", "住所（建物名）"), ("tel", "電話番号"),
+                       ("pref", "都道府県"), ("city", "市区町村"),
                        ("email", "メールアドレス"), ("billing_code", "請求先コード"),
                        ("employee_code", "社員番号"),
                        ("kenpo_member_id", "健保別加入者管理ID"),
@@ -697,9 +706,20 @@ def ensure_schema(db_path=DB, verbose=False):
             con.execute(f"ALTER TABLE member ADD COLUMN {col} TEXT")
             log.append(f"member に {col}（{label}）を追加")
 
+    # 住所を 都道府県・市区町村・住所（番地など）に分けて持つ（8-49）。
+    # まだ分けていない行（pref が NULL）は、住所の先頭から都道府県・市区町村を切り出す。
+    rows = con.execute("SELECT id, address FROM member WHERE pref IS NULL").fetchall()
+    if rows:
+        from address_split import split_address
+        for r in rows:
+            pref, city, rest = split_address(r[1] or "")
+            con.execute("UPDATE member SET pref=?, city=?, address=? WHERE id=?",
+                        (pref, city, rest, r[0]))
+        log.append(f"member の住所を都道府県・市区町村・住所に分割（{len(rows)}件）")
+
     # ---------- 5.455 取込時のコードを加入者に残す ----------
-    for col, label in (("src_company_code", "取込時の事業所（企業）コード"),
-                       ("src_office_code", "取込時の所属コード")):
+    for col, label in (("src_company_code", "取込時の企業コード"),
+                       ("src_office_code", "取込時の事業所コード")):
         if col not in cols(con, "member"):
             con.execute(f"ALTER TABLE member ADD COLUMN {col} TEXT")
             log.append(f"member に {col}（{label}）を追加")

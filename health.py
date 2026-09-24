@@ -957,6 +957,127 @@ def hm_flu_reservations():
     return {"ok": True, "fy": fy, "season": flu_season(fy)[0], "rows": rows}
 
 
+# ---------------------------------------------------------------- 健診 対象者一覧・特定保健指導 対象者一覧
+KL_HOSPITALS = ["新宿メディカル病院", "△△医療センター", "青山クリニック", "代々木健診センター",
+                "□□健診センター"]
+KL_STATUSES = ["未予約", "予約日調整中", "予約確定"]
+
+
+def _fy_bounds(fy):
+    y = int(str(fy)[:4])
+    return y, f"{y}-04-01", f"{y + 1}-03-31"
+
+
+def _fmt_slash(v):
+    return (v or "").replace("-", "/")
+
+
+def _member_extra(mid):
+    """scoped_members に無い列（資格喪失日・除外・住所など）"""
+    db = H.get_db()
+    return db.execute("SELECT lost_at, excluded, birth FROM member WHERE id=?", [mid]).fetchone()
+
+
+def kenshin_row_for(m, fy):
+    """健康診断 代行管理「対象者一覧」の1行。受診記録があれば実績から、無ければ加入者ごとに決まった予約状況"""
+    db = H.get_db()
+    y, d0, d1 = _fy_bounds(fy)
+    mid = int(m["id"])
+    ex = _member_extra(mid)
+    age = H._age_of(m["birth"])
+    kk = db.execute("SELECT exam_date, judge FROM oh_kenshin WHERE member_id=? AND exam_date BETWEEN ? AND ?"
+                    " ORDER BY exam_date DESC LIMIT 1", [mid, d0, d1]).fetchone()
+    if not kk:
+        r = db.execute("SELECT MAX(exam_date) AS exam_date FROM kenshin_result"
+                       " WHERE member_id=? AND exam_date BETWEEN ? AND ?", [mid, d0, d1]).fetchone()
+        kk = {"exam_date": r["exam_date"], "judge": None} if r and r["exam_date"] else None
+    seed = (mid * 53 + y) % 1000
+    course = ("定期健康診断" if (age is None or age < 40)
+              else ("人間ドック" if seed % 2 else "生活習慣病予防健診"))
+    hospital = KL_HOSPITALS[seed % len(KL_HOSPITALS)]
+    if ex and ex["excluded"]:
+        status, plan, actual, course, hospital = "除外", "—", "—", "—", "—"
+    elif ex and (ex["lost_at"] or "").strip():
+        status, plan, actual, course, hospital = "除外", "—", "—", "—", "—"
+    elif kk:
+        status = "結果受領済み" if kk["judge"] else "受診済み"
+        actual = _fmt_slash(kk["exam_date"])
+        plan = actual
+    else:
+        status = KL_STATUSES[seed % 3]
+        if status == "未予約":
+            plan, actual, hospital = "—", "—", "—"
+        else:
+            month = 10 + (seed // 3) % 3
+            plan = f"{y}/{month:02d}/{1 + seed % 28:02d}"
+            actual = "—"
+    rel = m["relation"] or "本人"
+    return {"member_id": mid, "subscriber_id": m["subscriber_id"] or "",
+            "sig": m["cert_mark"] or "", "num": m["member_no"] or "",
+            "name": m["name"] or "", "kana": m["kana"] or "", "birth": _fmt_slash(m["birth"]),
+            "sex": m["sex"] or "", "status": status, "plan": plan, "actual": actual,
+            "corp": m["company_name"] or "未紐づけ", "dept": m["dept_name"] or m["office_name"] or "—",
+            "night": bool(m["night_work"]), "insuredType": "被保険者" if rel == "本人" else "被扶養者",
+            "email": m["email"] or "", "course": course, "hospital": hospital}
+
+
+HL_LEVELS = ["積極的支援", "動機付け支援"]
+HL_STATUSES = ["未予約", "初回面談", "支援中", "最終評価", "中断・除外"]
+
+
+def hoken_row_for(m, fy):
+    """特定保健指導「対象者一覧」の1行（40〜74歳で、要注意・要医療の項目がある加入者）。
+    支援区分・進み具合は加入者ごとに決まった値（支援の記録機能は本モックにはありません）"""
+    db = H.get_db()
+    y, d0, d1 = _fy_bounds(fy)
+    mid = int(m["id"])
+    ex = _member_extra(mid)
+    age = H._age_of(m["birth"])
+    if age is None or not (40 <= age <= 74) or (ex and (ex["lost_at"] or "").strip()):
+        return None
+    med = db.execute("SELECT COUNT(*) AS n FROM kenshin_result WHERE member_id=?"
+                     " AND judge IN ('caution','medical')", [mid]).fetchone()["n"]
+    if not med:
+        return None
+    seed = (mid * 71 + y) % 1000
+    level = HL_LEVELS[seed % 2]
+    status = HL_STATUSES[seed % 5]
+    maxp = 280 if level == "積極的支援" else 20
+    pts = {"未予約": 0, "初回面談": 0, "支援中": int(maxp * (0.3 + (seed % 5) / 10)),
+           "最終評価": maxp, "中断・除外": int(maxp * 0.2)}[status]
+    first = "---" if status in ("未予約", "初回面談") else f"{y}/{4 + seed % 3:02d}/{1 + seed % 28:02d}"
+    last = ("---" if status in ("未予約", "初回面談")
+            else f"{y}/{9 + seed % 3:02d}/{1 + (seed * 7) % 28:02d}")
+    rel = m["relation"] or "本人"
+    return {"member_id": mid, "subscriber_id": m["subscriber_id"] or "",
+            "sig": m["cert_mark"] or "", "num": m["member_no"] or "",
+            "name": m["name"] or "", "kana": m["kana"] or "", "sex": m["sex"] or "",
+            "birth": _fmt_slash(m["birth"]), "type": "被保険者" if rel == "本人" else "被扶養者",
+            "company": f"{m['company_name'] or '未紐づけ'} {m['office_name'] or '—'}",
+            "level": level, "status": status, "firstDate": first, "lastDate": last,
+            "points": pts, "maxPoints": maxp, "email": m["email"] or ""}
+
+
+@bp.route("/api/kenshin/targets")
+@need("kenpo.kenshin")
+def hm_kenshin_targets():
+    """健康診断 代行管理「対象者一覧」の行（閲覧範囲の加入者ぶん）。行の「詳細表示」はマイページ（健診・検査値タブ）"""
+    acc = H.current_account()
+    fy = (request.args.get("fy") or S.current_fy()).strip()
+    rows = [kenshin_row_for(m, fy) for m in S.scoped_members(acc)]
+    return {"ok": True, "fy": fy, "rows": rows}
+
+
+@bp.route("/api/hoken/targets")
+@need("kenpo.hoken")
+def hm_hoken_targets():
+    """特定保健指導「対象者一覧」の行。行の「詳細表示」はマイページ（健診・検査値タブ）"""
+    acc = H.current_account()
+    fy = (request.args.get("fy") or S.current_fy()).strip()
+    rows = [r for r in (hoken_row_for(m, fy) for m in S.scoped_members(acc)) if r]
+    return {"ok": True, "fy": fy, "rows": rows}
+
+
 @bp.route("/me")
 @need("health.self")
 def hm_me():

@@ -27,8 +27,7 @@
     <a href="{{ url_for('dashboard') }}" class="{{ 'on' if request.endpoint=='dashboard' }}">ホーム</a>
     <a href="{{ url_for('accounts') }}" class="{{ 'on' if request.endpoint and request.endpoint.startswith('accounts') }}">アカウント管理</a>
     {% if SHELL != 'km' %}
-    <a href="{{ url_for('companies') }}" class="{{ 'on' if request.endpoint and request.endpoint.startswith('compan') }}">企業情報</a>
-    <a href="{{ url_for('offices') }}" class="{{ 'on' if request.endpoint and request.endpoint.startswith('office') }}">事業所情報</a>
+    <a href="{{ url_for('companies') }}" class="{{ 'on' if request.endpoint and (request.endpoint.startswith('compan') or request.endpoint.startswith('office') or request.endpoint.startswith('department')) }}">企業・事業所・部署</a>
     <a href="{{ url_for('members') }}" class="{{ 'on' if request.endpoint and request.endpoint.startswith('member') }}">加入者情報</a>
     {% endif %}
     <a href="{{ url_for('logs') }}" class="{{ 'on' if request.endpoint=='logs' }}">操作ログ</a>

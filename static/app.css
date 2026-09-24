@@ -553,6 +553,8 @@ table td:has(.oh-full){overflow:visible;}
 .result-table th.col-ops{width:260px}
 .result-table th.col-text{width:200px;max-width:200px}
 .result-table th.col-long{width:auto;min-width:200px}
+/* 残り幅を受ける名称の列も、収まらない分は「…」で省略します（title で全文） */
+.result-table td.col-long{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .result-table th.col-sex{width:88px}
 .result-table th.col-val{width:104px}
 .result-table th.col-cnt{width:72px}
@@ -692,7 +694,9 @@ body.theme-km .result-table tr.pick-row.on td{background:#e8f4ec}
    ============================================================ */
 .table-scroll.paged{max-height:620px;overflow-y:auto;overflow-x:auto}
 .table-scroll.paged thead th{position:sticky;top:0;z-index:3;background:#f0f3f6;
-  box-shadow:inset 0 -1px 0 var(--border)}
+  /* 見出しを固定すると表の上端の罫線（border-collapse で表に属する線）が一緒に流れて消えるため、
+     見出しのセル自身に上下の線を描いて、スクロール中も上段の罫線が残るようにします */
+  box-shadow:inset 0 1px 0 #ddd, inset 0 -1px 0 var(--border)}
 .rows-loading{display:flex;align-items:center;justify-content:center;gap:8px;
   padding:12px;font-size:12px;color:var(--gray-label)}
 .rows-loading .spin{width:13px;height:13px;border:2px solid #cbd5e0;
@@ -1512,6 +1516,40 @@ body.tone-health a.btn-sm.btn-guide-blue {
 /* ============================================================
    切り替え（トグル）：加入者情報の深夜業従事・健診の対象から除外
    ============================================================ */
+/* ============================================================
+   登録・編集フォーム（加入者・企業・事業所・部署）：見出しの帯 ＋ 表形式
+   ============================================================ */
+/* ===== 項目の並び（見出しの帯 ＋ 表形式：項目名のセル｜入力欄のセル を左右2組） ===== */
+.mt-block{padding:0;overflow:hidden}
+.mt-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 20px;
+  border-bottom:1px solid var(--border)}
+.mt-head h2{margin:0;font-size:14px}
+.mt-note{font-size:11.5px;color:var(--gray-label);line-height:1.6}
+.mt-tbl{display:grid;grid-template-columns:190px minmax(0,1fr) 190px minmax(0,1fr);
+  gap:1px;margin:16px 20px 20px;border:1px solid #cbd5e0;border-radius:6px;overflow:hidden;
+  background:#cbd5e0}   /* 罫線：セルの隙間（1px）に下地の色を見せる（表示倍率が変わっても線が消えない） */
+.mt-label,.mt-cell{display:flex;align-items:center;min-height:58px;padding:9px 14px;background:#fff}
+.mt-label{gap:8px;background:#f8fafc;color:#718096;font-size:12.5px;font-weight:500;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-label .req{flex:0 0 auto}
+.mt-cell{flex-wrap:wrap;gap:6px 12px;max-width:none;margin:0}
+.mt-span{grid-column:2 / -1}
+.mt-cell input[type=text],.mt-cell select{width:220px;max-width:100%}
+.mt-cell input[type=date]{width:180px;max-width:100%}
+.mt-cell.mt-w-s input[type=text],.mt-cell.mt-w-s select{width:160px}
+.mt-cell.mt-w-m input[type=text],.mt-cell.mt-w-m select{width:300px}
+.mt-cell.mt-w-l select,.mt-cell.mt-w-l input[type=text]{width:100%;max-width:460px}
+.mt-cell.mt-w-xl input[type=text]{width:100%;max-width:860px}
+.mt-cell.mt-w-full input[type=text],.mt-cell.mt-w-full textarea{width:100%}
+.mt-cell textarea{padding:8px 12px;border-radius:6px;border:1px solid #ccc;font:inherit;font-size:14px}
+.mt-cell .fld-help{flex-basis:100%;margin:0}
+.mt-block .auto-note{margin:0 20px 20px}
+@media (max-width:1180px){
+  .mt-tbl{grid-template-columns:190px minmax(0,1fr)}
+  .mt-span{grid-column:2}
+  .mt-cell.mt-w-m input[type=text],.mt-cell.mt-w-l select{width:100%}
+}
+
 .mf-toggles{display:flex;flex-wrap:wrap;gap:14px 28px}
 .mf-toggle{display:inline-flex;align-items:center;gap:10px;cursor:pointer;
   font-size:14px;color:#333}
@@ -1531,33 +1569,6 @@ body.tone-health a.btn-sm.btn-guide-blue {
 .frag-head > div{min-width:0}
 .frag-head .btn-back{flex-shrink:0}
 
-/* ============================================================
-   認証方式（加入者向けサイトの本人確認で使う項目のパターン）
-   健康保険組合の登録・編集で選びます。
-   ============================================================ */
-.auth-pick{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:900px}
-.auth-opt{margin:0;cursor:pointer}
-.auth-opt input{position:absolute;opacity:0;width:0;height:0}
-.auth-opt .auth-box{display:block;border:1px solid var(--border);border-radius:8px;
-  padding:14px 16px;background:#fff;transition:.15s;height:100%}
-.auth-opt:hover .auth-box{border-color:var(--accent)}
-.auth-opt.is-on .auth-box{border-color:var(--accent);background:#f2f7fd;
-  box-shadow:0 0 0 1px var(--accent) inset}
-.auth-opt .auth-box b{display:block;font-size:14px;font-weight:700;color:var(--text-main);
-  margin-bottom:8px}
-.auth-opt.is-on .auth-box b{color:var(--accent)}
-.auth-items{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
-.auth-item{display:inline-block;padding:3px 10px;border-radius:100px;background:#eef2f7;
-  color:#4c5761;font-size:12.5px;font-weight:700;white-space:nowrap}
-.auth-opt.is-on .auth-item{background:#e8f0fb;color:#2563b0}
-.auth-opt .auth-box em{display:block;font-style:normal;font-size:12px;
-  color:var(--gray-label);line-height:1.7}
-body.theme-km .auth-opt:hover .auth-box{border-color:#2f4f4f}
-body.theme-km .auth-opt.is-on .auth-box{border-color:#2f4f4f;background:#f1f6f4;
-  box-shadow:0 0 0 1px #2f4f4f inset}
-body.theme-km .auth-opt.is-on .auth-box b{color:#2f4f4f}
-body.theme-km .auth-opt.is-on .auth-item{background:#e8f4ec;color:#15803d}
-@media (max-width:900px){ .auth-pick{grid-template-columns:1fr} }
 
 /* 面談対象者一覧の「健診結果」ボタン。HIA健保管理（青）は青系でそろえる */
 .btn-sm.btn-kenshin{background:#e8f0fb !important;color:#2563b0 !important;
@@ -1712,7 +1723,12 @@ a.insured-card:hover{border-color:var(--accent);background:#f0f7ff}
 .jc-line{display:inline-block;margin:0 8px 2px 0;padding:1px 8px;border-radius:5px;
   background:var(--bg-light);border:1px solid var(--border);font-size:12px;
   color:#4a5568;font-variant-numeric:tabular-nums}
-#jcRows input.jc-val{width:100%;text-align:right;font-variant-numeric:tabular-nums}
+/* 入力欄・プルダウンはほかの画面の入力欄と同じ見た目（縦40px・角丸6px・薄い枠線） */
+#jcRows input.jc-val{width:100%;text-align:right;font-variant-numeric:tabular-nums;
+  height:40px;min-height:40px;padding:0 12px;border:1px solid #ccc;border-radius:6px;
+  font-size:14px;color:#4a5568;font-family:inherit;background:#fff;box-sizing:border-box}
+#jcRows input.jc-val:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
+#jcRows select{height:40px;min-height:40px;font-size:13px}
 #jcRows td{padding:6px 10px}
 
 /* 判定マスタ 編集：カード右上の企業・年度の選択 */
@@ -1723,15 +1739,15 @@ select.cr-pick{height:40px;min-height:40px;min-width:180px;font-size:13px}
    No.10 までを表示し、それ以降は表の中を縦スクロールします（見出し行は残ります） */
 .ms-list-scroll{max-height:528px;overflow-y:auto;overflow-x:auto}
 .ms-list-scroll thead th{position:sticky;top:0;z-index:3;background:#f0f3f6;
-  box-shadow:inset 0 -1px 0 var(--border)}
-.result-table.ms-table td,.result-table.ms-table th{height:44px;
+  box-shadow:inset 0 1px 0 #ddd, inset 0 -1px 0 var(--border)}
+.result-table.ms-table td,.result-table.ms-table th{height:52px;
   vertical-align:middle;border:1px solid var(--border)}
 /* XMLデータ型の見出しが切れないだけの幅を取ります */
 .col-xml{width:112px}
 .result-table th.col-xml{width:112px}
 /* 判定基準の「未設定／設定済」ボタン（これが編集の入口です） */
 .ms-set{display:inline-flex;align-items:center;justify-content:center;
-  min-width:84px;height:30px;padding:0 12px;border-radius:6px;font-size:12.5px;
+  min-width:84px;height:40px;min-height:40px;padding:0 12px;border-radius:6px;font-size:14px;
   font-weight:500;background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;
   cursor:pointer;transition:background .12s,border-color .12s,color .12s}
 .ms-set:hover{background:#e2e8f0;color:#475569;border-color:#b6c3ce}
@@ -2063,11 +2079,33 @@ a.hm-stat-box:hover{border-color:var(--accent);box-shadow:0 1px 4px rgba(26,54,9
 /* タブとカードのあいだに余白を作りません */
 .hm-tabs + .hm-cols{margin-top:0}
 .hm-tabs + .hm-cols > * > .block:first-child{margin-top:0}
-.hm-tab{height:38px;min-height:38px;padding:0 16px;border:1px solid var(--border);
+.hm-tab{height:40px;min-height:40px;padding:0 16px;border:1px solid var(--border);
   border-bottom:0;border-radius:8px 8px 0 0;background:#fff;color:#4a5568;
   font-size:13px;font-weight:600;cursor:pointer;position:relative;top:1px;
   transition:.15s;font-family:inherit}
 .hm-tab:hover{color:var(--primary);border-color:var(--accent)}
+/* 企業・事業所・部署の一覧（1つの表）：1行＝1レコード。所属する企業・事業所は列で示し、種別はラベルで示す（8-59） */
+.org-table td.ops{white-space:nowrap;padding-left:0;padding-right:0}
+/* 9列あるので、名称・住所の最低幅は 150px に抑える */
+.org-table .col-long,.org-table th.col-long{min-width:150px}
+.org-table .org-ops{display:flex;gap:1px;justify-content:center;align-items:center}
+.org-table .org-ops form{display:contents}
+.org-table .org-ops .btn-sm{margin:0 !important;padding:0 6px}
+.org-kind{display:inline-block;min-width:56px;text-align:center}
+.org-kind-company{background:#e8f0fb;color:#2563b0}
+.org-kind-office{background:#e6f4ef;color:#1f8f6e}
+.org-kind-dept{background:#eef1f3;color:#4c5761}
+body.theme-km .org-kind-company{background:#e8f4ec;color:#15803d}
+/* 企業の詳細表示（編集画面）の「事業所・部署」カード：行ごとに入力欄を持つ表。＋ボタンで行を増やし「更新」でまとめて保存する */
+.org-sub{overflow-x:auto}
+.org-sub .result-table td{padding:5px 6px}
+.org-sub .result-table td input,.org-sub .result-table td select{width:100%;height:40px;min-height:40px;
+  font-size:14px;padding:0 10px;margin:0;box-sizing:border-box}
+.org-sub .result-table td.ops{padding-left:0;padding-right:0}
+.org-sub .result-table td.ops .btn-sm{margin:0 !important}
+.org-sub tr.is-new td{background:#fffbea}
+.org-sub-actions{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.org-sub-actions .hint{margin-left:auto}
 .hm-tab.is-on{background:var(--bg-light);color:var(--primary);
   border-color:var(--border);box-shadow:inset 0 3px 0 var(--accent)}
 .hm-tab[hidden]{display:none !important}

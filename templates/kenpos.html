@@ -20,7 +20,6 @@
       <th style="width:100px">企業数</th>
       <th style="width:110px">加入者数</th>
       <th style="width:120px">アカウント数</th>
-      <th style="width:130px">認証方式</th>
       <th style="width:110px">登録日</th>
       <th class="ops">操作</th>
     </tr></thead>
@@ -32,9 +31,6 @@
       <td class="num">{{ '{:,}'.format(r.n_company) }}</td>
       <td class="num">{{ '{:,}'.format(r.n_member) }}</td>
       <td class="num">{{ '{:,}'.format(r.n_account) }}</td>
-      <td>{% set ap = r.auth_pattern or 'A' %}
-        <span class="st-label info"
-              title="{{ AUTH_PATTERNS[ap] | join('・') }}">認証方式{{ ap }}</span></td>
       <td class="ts">{{ r.created_at[:10] if r.created_at else '—' }}</td>
       <td class="ops">
         <a class="btn-sm primary btn-edit" href="{{ url_for('kenpo_edit', kid=r.id) }}"

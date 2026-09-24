@@ -7,7 +7,6 @@
              aria-label="{{ r.member_no }} {{ r.name }} を選択">{% endif %}</td>
   <td class="code">{{ r.member_no }}{% if r.cert_branch %}<span class="hint">-{{ r.cert_branch }}</span>{% endif %}</td>
   <td class="tl"><span class="ellip w150" title="{{ r.name }}">{{ r.name }}</span></td>
-  <td class="tl"><span class="ellip w150" title="{{ r.kana or '' }}">{{ r.kana or '' }}</span></td>
   <td class="code">{{ r.birth or '' }}</td>
   <td>{{ r.sex or '' }}</td>
   <td class="tl">{% if r.company_name %}

@@ -329,7 +329,7 @@ body.tone-health .block-title, body.tone-health .cat-title { color:#1b5e5c; }
 .btn-primary:hover { opacity:0.9; }
 .btn-secondary { padding:9px 20px; border-radius:6px; background:#fff; color:var(--primary); border:1px solid var(--primary); cursor:pointer; font-size:13px; }
 .btn-secondary:hover { background:#f0f4ff; }
-.btn-action { padding:5px 14px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:500; text-decoration:none; display:inline-block; margin:0 2px; }
+.btn-action { padding:5px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:500; text-decoration:none; display:inline-block; margin:0 2px; }
 .btn-csv { border:1px solid var(--accent); color:var(--accent); background:#fff; min-width:84px; width:84px; padding:7px 16px; text-align:center; }
 .btn-zip { border:1px solid var(--primary); color:#fff; background:var(--primary); min-width:84px; width:84px; padding:7px 16px; text-align:center; }
 .btn-detail { border:1px solid #cbd5e0; color:#4a5568; background:#edf2f7; transition:background 0.15s; }
@@ -1460,8 +1460,8 @@ button.cancel:hover, a.btn-cancel:hover {
           <div class="label">未予約</div>
           <div class="value"><span>3,148</span> <span class="total">/ 12,450</span></div>
         </div>
-        <div id="kd-box-ordered" class="summary-card" style="border-top-color:#805ad5;cursor:pointer;" onclick="navigateToListWithStatus('予約中')">
-          <div class="label">予約中</div>
+        <div id="kd-box-ordered" class="summary-card" style="border-top-color:#805ad5;cursor:pointer;" onclick="navigateToListWithStatus('予約日調整中')">
+          <div class="label">予約日調整中</div>
           <div class="value"><span>720</span> <span class="total">/ 12,450</span></div>
         </div>
         <div id="kd-box-confirmed" class="summary-card" style="border-top-color:#0694a2;cursor:pointer;" onclick="navigateToListWithStatus('予約確定')">
@@ -1496,7 +1496,7 @@ button.cancel:hover, a.btn-cancel:hover {
               </select>
               <select id="kd-chartSelector" class="control-select">
                 <option value="unordered">未予約</option>
-                <option value="ordered">予約中</option>
+                <option value="ordered">予約日調整中</option>
                 <option value="confirmed">予約確定</option>
                 <option value="examined">受診済み</option>
                 <option value="received">結果受領済み</option>
@@ -1598,7 +1598,7 @@ button.cancel:hover, a.btn-cancel:hover {
       <div class="sub-tabs kl-tabs-outer" id="kl-sub-tabs">
         <button type="button" class="sub-tab active" data-status="" onclick="klSetTab(this)">全て</button>
         <button type="button" class="sub-tab" data-status="未予約" onclick="klSetTab(this)">未予約</button>
-        <button type="button" class="sub-tab" data-status="予約中" onclick="klSetTab(this)">予約中</button>
+        <button type="button" class="sub-tab" data-status="予約日調整中" onclick="klSetTab(this)">予約日調整中</button>
         <button type="button" class="sub-tab" data-status="予約確定" onclick="klSetTab(this)">予約確定</button>
         <button type="button" class="sub-tab" data-status="受診済み" onclick="klSetTab(this)">受診済み</button>
         <button type="button" class="sub-tab" data-status="結果受領済み" onclick="klSetTab(this)">結果受領済み</button>
@@ -1648,67 +1648,12 @@ button.cancel:hover, a.btn-cancel:hover {
       <div class="floating-pager" id="kl-pager">
         <button class="pager-btn" disabled>&lt;</button>
         <button class="pager-btn active">1</button>
-        <button class="pager-btn">2</button>
-        <button class="pager-btn">3</button>
-        <span class="pager-info">1-12 / 120件</span>
-        <button class="pager-btn">&gt;</button>
+        <span class="pager-info" id="kl-pager-info">0 / 0件</span>
+        <button class="pager-btn" disabled>&gt;</button>
       </div>
     </div><!-- /page-kenshin-list -->
 
     <!-- 健診対象者 詳細モーダル -->
-    <div id="klModal" class="modal-overlay" onclick="if(event.target===this)klCloseModal()">
-      <div class="modal-card" style="width:680px;max-height:80vh;">
-        <div class="modal-head">
-          <div>
-            <div class="modal-head-sub" id="kl-m-corpdept"></div>
-            <div style="display:flex;align-items:baseline;gap:10px;">
-              <div class="modal-head-name" id="kl-m-name"></div>
-              <div style="font-size:12px;color:#90cdf4;" id="kl-m-kana"></div>
-            </div>
-          </div>
-          <div class="modal-avatar" id="kl-m-avatar"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-bottom:1px solid #e2e8f0;">
-          <div style="padding:12px 18px;"><div style="font-size:11px;color:#999;margin-bottom:4px;">企業名</div><div style="font-size:13px;font-weight:500;color:#333;" id="kl-m-corp"></div></div>
-          <div style="padding:12px 18px;border-left:1px solid #e2e8f0;"><div style="font-size:11px;color:#999;margin-bottom:4px;">事業部名</div><div style="font-size:13px;font-weight:500;color:#333;" id="kl-m-dept"></div></div>
-          <div style="padding:12px 18px;border-left:1px solid #e2e8f0;"><div style="font-size:11px;color:#999;margin-bottom:4px;">被保険者区分</div><div style="font-size:13px;font-weight:500;color:#333;" id="kl-m-itype"></div></div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-bottom:1px solid #e2e8f0;">
-          <div style="padding:12px 18px;"><div style="font-size:11px;color:#999;margin-bottom:4px;">記号 ／ 番号</div><div style="font-size:13px;font-weight:500;color:#333;" id="kl-m-signum"></div></div>
-          <div style="padding:12px 18px;border-left:1px solid #e2e8f0;"><div style="font-size:11px;color:#999;margin-bottom:4px;">性別 ／ 生年月日</div><div style="font-size:13px;font-weight:500;color:#333;" id="kl-m-sexbirth"></div></div>
-          <div style="padding:12px 18px;border-left:1px solid #e2e8f0;"><div style="font-size:11px;color:#999;margin-bottom:4px;">メールアドレス</div><div style="font-size:13px;color:#3182ce;word-break:break-all;" id="kl-m-email"></div></div>
-        </div>
-        <div class="modal-body" style="padding:16px 18px 20px;overflow-y:auto;">
-          <div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:12px;">受診情報</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-            <div style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;padding:12px 14px;">
-              <div style="font-size:11px;color:#999;margin-bottom:8px;">状態</div>
-              <div id="kl-m-status"></div>
-            </div>
-            <div style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;padding:12px 14px;">
-              <div style="font-size:11px;color:#999;margin-bottom:6px;">予約日</div>
-              <div style="font-size:14px;font-weight:600;color:#2d3748;" id="kl-m-plan"></div>
-            </div>
-            <div style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;padding:12px 14px;grid-column:span 2;">
-              <div style="font-size:11px;color:#999;margin-bottom:6px;">受診医療機関名</div>
-              <div style="font-size:14px;font-weight:600;color:#2d3748;" id="kl-m-hospital"></div>
-            </div>
-            <div style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;padding:12px 14px;">
-              <div style="font-size:11px;color:#999;margin-bottom:6px;">受診コース</div>
-              <div style="font-size:14px;font-weight:600;color:#2d3748;" id="kl-m-course"></div>
-            </div>
-            <div style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;padding:12px 14px;">
-              <div style="font-size:11px;color:#999;margin-bottom:6px;">受診確定日</div>
-              <div style="font-size:14px;font-weight:600;color:#2d3748;" id="kl-m-actual"></div>
-            </div>
-          </div>
-        </div>
-        <div class="modal-foot">
-          <button class="modal-btn-sec" type="button" id="kl-modal-guide-btn">案内を送付</button>
-          <button class="modal-btn-pri" type="button" onclick="klCloseModal()">閉じる</button>
-        </div>
-      </div>
-    </div>
 
 
     <!-- ===========================
@@ -1990,46 +1935,16 @@ button.cancel:hover, a.btn-cancel:hover {
             <tbody id="hl-tbody"></tbody>
           </table>
         </div>
-        <div class="floating-pager">
+        <div class="floating-pager" id="hl-pager">
           <button class="pager-btn" disabled>&lt;</button>
           <button class="pager-btn active">1</button>
-          <button class="pager-btn">2</button>
-          <span class="pager-info">1-12 / 120件</span>
-          <button class="pager-btn">&gt;</button>
+          <span class="pager-info" id="hl-pager-info">0 / 0件</span>
+          <button class="pager-btn" disabled>&gt;</button>
         </div>
       </div>
     </div><!-- /page-hoken-list -->
 
     <!-- 保健指導 詳細モーダル -->
-    <div id="hlModal" class="modal-overlay" onclick="if(event.target===this)hlCloseModal()">
-      <div class="modal-card">
-        <div class="modal-head">
-          <div><div class="modal-head-sub" id="hl-m-sub"></div><div class="modal-head-name" id="hl-m-name"></div></div>
-          <div class="modal-avatar" id="hl-m-avatar"></div>
-        </div>
-        <div class="modal-info">
-          <div class="modal-info-cell"><div class="modal-info-label">記号 ／ 番号</div><div class="modal-info-val" id="hl-m-signum"></div></div>
-          <div class="modal-info-cell"><div class="modal-info-label">性別 ／ 生年月日</div><div class="modal-info-val" id="hl-m-sexbirth"></div></div>
-          <div class="modal-info-cell"><div class="modal-info-label">メールアドレス</div><div class="modal-info-val" id="hl-m-email"></div></div>
-        </div>
-        <div class="mc-metrics">
-          <div class="mc-metrics-l">
-            <div><div class="mc-big-label">腹囲</div><div class="mc-big-val" id="hl-m-waist"></div></div>
-            <div><div class="mc-big-label">BMI</div><div class="mc-big-val" id="hl-m-bmi"></div></div>
-          </div>
-          <div class="mc-metrics-r">
-            <div class="mc-pt-header">ポイント進捗　<span id="hl-m-pt-text"></span></div>
-            <div class="mc-bar-bg"><div class="mc-bar-fill" id="hl-m-bar"></div></div>
-            <div class="mc-pt-pct" id="hl-m-pct"></div>
-          </div>
-        </div>
-        <div class="modal-body"><div class="tl-section" id="hl-m-tl"></div></div>
-        <div class="modal-foot">
-          <button class="modal-btn-sec" type="button" id="hl-modal-guide-btn">案内を送付</button>
-          <button class="modal-btn-pri" onclick="hlCloseModal()">閉じる</button>
-        </div>
-      </div>
-    </div>
 
 
     <!-- ===========================
@@ -2919,7 +2834,7 @@ button.cancel:hover, a.btn-cancel:hover {
           <h1 class="page-title">疾患予測</h1>
           <button class="btn-back" onclick="sysBack('risk')">戻る</button>
         </div>
-        <p class="sys-note">健診結果をもとに加入者ひとりずつの3年後の生活習慣病リスクを予測し、リスク区分・年代・疾病・企業ごとの集計と加入者ごとの結果を1つの画面で確認します。行の「詳細表示」でその方のマイページ（疾患予測タブ）を開きます。予測は参考情報で、最終判断は医師・保健師等の専門家が行います。</p>
+        <p class="sys-note">健診結果をもとに予測した加入者の将来の生活習慣病リスクを、リスク区分・年代・性別・疾病・企業ごとに集計して1つの画面で確認します。加入者ごとの結果はマイページの「疾患予測」タブで確認します。予測は参考情報で、最終判断は医師・保健師等の専門家が行います。</p>
         <iframe class="sys-frame" data-src="/risk" title="疾患予測"></iframe>
       </div>
 
@@ -3216,26 +3131,15 @@ button.cancel:hover, a.btn-cancel:hover {
       </div>
 
       <!-- ======== 本システム: 企業情報 ======== -->
-      <div class="page" id="page-sys-company">
+      <div class="page" id="page-sys-org">
         <div class="sys-head">
-          <h1 class="page-title">企業情報</h1>
+          <h1 class="page-title">企業・事業所・部署</h1>
           <button class="btn-back" onclick="sysBack('master')">戻る</button>
         </div>
-        <p class="sys-note">企業の登録・編集・削除を行います。企業コードは健保が管理する番号です。</p>
-        <iframe class="sys-frame" data-src="/companies" title="企業情報"></iframe>
+        <p class="sys-note">企業・事業所・部署のマスタを1つの一覧で登録・編集・削除します（1行が1レコードで、事業所・部署の行には所属する企業・事業所を列で示します。事業所・部署の追加は企業の「詳細表示」から行います）。企業コード・事業所コード・部署コードは健保・企業が管理する番号を登録します。</p>
+        <iframe class="sys-frame" data-src="/orgs" title="企業・事業所・部署"></iframe>
       </div>
 
-      <!-- ======== 本システム: 事業所情報 ======== -->
-      <div class="page" id="page-sys-office">
-        <div class="sys-head">
-          <h1 class="page-title">事業所情報</h1>
-          <button class="btn-back" onclick="sysBack('master')">戻る</button>
-        </div>
-        <p class="sys-note">事業所の登録・編集・削除を行います。事業所コードは企業が管理する番号、事業所IDはHIAの通し番号で自動で決まります。</p>
-        <iframe class="sys-frame" data-src="/offices" title="事業所情報"></iframe>
-      </div>
-
-      <!-- ======== 本システム: 部署情報 ======== -->
       <!-- ======== 本システム: ストレスチェック設問 ======== -->
       <div class="page" id="page-sys-sc-question">
         <div class="sys-head">
@@ -3244,15 +3148,6 @@ button.cancel:hover, a.btn-cancel:hover {
         </div>
         <p class="sys-note">ストレスチェックの設問（カテゴリ・番号・設問内容）を登録・削除します。登録した設問は産業医面談管理のストレスチェック受検案内で使います。</p>
         <iframe class="sys-frame" data-src="/oh/questions" title="ストレスチェック設問"></iframe>
-      </div>
-
-      <div class="page" id="page-sys-dept">
-        <div class="sys-head">
-          <h1 class="page-title">部署情報</h1>
-          <button class="btn-back" onclick="sysBack('master')">戻る</button>
-        </div>
-        <p class="sys-note">部署の登録・編集・削除を行います。事業所は任意です（事業所を使わない企業では事業所なしで登録します）。</p>
-        <iframe class="sys-frame" data-src="/departments" title="部署情報"></iframe>
       </div>
 
       <!-- ======== 本システム: 加入者情報 ======== -->
@@ -3815,12 +3710,8 @@ var CAT_CARD_CONFIG = {
     subtitle: '企業・事業所・部署・加入者の登録と編集',
     color: '#2b6cb0', iconBg: '#ebf8ff',
     cards: [
-      { page:'sys-company', feature:'master.view', label:'企業情報', desc:'企業の登録・編集・削除。企業コードは健保の番号、企業IDは自動採番', tag:'マスタ', tagClass:'tag-sys',
+      { page:'sys-org', feature:'master.view', label:'企業・事業所・部署', desc:'企業・事業所・部署を1つの一覧で登録・編集・削除', tag:'マスタ', tagClass:'tag-sys',
         icon:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h6"/>' },
-      { page:'sys-office', feature:'master.view', label:'事業所情報', desc:'事業所の登録・編集・削除。事業所コードは企業の番号、事業所IDは自動採番', tag:'マスタ', tagClass:'tag-sys',
-        icon:'<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>' },
-      { page:'sys-dept', feature:'master.view', label:'部署情報', desc:'部署の登録・編集・削除。事業所は任意', tag:'マスタ', tagClass:'tag-sys',
-        icon:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="8" y="14" width="8" height="7" rx="1"/><path d="M6.5 10v2h11v-2M12 12v2"/>' },
       { page:'sys-member', feature:'master.view', label:'加入者情報', desc:'加入者の登録・編集・CSV取込', tag:'マスタ', tagClass:'tag-sys',
         icon:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>' },
       { page:'sys-criteria', feature:'master.view', label:'判定マスタ', desc:'検査項目ごとの判定基準を登録', tag:'マスタ', tagClass:'tag-sys',
@@ -3851,7 +3742,7 @@ var CAT_CARD_CONFIG = {
     subtitle: '病気リスクの確認・受診勧奨対象者の管理・案内文書の送付',
     color: '#1f8f6e', iconBg: '#e7f5f0',
     cards: [
-      { page:'sys-risk', feature:'risk', label:'疾患予測', desc:'予測の実行・リスクの集計・加入者ごとの結果', tag:'リスク管理', tagClass:'tag-sys',
+      { page:'sys-risk', feature:'risk', label:'疾患予測', desc:'リスク区分・年代・性別・疾病・企業ごとの集計', tag:'リスク管理', tagClass:'tag-sys',
         icon:'<path d="M3 12h4l2 6 4-13 2 7h6"/>' },
       { page:'risk-target', feature:'risk', label:'疾患予測対象者一覧', desc:'判定E対象者の管理と案内の送付', tag:'対象者管理', tagClass:'tag-sys',
         icon:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0.8-3.6 3-5.6 6-5.6s5.2 2 6 5.6"/><path d="M18 8v5M15.5 10.5h5"/>' },
@@ -4741,7 +4632,7 @@ function initKenshinDashboard() {
     var box = document.getElementById('kd-box-'+status);
     if (box) box.classList.add('is-active');
     // Ensure labels are always correct
-    var labelMap = { unordered:'未予約', ordered:'予約中', confirmed:'予約確定', examined:'受診済み', received:'結果受領済み', excluded:'除外' };
+    var labelMap = { unordered:'未予約', ordered:'予約日調整中', confirmed:'予約確定', examined:'受診済み', received:'結果受領済み', excluded:'除外' };
     Object.keys(labelMap).forEach(function(key) {
       var el = document.getElementById('kd-box-'+key);
       if (el) el.querySelector('.label').textContent = labelMap[key];
@@ -4755,35 +4646,43 @@ function initKenshinDashboard() {
 /* ======================================
    KENSHIN LIST
    ====================================== */
-var klData = [
-  {sig:'ABC1',num:'0012345',name:'健康 太郎',  kana:'ケンコウ タロウ',  birth:'1978/04/12',sex:'男',status:'未予約',      plan:'—',          actual:'—',          corp:'サンプル商事',        dept:'営業第一部',night:true,insuredType:'被保険者',email:'taro.kenko@example.jp',  course:'人間ドック',        hospital:'—'},
-  {sig:'ABC1',num:'0098765',name:'健保 花子',  kana:'ケンポ ハナコ',    birth:'1982/09/25',sex:'女',status:'予約中',      plan:'2025/10/20',actual:'—',          corp:'サンプル商事',        dept:'管理部',    night:false,insuredType:'被保険者',email:'hanako@example.jp',         course:'定期健康診断',      hospital:'新宿メディカル病院'},
-  {sig:'ABC1',num:'0098766',name:'佐藤 健太',  kana:'サトウ ケンタ',    birth:'1980/05/12',sex:'男',status:'予約確定',    plan:'2025/11/15',actual:'—',          corp:'サンプル商事',        dept:'営業第二部',night:false,insuredType:'被保険者',email:'kenta.sato@example.jp',     course:'人間ドック',        hospital:'△△医療センター'},
-  {sig:'DEF2',num:'0054321',name:'受診 一郎',  kana:'ジュシン イチロウ', birth:'1975/11/03',sex:'男',status:'受診済み',    plan:'2025/10/05',actual:'2025/11/05',corp:'株式会社ヘルステック',dept:'開発部',    night:true,insuredType:'被保険者',email:'ichiro@example.jp',         course:'生活習慣病予防健診',hospital:'青山クリニック'},
-  {sig:'DEF2',num:'0067890',name:'田中 美咲',  kana:'タナカ ミサキ',    birth:'1988/02/14',sex:'女',status:'結果受領済み',plan:'2025/09/10',actual:'2025/09/15',corp:'株式会社ヘルステック',dept:'営業部',    night:false,insuredType:'被扶養者',email:'misaki@example.jp',         course:'人間ドック',        hospital:'代々木健診センター'},
-  {sig:'GHI3',num:'0011111',name:'山田 一郎',  kana:'ヤマダ イチロウ',  birth:'1965/07/20',sex:'男',status:'除外',        plan:'—',          actual:'—',          corp:'山田産業',            dept:'総務部',    night:false,insuredType:'被保険者',email:'ichiro.yamada@example.jp',  course:'—',                hospital:'—'},
-  {sig:'GHI3',num:'0011112',name:'鈴木 恵子',  kana:'スズキ ケイコ',    birth:'1982/03/08',sex:'女',status:'未予約',      plan:'—',          actual:'—',          corp:'サンプル商事',        dept:'人事部',    night:false,insuredType:'被保険者',email:'keiko@example.jp',          course:'定期健康診断',      hospital:'—'},
-  {sig:'GHI3',num:'0011113',name:'伊藤 健司',  kana:'イトウ ケンジ',    birth:'1979/11/25',sex:'男',status:'予約中',      plan:'2025/11/10',actual:'—',          corp:'株式会社ヘルステック',dept:'技術部',    night:true,insuredType:'被保険者',email:'kenji@example.jp',          course:'生活習慣病予防健診',hospital:'青山クリニック'},
-  {sig:'GHI3',num:'0011114',name:'高橋 真理',  kana:'タカハシ マリ',    birth:'1986/04/30',sex:'女',status:'予約確定',    plan:'2025/12/03',actual:'—',          corp:'株式会社ヘルステック',dept:'経理部',    night:false,insuredType:'被扶養者',email:'mari@example.jp',           course:'人間ドック',        hospital:'□□健診センター'},
-  {sig:'JKL4',num:'0022221',name:'渡辺 由美',  kana:'ワタナベ ユミ',    birth:'1985/06/14',sex:'女',status:'受診済み',    plan:'2025/10/15',actual:'2025/10/16',corp:'渡辺商事',            dept:'営業部',    night:false,insuredType:'被保険者',email:'yumi@example.jp',           course:'人間ドック',        hospital:'代々木健診センター'},
-  {sig:'JKL4',num:'0022222',name:'中村 拓也',  kana:'ナカムラ タクヤ',  birth:'1991/09/03',sex:'男',status:'結果受領済み',plan:'2025/08/20',actual:'2025/08/22',corp:'渡辺商事',            dept:'開発部',    night:true,insuredType:'被保険者',email:'takuya@example.jp',         course:'定期健康診断',      hospital:'新宿メディカル病院'},
-  {sig:'MNO5',num:'0033331',name:'小林 奈々',  kana:'コバヤシ ナナ',    birth:'1995/12/18',sex:'女',status:'除外',        plan:'—',          actual:'—',          corp:'小林工業',            dept:'管理部',    night:false,insuredType:'被扶養者',email:'nana@example.jp',           course:'—',                hospital:'—'},
-];
+var klData = [];   /* 本システムの加入者から作る（klLoad） */
+/* 対象者一覧は本システムの加入者（閲覧範囲）から作る（/health/api/kenshin/targets）。
+   行の「詳細表示」はその方のマイページ（健診・検査値タブ）を開く */
+var _klLoaded = false;
+function klLoad(){
+  if(_klLoaded) return;
+  fetch('/health/api/kenshin/targets', {credentials: 'same-origin'})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d || !d.ok || !d.rows) return;
+      _klLoaded = true;
+      klData = d.rows;
+      klFilter();
+    }).catch(function(){});
+}
 function initKenshinList() {
   klRender(klData);
+  klLoad();
 }
 function klRender(data) {
   var tbody = document.getElementById('kl-tbody');
   tbody.innerHTML = '';
-  var scMap = {受診済み:'status-complete',結果受領済み:'badge-blue',予約確定:'status-ongoing',予約中:'badge-blue',未予約:'status-init',除外:'status-drop'};
-  var paged = data.slice(0, 10);
-  paged.forEach(function(d, i) {
+  var scMap = {受診済み:'status-complete',結果受領済み:'badge-blue',予約確定:'status-ongoing',予約日調整中:'badge-blue',未予約:'status-init',除外:'status-drop'};
+  var info = document.getElementById('kl-pager-info');
+  if(info) info.textContent = (data.length ? '1-' + data.length : '0') + ' / ' + data.length + '件';
+  if(!data.length){
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#a0aec0;padding:24px;">'
+      + (_klLoaded ? '該当する加入者がいません' : '読み込んでいます…') + '</td></tr>';
+    return;
+  }
+  data.forEach(function(d, i) {
     var di = klData.indexOf(d);
     var sc = scMap[d.status] || '';
     var tr = document.createElement('tr');
     tr.innerHTML =
       '<td><input type="checkbox"></td>' +
-      '<td class="rp-num">' + hiaMemberId(di >= 0 ? di : i) + '</td>' +
+      '<td class="rp-num">' + (d.subscriber_id || hiaMemberId(di >= 0 ? di : i)) + '</td>' +
       '<td>' + d.name + '</td>' +
       '<td>' + d.kana + '</td>' +
       '<td>' + (d.night ? '<span class="st-label info">対象</span>' : '—') + '</td>' +
@@ -4796,7 +4695,7 @@ function klRender(data) {
         '<button type="button" class="btn-action btn-detail">詳細表示</button>' +
         ' <button type="button" class="btn-edit btn-guide">案内を送付</button>' +
       '</td>';
-    tr.querySelector('.btn-detail').addEventListener('click', (function(idx){ return function(){ klOpenModal(idx); }; })(di));
+    tr.querySelector('.btn-detail').addEventListener('click', (function(d){ return function(){ openMemberPage(d.member_id, 'kenshin'); }; })(d));
     tr.querySelector('.btn-guide').addEventListener('click', (function(d){ return function(){ openGuideModal(d.name, d.email, {kind: '受診勧奨'}); }; })(d));
     tbody.appendChild(tr);
   });
@@ -4813,7 +4712,7 @@ function klFilter() {
   var night = nightEl ? nightEl.value : '';
   var filtered = klData.filter(function(d) {
     var matchMid    = !mid    ||
-      hiaMemberId(klData.indexOf(d)).indexOf(mid) >= 0;
+      String(d.subscriber_id || hiaMemberId(klData.indexOf(d))).toUpperCase().indexOf(mid) >= 0;
     var matchKana   = !kana   || d.kana.includes(kana);
     var matchStatus = !st     || d.status === st;
     var matchPlan   = !planD  || d.plan === planD.replace(/-/g, '/');
@@ -5170,33 +5069,6 @@ function rpGuideBulk() {
 }
 
 /* 疾患別リスク一覧の「対象者を見る」→ 疾患予測対象者一覧（対象疾患を選んだ状態で開く） */
-function klOpenModal(i) {
-  var d = klData[i % klData.length];
-  var sc = {未予約:'status-init',予約中:'status-ongoing',予約確定:'status-ongoing',受診済み:'status-complete',結果受領済み:'badge-blue',除外:'status-drop'};
-  document.getElementById('kl-m-corpdept').textContent = d.corp + '　／　' + d.dept;
-  document.getElementById('kl-m-name').textContent = d.name;
-  document.getElementById('kl-m-kana').textContent = d.kana;
-  document.getElementById('kl-m-avatar').textContent = d.name.charAt(0);
-  document.getElementById('kl-m-corp').textContent = d.corp;
-  document.getElementById('kl-m-dept').textContent = d.dept;
-  document.getElementById('kl-m-itype').textContent = d.insuredType;
-  document.getElementById('kl-m-signum').textContent = d.sig + '　／　' + d.num;
-  document.getElementById('kl-m-sexbirth').textContent = d.sex + '　／　' + d.birth;
-  document.getElementById('kl-m-email').textContent = d.email;
-  document.getElementById('kl-m-status').innerHTML = '<span class="status-badge ' + (sc[d.status]||'') + '">' + d.status + '</span>';
-  document.getElementById('kl-m-plan').textContent = d.plan;
-  document.getElementById('kl-m-actual').textContent = d.actual;
-  document.getElementById('kl-m-course').textContent = d.course;
-  document.getElementById('kl-m-hospital').textContent = d.hospital;
-  var klGuideBtn = document.getElementById('kl-modal-guide-btn');
-  if (klGuideBtn) {
-    klGuideBtn.onclick = function() {
-      openGuideModal(d.name, d.email, {kind: '受診勧奨'});
-    };
-  }
-  document.getElementById('klModal').classList.add('is-open');
-}
-function klCloseModal() { document.getElementById('klModal').classList.remove('is-open'); }
 
 /* ======================================
    KENSHIN 結果出力
@@ -5331,30 +5203,51 @@ function hlOffice(v){
   var i = t.lastIndexOf(' ');
   return i > 0 ? t.slice(i + 1) : '—';
 }
-var hlDummyData = [
-  {company:'ひかり物産株式会社 本社',sig:'ABC1',num:'0012345',name:'健康 太郎',kana:'ケンコウ タロウ',sex:'男',birth:'1978/04/12',type:'被保険者',level:'積極的支援',status:'支援中',firstDate:'2025/05/10',lastDate:'2025/10/15',points:180,maxPoints:280,waist:'88.5',bmi:'27.4',email:'taro@example.jp',timeline:[{step:'初回面談',date:'2025/05/10',note:'目標設定：体重 -3kg・週3回ウォーキング',done:true},{step:'中間支援（1回目）',date:'2025/07/08',note:'体重 -1.2kg。歩数記録継続中',done:true},{step:'最終評価',date:null,note:'未実施',done:false}]},
-  {company:'ひかり物産株式会社 本社',sig:'ABC1',num:'0098765',name:'健保 花子',kana:'ケンポ ハナコ',sex:'女',birth:'1982/09/25',type:'被扶養者',level:'動機付け支援',status:'最終評価',firstDate:'2025/04/20',lastDate:'2025/10/20',points:20,maxPoints:20,waist:'82.0',bmi:'25.8',email:'hanako@example.jp',timeline:[{step:'初回面談',date:'2025/04/20',note:'目標設定：食事管理・毎日体重記録',done:true},{step:'最終評価',date:'2025/10/20',note:'腹囲 -3.2cm。目標達成',done:true}]},
-  {company:'ひかりロジスティクス株式会社 大阪支店',sig:'DEF2',num:'0054321',name:'指導 次郎',kana:'シドウ ジロウ',sex:'男',birth:'1975/11/03',type:'被保険者',level:'積極的支援',status:'初回面談',firstDate:'---',lastDate:'---',points:0,maxPoints:280,waist:'91.2',bmi:'28.9',email:'jiro@example.jp',timeline:[{step:'初回面談',date:null,note:'案内済み・日程調整中',done:false}]},
-  {company:'ひかりシステムズ株式会社 技術部',sig:'DEF2',num:'0067890',name:'保健 美咲',kana:'ホケン ミサキ',sex:'女',birth:'1988/02/14',type:'被保険者',level:'動機付け支援',status:'未予約',firstDate:'2025/05/25',lastDate:'2025/06/10',points:5,maxPoints:20,waist:'80.5',bmi:'25.1',email:'misaki@example.jp',timeline:[{step:'初回面談',date:'2025/05/25',note:'目標設定',done:true},{step:'最終評価',date:null,note:'連絡取れず',done:false}]},
-];
 var hlStatusClass = {'未予約':'status-init','初回面談':'badge-blue','支援中':'status-ongoing','最終評価':'status-complete','中断・除外':'status-drop'};
 var hlLevelClass = {'積極的支援':'badge-blue','動機付け支援':'badge-orange'};
 
-function initHokenList() { hlRenderAll(); }
+/* 対象者一覧は本システムの加入者（閲覧範囲・40〜74歳・要注意/要医療あり）から作る
+   （/health/api/hoken/targets）。行の「詳細表示」はその方のマイページ（健診・検査値タブ）を開く */
+var hlRows = [];
+var _hlLoaded = false;
+function hlLoad(){
+  if(_hlLoaded) return;
+  fetch('/health/api/hoken/targets', {credentials: 'same-origin'})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d || !d.ok || !d.rows) return;
+      _hlLoaded = true;
+      hlRows = d.rows;
+      hlRenderAll();
+      hlFilter();
+    }).catch(function(){});
+}
+function initHokenList() { hlRenderAll(); hlLoad(); }
 function hlRenderAll() {
   var tbody = document.getElementById('hl-tbody');
   tbody.innerHTML = '';
-  var rows = [];
-  for (var i=0;i<12;i++) rows.push(hlDummyData[i%hlDummyData.length]);
+  var rows = hlRows;
+  if(!rows.length){
+    tbody.innerHTML = '<tr id="hl-none"><td colspan="12" style="text-align:center;color:#a0aec0;padding:24px;">'
+      + (_hlLoaded ? '該当する加入者がいません' : '読み込んでいます…') + '</td></tr>';
+    return;
+  }
   rows.forEach(function(d,i){
     var tr = document.createElement('tr');
+    tr.className = 'hl-row';
     tr.dataset.level = d.level;
     tr.dataset.status = d.status;
-    tr.innerHTML = '<td><input type="checkbox"></td><td class="rp-num">'+hiaMemberId(i)+'</td><td>'+d.name+'</td><td>'+d.kana+'</td><td class="tbl-left" title="'+hlComp(d.company)+'">'+hlComp(d.company)+'</td><td class="tbl-left" title="'+hlOffice(d.company)+'">'+hlOffice(d.company)+'</td><td>'+d.firstDate+'</td><td>'+d.lastDate+'</td><td><span class="status-badge '+hlLevelClass[d.level]+'">'+d.level+'</span></td><td>'+d.points+'/'+d.maxPoints+'</td><td><span class="status-badge '+hlStatusClass[d.status]+'">'+d.status+'</span></td><td style="white-space:nowrap;"><button type="button" class="btn-action btn-detail">詳細表示</button> <button type="button" class="btn-edit btn-guide">案内を送付</button></td>';
-    tr.querySelector('.btn-detail').addEventListener('click', (function(idx){ return function(){ hlOpenModal(idx); }; })(i));
+    tr.innerHTML = '<td><input type="checkbox"></td><td class="rp-num">'+(d.subscriber_id || hiaMemberId(i))+'</td><td>'+d.name+'</td><td>'+d.kana+'</td><td class="tbl-left" title="'+hlComp(d.company)+'">'+hlComp(d.company)+'</td><td class="tbl-left" title="'+hlOffice(d.company)+'">'+hlOffice(d.company)+'</td><td>'+d.firstDate+'</td><td>'+d.lastDate+'</td><td><span class="status-badge '+hlLevelClass[d.level]+'">'+d.level+'</span></td><td>'+d.points+'/'+d.maxPoints+'</td><td><span class="status-badge '+hlStatusClass[d.status]+'">'+d.status+'</span></td><td style="white-space:nowrap;"><button type="button" class="btn-action btn-detail">詳細表示</button> <button type="button" class="btn-edit btn-guide">案内を送付</button></td>';
+    tr.querySelector('.btn-detail').addEventListener('click', (function(d){ return function(){ openMemberPage(d.member_id, 'kenshin'); }; })(d));
     tr.querySelector('.btn-guide').addEventListener('click', (function(d){ return function(){ openGuideModal(d.name, d.email, {kind: '特定保健指導'}); }; })(d));
     tbody.appendChild(tr);
   });
+  var none = document.createElement('tr');
+  none.id = 'hl-none'; none.style.display = 'none';
+  none.innerHTML = '<td colspan="12" style="text-align:center;color:#a0aec0;padding:24px;">該当する加入者がいません</td>';
+  tbody.appendChild(none);
+  var info = document.getElementById('hl-pager-info');
+  if(info) info.textContent = '1-' + rows.length + ' / ' + rows.length + '件';
 }
 function hlFilter() {
   var midEl = document.getElementById('hl-mid');
@@ -5366,7 +5259,8 @@ function hlFilter() {
   var lastD = document.getElementById('hl-last-date').value;
   var firstStr = firstD ? firstD.replace(/-/g, '/') : '';
   var lastStr  = lastD  ? lastD.replace(/-/g, '/')  : '';
-  document.querySelectorAll('#hl-tbody tr').forEach(function(row){
+  var shown = 0;
+  document.querySelectorAll('#hl-tbody tr.hl-row').forEach(function(row){
     var ok = row.cells[1].innerText.toUpperCase().includes(mid)
       && row.cells[3].innerText.toUpperCase().includes(kana)
       && (level===''||row.dataset.level===level)
@@ -5374,44 +5268,14 @@ function hlFilter() {
       && (firstStr===''||row.cells[6].innerText.trim()===firstStr)
       && (lastStr===''||row.cells[7].innerText.trim()===lastStr);
     row.style.display = ok?'':'none';
+    if(ok) shown++;
   });
+  var info = document.getElementById('hl-pager-info');
+  if(info) info.textContent = (shown ? '1-' + shown : '0') + ' / ' + shown + '件';
+  var none = document.getElementById('hl-none');
+  if(none) none.style.display = shown ? 'none' : '';
 }
 function hlToggleAll(m) { document.querySelectorAll('#hl-tbody input[type="checkbox"]').forEach(function(c){ c.checked=m.checked; }); }
-function hlOpenModal(i) {
-  var d = hlDummyData[i%hlDummyData.length];
-  document.getElementById('hl-m-sub').textContent = d.type+'　／　'+d.level;
-  document.getElementById('hl-m-name').textContent = d.name;
-  document.getElementById('hl-m-avatar').textContent = d.name.charAt(0);
-  document.getElementById('hl-m-signum').textContent = d.sig+' ／ '+d.num;
-  document.getElementById('hl-m-sexbirth').textContent = d.sex+' ／ '+d.birth;
-  document.getElementById('hl-m-email').textContent = d.email;
-  document.getElementById('hl-m-waist').innerHTML = d.waist+'<span class="mc-big-unit">cm</span>';
-  document.getElementById('hl-m-bmi').textContent = d.bmi;
-  var pct = d.maxPoints>0?Math.round(d.points/d.maxPoints*100):0;
-  document.getElementById('hl-m-pt-text').textContent = d.points+' / '+d.maxPoints+' pt';
-  var bar = document.getElementById('hl-m-bar');
-  bar.style.width = Math.min(pct,100)+'%';
-  bar.className = 'mc-bar-fill'+(pct>=100?' full':'');
-  document.getElementById('hl-m-pct').textContent = pct+'% 達成';
-  document.getElementById('hl-m-pct').style.color = pct>=100?'#38a169':'#3182ce';
-  var tl = document.getElementById('hl-m-tl');
-  tl.innerHTML = '';
-  var firstTodo = d.timeline.findIndex(function(x){ return !x.done; });
-  d.timeline.forEach(function(t,idx){
-    var isLast = idx===d.timeline.length-1;
-    var dotCls = t.done?'done':(idx===firstTodo?'current':'todo');
-    var dateBadge = t.date?'<span class="tl-date-badge">'+t.date+'</span>':'<span class="tl-date-badge pending">未実施</span>';
-    tl.innerHTML += '<div class="tl-row"><div class="tl-spine"><div class="tl-dot '+dotCls+'"></div>'+(!isLast?'<div class="tl-connector"></div>':'')+'</div><div class="tl-body"><div class="tl-row-head"><span class="tl-step-name">'+t.step+'</span>'+dateBadge+'</div><div class="tl-note">'+t.note+'</div></div></div>';
-  });
-  var hlGuideBtn = document.getElementById('hl-modal-guide-btn');
-  if (hlGuideBtn) {
-    hlGuideBtn.onclick = function() {
-      openGuideModal(d.name, d.email, {kind: '特定保健指導'});
-    };
-  }
-  document.getElementById('hlModal').classList.add('is-open');
-}
-function hlCloseModal() { document.getElementById('hlModal').classList.remove('is-open'); }
 
 /* ======================================
    XML CREATE (保健指導結果DL)

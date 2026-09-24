@@ -18,6 +18,10 @@ CREATE TABLE IF NOT EXISTS kenpo (
   auth_pattern  TEXT NOT NULL DEFAULT 'A',
   -- 加入者向けサイト（クローズサイト）に表示する同意文（本文・同意必須 の項目の JSON。空なら表示しない）
   consent_text  TEXT NOT NULL DEFAULT '',
+  kenshin_site_start TEXT,                     -- 健診代行：サイト公開期間（開始日）
+  kenshin_site_end   TEXT,                     -- 健診代行：サイト公開期間（終了日）
+  flu_site_start     TEXT,                     -- インフル補助：サイト公開期間（開始日）
+  flu_site_end       TEXT,                     -- インフル補助：サイト公開期間（終了日）
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -104,8 +108,10 @@ CREATE TABLE IF NOT EXISTS member (
   qualified_at TEXT,                            -- 資格取得日（家族認定日）
   lost_at      TEXT,                            -- 資格喪失日（家族削除日）
   zip          TEXT,
-  address      TEXT,
-  address2     TEXT,                            -- 住所（建物名）
+  pref         TEXT,                            -- 都道府県
+  city         TEXT,                            -- 市区町村
+  address      TEXT,                            -- 住所（番地など）
+  address2     TEXT,                            -- 建物名
   tel          TEXT,
   email        TEXT,
   billing_code TEXT,                            -- 請求先コード
@@ -113,8 +119,8 @@ CREATE TABLE IF NOT EXISTS member (
   connect_id   TEXT,                            -- connectID
   kenpo_member_id TEXT,                         -- 健保別加入者管理ID（健保が独自に管理する番号）
   subscriber_id TEXT,                           -- 加入者ID（当システムで採番）
-  src_company_code TEXT,                        -- 取込時の事業所（企業）コード
-  src_office_code  TEXT,                        -- 取込時の所属コード
+  src_company_code TEXT,                        -- 取込時の企業コード
+  src_office_code  TEXT,                        -- 取込時の事業所コード
   memo         TEXT,                            -- メモ（加入者ごとの申し送り。画面で編集）
   night_work   INTEGER NOT NULL DEFAULT 0,      -- 深夜業従事（1＝深夜健診の対象）
   excluded     INTEGER NOT NULL DEFAULT 0,      -- 健診の対象から除外（1＝除外）
