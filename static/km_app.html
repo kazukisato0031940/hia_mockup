@@ -561,9 +561,6 @@ button.icon-only, .btn-icon {
 
 /* 見出しの下の説明文（画面の目的をひとことで示す） */
 .page-desc{font-size:13px;color:#718096;line-height:1.7;margin:-6px 0 18px;}
-/* マスタ管理のセクション見出し（情報／検査系） */
-.master-sec-title{margin:22px 0 2px;}
-.master-sec-desc{margin:0 0 6px;}
 
 /* 見出し（h1）と説明文（p）の開始位置を全画面でそろえる。
    見出しの行は「戻る」ボタンと同じ40pxにして、行の中で上端が動かないようにする */
@@ -3338,32 +3335,9 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     <!-- ========== マスタ管理 トップ ========== -->
     <div class="view" id="view-master">
       <h1>マスタ管理</h1>
-      <p class="page-desc">企業・事業所・部署・加入者の情報と、検査項目・判定・OIDコードのマスタを管理します。</p>
+      <p class="page-desc">検査項目・判定・OIDコードのマスタを管理します。企業・事業所・部署・加入者の情報はHIA健保管理で扱います。</p>
 
-      <!-- 情報（企業・事業所・部署・加入者） -->
-      <h2 class="master-sec-title">情報</h2>
-      <p class="master-sec-desc">企業・事業所・部署・加入者のマスタです。</p>
-      <div class="top-cards theme-master" style="margin-top:4px;">
-        <div class="top-card" onclick="navigate('sys-org')" data-feature="master.view">
-          <div class="top-card-icon">
-            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h6"/></svg>
-          </div>
-          <h3 class="top-card-title">企業・事業所・部署</h3>
-          <h4 class="top-card-desc">全健保の企業・事業所・部署を1つの一覧で登録・閲覧・編集・削除</h4>
-        </div>
-        <div class="top-card" onclick="navigate('sys-member')" data-feature="master.view">
-          <div class="top-card-icon">
-            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/></svg>
-          </div>
-          <h3 class="top-card-title">加入者情報</h3>
-          <h4 class="top-card-desc">加入者の登録・閲覧・編集・削除、CSV取込と企業・事業所・部署への紐づけ</h4>
-        </div>
-      </div>
-
-      <!-- 検査系（検査項目・判定・OIDコード） -->
-      <h2 class="master-sec-title">検査系</h2>
-      <p class="master-sec-desc">検査項目・判定基準・OIDコードのマスタです。</p>
-      <div class="top-cards theme-master" style="margin-top:4px;">
+      <div class="top-cards theme-master">
         <div class="top-card" onclick="navigate('master-criteria')">
           <div class="top-card-icon">
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
@@ -4022,26 +3996,6 @@ table td.ellip-cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
       <iframe class="sys-frame" data-src="/risk/groups" title="判定グループ"></iframe>
     </div>
 
-    <!-- ======== 本システム: 企業情報 ======== -->
-    <div class="view" id="view-sys-org">
-      <div class="sys-head">
-        <h1>企業・事業所・部署</h1>
-        <button class="back-btn" onclick="sysBack('master')">戻る</button>
-      </div>
-      <p class="sys-note">全健保の企業・事業所・部署を1つの一覧で登録・閲覧・編集・削除します（1行が1レコードで、事業所・部署の行には所属する企業・事業所を列で示します。事業所・部署の追加は企業の「詳細表示」から行います）。企業の登録時に健康保険組合を選び、企業コード・事業所コード・部署コードは健保・企業が管理する番号を入れます（当社内部コードは自動で割り振ります）。</p>
-      <iframe class="sys-frame" data-src="/orgs" title="企業・事業所・部署"></iframe>
-    </div>
-
-    <!-- ======== 本システム: 加入者情報 ======== -->
-    <div class="view" id="view-sys-member">
-      <div class="sys-head">
-        <h1>加入者情報</h1>
-        <button class="back-btn" onclick="sysBack('master')">戻る</button>
-      </div>
-      <p class="sys-note">加入者の登録・閲覧・編集・削除、CSVの一括取込、企業・事業所・部署への紐づけを行います。</p>
-      <iframe class="sys-frame" data-src="/members" title="加入者情報"></iframe>
-    </div>
-
     <!-- ======== 本システム: アカウント管理 ======== -->
     <div class="view" id="view-sys-account">
       <div class="sys-head">
@@ -4474,8 +4428,6 @@ const VIEWS = {
   'sys-log':'view-sys-log',
   'sys-me':'view-sys-me',
   'sys-features':'view-sys-features',
-  'sys-org':'view-sys-org',
-  'sys-member':'view-sys-member'
 };
 const CLAIM_VIEWS = new Set(['claim-list','claim-kenpo','hospital-claim','patient-detail','payment-confirm','hospital-payment','meisai-create']);
 
@@ -4954,7 +4906,7 @@ function navigate(key){
   if(key==='kenpo-search'||key==='kenpo-search-2fa'||key==='kenpo-search-result'){ document.querySelector('[data-nav="kenpo-search"]').classList.add('active'); }
   if(CLAIM_VIEWS.has(key)){ document.querySelector('[data-nav="claim-list"]').classList.add('active'); }
   if(key==='chat'||key==='chat-2fa'||key==='chat-yoroku'||key==='chatbot-mgmt'||key==='chatbot-knowledge'){ document.querySelector('[data-nav="chat"]').classList.add('active'); }
-  if(key==='master'||key==='master-criteria'||key==='master-edit'||key==='master-judgment-edit'||key==='master-fee-edit'||key==='master-oid'||key==='sys-judge-group'||key==='sys-org'||key==='sys-member'){ document.querySelector('[data-nav="master"]').classList.add('active'); }
+  if(key==='master'||key==='master-criteria'||key==='master-edit'||key==='master-judgment-edit'||key==='master-fee-edit'||key==='master-oid'||key==='sys-judge-group'){ document.querySelector('[data-nav="master"]').classList.add('active'); }
   if(key==='master-criteria') MS.render();
   if(key==='master-oid') OID.render();
   if(key==='flu-list'){ FL.switchTab('list'); FL.render(); }
