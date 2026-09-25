@@ -53,7 +53,7 @@ OUTBOX = os.path.join(BASE_DIR, "outbox")
 BUILD = "2.1.0 (2026-09-01)"
 # 配布ZIPごとの番号（app.py・templates・static がそろっているかの確認用。8-70）。
 # templates/_build.txt と static/build.txt にも同じ番号を入れて配布し、違っていれば起動時とログイン画面で知らせる
-BUILD_ID = "20260918y"
+BUILD_ID = "20260918z"
 
 
 def build_mismatch():
@@ -3272,7 +3272,7 @@ def company_new():
           + (f"企業コードは {ext} です。" if ext
              else "企業コードは未設定です。")
           + f"（当社内部コード {code}）"
-          + (f"事業所・部署 {len(changes)} 件も登録しました。" if changes else ""), "ok")
+          + (f"事業所 {len(changes)} 件も登録しました。" if changes else ""), "ok")
     return redirect(url_for("companies"))
 
 
@@ -3343,7 +3343,7 @@ def company_edit(cid):
         detail=f"企業コード={ext or '（未設定）'}／変更前: {before}"
         + ("／" + "、".join(changes) if changes else ""))
     flash(f"「{name}」の情報を更新しました。"
-          + (f"（事業所・部署 {len(changes)} 件を反映）" if changes else ""), "ok")
+          + (f"（事業所 {len(changes)} 件を反映）" if changes else ""), "ok")
     return redirect(url_for("companies"))
 
 
