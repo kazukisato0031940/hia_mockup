@@ -39,7 +39,8 @@
       </div>
       {% endif %}
     </div>
-    {% if CAN_MASTER %}
+    {# 企業の登録は HIAスタッフ・健保担当者だけ。企業担当者には出さない #}
+    {% if can_add %}
     <div class="actions">
       <a class="btn-sm primary" href="{{ url_for('company_new') }}" style="text-decoration:none">企業を登録する</a>
     </div>
@@ -70,7 +71,8 @@
       <td class="num">{{ mem_by_company.get(c.id, 0) }}</td>
       <td class="ops"><div class="org-ops">
         <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}" href="{{ url_for('company_edit', cid=c.id) }}" style="text-decoration:none" title="企業の詳細。事業所・部署の追加もここから">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
-        {% if CAN_MASTER %}
+        {# 企業の削除も HIAスタッフ・健保担当者だけ #}
+        {% if can_add %}
         <a class="btn-sm btn-del" href="{{ url_for('company_delete', cid=c.id) }}"
            style="text-decoration:none" title="確認画面で紐づきを見てから削除します">削除</a>
         {% endif %}
@@ -142,7 +144,7 @@
     </tbody>
   </table>
   </div>
-  {% else %}<div class="empty-box">企業がまだ登録されていません。「企業を登録する」から登録してください。</div>{% endif %}
+  {% else %}<div class="empty-box">{% if can_add %}企業がまだ登録されていません。「企業を登録する」から登録してください。{% else %}担当範囲の企業がありません。健保のご担当者にお問い合わせください。{% endif %}</div>{% endif %}
 </div>
 
 <script>
