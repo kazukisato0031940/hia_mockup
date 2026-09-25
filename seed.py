@@ -106,21 +106,25 @@ def load_samples(con):
             (kid, (row.get("企業コード") or "").strip() or None,
              internal_company_code("ひかり健康保険組合", name),
              name, row.get("企業名（フリガナ）", ""),
-             row.get("被保険者証記号", ""), row.get("郵便番号", ""),
-             row.get("電話番号", ""), row.get("住所", ""),
-             row.get("担当メールアドレス", "")))
+             row.get("企業被保険者証記号", ""), row.get("企業郵便番号", ""),
+             row.get("企業電話番号", ""), row.get("企業住所", ""),
+             row.get("企業担当メールアドレス", "")))
         return con.execute("SELECT id FROM company WHERE kenpo_id=? AND name=?",
                            (kid, name)).fetchone()["id"]
 
     def add_dept(oid, name, kana=""):
+        """部署を作る。部署は企業にも属するため、事業所から企業をたどって入れる
+        （事業所は任意階層のため、部署は企業の直下にも置ける）"""
         cur = con.execute("SELECT id FROM department WHERE office_id=? AND name=?",
                           (oid, name)).fetchone()
         if cur:
             return cur["id"]
+        cid = con.execute("SELECT company_id FROM office WHERE id=?", (oid,)).fetchone()[0]
         dseq[oid] = dseq.get(oid, 0) + 1
-        con.execute("INSERT INTO department (office_id, ext_code, code, name, kana)"
-                    " VALUES (?,?,?,?,?)",
-                    (oid, str(dseq[oid]).zfill(2), str(dseq[oid]).zfill(3), name, kana))
+        con.execute("INSERT INTO department (company_id, office_id, ext_code, code,"
+                    " name, kana) VALUES (?,?,?,?,?,?)",
+                    (cid, oid, str(dseq[oid]).zfill(2), str(dseq[oid]).zfill(3),
+                     name, kana))
         return con.execute("SELECT id FROM department WHERE office_id=? AND name=?",
                            (oid, name)).fetchone()["id"]
 
@@ -137,21 +141,21 @@ def load_samples(con):
         return con.execute("SELECT id FROM office WHERE company_id=? AND name=?",
                            (cid, name)).fetchone()["id"]
 
-    # 1) 企業＋事業所（＋各事業所に部署を2つ）
-    for r in read_sample("company_sample.csv"):
+    # 1) 企業＋事業所＋部署（企業・事業所・部署一括取込の様式）。各事業所に部署を2つ置く
+    for r in read_sample("bulk_sample.csv"):
         cid = get_company((r.get("企業名") or "").strip(), r)
-        oid = add_office(cid, (r.get("部署名") or "").strip(),
-                         r.get("部署名（フリガナ）", ""),
+        oid = add_office(cid, (r.get("事業所名") or "").strip(),
+                         r.get("事業所名（フリガナ）", ""),
                          ext=(r.get("事業所コード") or "").strip() or None)
         add_dept(oid, "総務部", "ソウムブ")
         add_dept(oid, "営業部", "エイギョウブ")
-    # 2) 部署の追加分
+    # 2) 事業所の追加分（事業所登録の様式。上位は行の企業コードで指定されている）
     for r in read_sample("office_sample.csv"):
         c = con.execute("SELECT id FROM company WHERE kenpo_id=? AND ext_code=?",
                         (kid, (r.get("企業コード") or "").strip())).fetchone()
         if c:
-            oid = add_office(c["id"], (r.get("部署名") or "").strip(),
-                             r.get("部署名（フリガナ）", ""), r.get("郵便番号", ""),
+            oid = add_office(c["id"], (r.get("事業所名") or "").strip(),
+                             r.get("事業所名（フリガナ）", ""), r.get("郵便番号", ""),
                              r.get("住所", ""), r.get("電話番号", ""),
                              ext=(r.get("事業所コード") or "").strip() or None)
             add_dept(oid, "総務部", "ソウムブ")
@@ -177,13 +181,15 @@ def load_samples(con):
             "INSERT INTO member (kenpo_id, company_id, office_id, dept_id, member_no,"
             " cert_mark, cert_branch, attr, relation, name, kana, sex, birth,"
             " qualified_at, lost_at, zip, address, address2, tel, email, employee_code,"
-            " subscriber_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (kid, cid, oid, did, g("被保険者証番号"), g("被保険者証記号"), g("被保険者証枝番"),
-             g("被保険者属性名"), g("続柄名称"), g("対象者氏名（漢字）"),
-             g("対象者氏名（カナ）"), g("性別"), norm_date(g("生年月日")),
-             norm_date(g("資格取得日（家族認定日）")), norm_date(g("資格喪失日（家族削除日）")),
-             g("郵便番号"), g("住所"), g("住所（建物名）"), g("電話番号"),
-             g("メールアドレス"), (g("社員番号") or g("社員コード")), str(mseq).zfill(8)))
+            " billing_code, subscriber_id)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (kid, cid, oid, did, g("被保険者証番号"), g("被保険者証記号"),
+             g("被保険者証枝番"), g("被保険者属性名"), g("続柄名称"),
+             g("対象者氏名（漢字）"), g("対象者氏名（カナ）"), g("性別"),
+             norm_date(g("生年月日")), norm_date(g("資格取得日（家族認定日）")),
+             norm_date(g("資格喪失日（家族削除日）")), g("郵便番号"), g("住所"),
+             g("住所（建物名）"), g("電話番号"), g("メールアドレス"),
+             (g("社員番号") or g("社員コード")), (g("請求先コード") or g("配付先コード")), str(mseq).zfill(8)))
 
     set_seq(con, "company", str(kid), cseq)
     for cid, n in oseq.items():
@@ -218,8 +224,8 @@ def load_samples(con):
                        " AND company_id IS NULL", (kid,)).fetchone()["c"]
     n_off = con.execute("SELECT COUNT(*) c FROM office o JOIN company c ON c.id=o.company_id"
                         " WHERE c.kenpo_id=?", (kid,)).fetchone()["c"]
-    n_dep = con.execute("SELECT COUNT(*) c FROM department d JOIN office o ON o.id=d.office_id"
-                        " JOIN company c ON c.id=o.company_id"
+    n_dep = con.execute("SELECT COUNT(*) c FROM department d"
+                        " JOIN company c ON c.id=d.company_id"
                         " WHERE c.kenpo_id=?", (kid,)).fetchone()["c"]
     return {"kenpo": "ひかり健康保険組合", "companies": cseq, "offices": n_off,
             "departments": n_dep, "members": n_all, "unlinked": n_un}
@@ -386,8 +392,9 @@ def main():
                         (cid, str(oseq).zfill(3), str(oseq).zfill(3), on))
             oid = con.execute("SELECT id FROM office WHERE company_id=? AND name=?",
                               (cid, on)).fetchone()["id"]
-            con.execute("INSERT INTO department (office_id, ext_code, code, name, kana)"
-                        " VALUES (?,'01','001','総務部','ソウムブ')", (oid,))
+            con.execute("INSERT INTO department (company_id, office_id, ext_code,"
+                        " code, name, kana)"
+                        " VALUES (?,?,'01','001','総務部','ソウムブ')", (cid, oid))
             did = con.execute("SELECT id FROM department WHERE office_id=?",
                               (oid,)).fetchone()["id"]
             set_seq(con, "dept", str(oid), 1)
@@ -396,11 +403,14 @@ def main():
                 con.execute(
                     "INSERT INTO member (kenpo_id, company_id, office_id, dept_id,"
                     " member_no, name, kana, birth, sex, cert_mark, cert_branch,"
-                    " relation, subscriber_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    " relation, qualified_at, subscriber_id)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (kid, cid, oid, did, str(100000 + n), f"見本 {n:03d}", "ミホン",
                      # 年代がばらけるように生年を振り分ける（20代〜70代）
                      f"{1950 + (n * 7) % 50}-{(n % 12) + 1:02d}-{(n % 27) + 1:02d}",
-                     "男" if n % 2 else "女", "9000", "0", "本人",
+                     "男" if n % 2 else "女", "9000", "00", "本人",
+                     # 資格取得日は加入者情報フォーマットで必須のため、必ず入れる
+                     f"{2000 + n % 25}-04-01",
                      str(n).zfill(8)))
         set_seq(con, "office", str(cid), oseq)
     set_seq(con, "company", str(kid), cseq)

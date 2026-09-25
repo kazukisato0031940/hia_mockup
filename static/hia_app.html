@@ -1333,7 +1333,7 @@ button.cancel:hover, a.btn-cancel:hover {
 <header>
   <h1>HIA健保管理</h1>
   <div style="display:flex;align-items:center;gap:16px;">
-    <!-- サポートログイン中の表示（当社スタッフが健保の画面に入っているとき） -->
+    <!-- サポートログイン中の表示（HIAスタッフが健保の画面に入っているとき） -->
     <div id="support-tag" style="display:none">
       <span class="sp-ico" aria-hidden="true">!</span>
       <span class="sp-body">
@@ -1341,7 +1341,7 @@ button.cancel:hover, a.btn-cancel:hover {
         <b class="sp-kenpo" id="support-kenpo"></b>
       </span>
       <form method="post" action="/support/end" style="margin:0">
-        <button class="sp-end" title="サポートを終了して当社の画面に戻ります">終了</button>
+        <button class="sp-end" title="サポートを終了してHIA総合管理の画面に戻ります">終了</button>
       </form>
     </div>
     <div class="header-user header-me" onclick="navigateTo('sys-me')" title="マイアカウント（利用者名・メールアドレス・パスワードの変更）">
@@ -3707,7 +3707,7 @@ var CAT_CARD_CONFIG = {
   },
   master: {
     title: 'マスタ管理',
-    subtitle: '企業・事業所・加入者の登録と編集',
+    subtitle: '企業・事業所・部署・加入者の登録と編集',
     color: '#2b6cb0', iconBg: '#ebf8ff',
     cards: [
       { page:'sys-org', feature:'master.view', label:'企業・事業所・部署', desc:'企業・事業所・部署を1つの一覧で登録・編集・削除', tag:'マスタ', tagClass:'tag-sys',
@@ -3803,7 +3803,7 @@ var CAT_FEATURE = { settings: 'settings.view', report: 'oh.report' };
 function selectCategory(cat) {
   /* カテゴリ自体が使えない場合は開かない */
   if(CAT_FEATURE[cat] && window.FEATURES && window.FEATURES[CAT_FEATURE[cat]] === false){
-    alert('この機能は利用できません。\n必要な場合は当社スタッフにご連絡ください。');
+    alert('この機能は利用できません。\n必要な場合はHIAスタッフにご連絡ください。');
     return;
   }
   /* 機能制御でそのカテゴリのカードが全部使えない場合は開かない */
@@ -3813,7 +3813,7 @@ function selectCategory(cat) {
       return !c.feature || window.FEATURES[c.feature] !== false;
     });
     if(!usable.length){
-      alert('この機能は利用できません。\n必要な場合は当社スタッフにご連絡ください。');
+      alert('この機能は利用できません。\n必要な場合はHIAスタッフにご連絡ください。');
       return;
     }
   }
@@ -3967,7 +3967,7 @@ function navigateTo(pageId) {
   /* 機能制御で使えない画面は開かせない（カードを隠すだけでなく直接呼び出しも止める） */
   var need = PAGE_TO_FEATURE[pageId];
   if(need && window.FEATURES && window.FEATURES[need] === false){
-    alert('この機能は利用できません。\n必要な場合は当社スタッフにご連絡ください。');
+    alert('この機能は利用できません。\n必要な場合はHIAスタッフにご連絡ください。');
     return;
   }
 
@@ -7305,7 +7305,7 @@ function fluBillingDetailCSV(month){
   var prefix = fluBillingMonthPrefix(month);
   var targets = FLU_APPS.filter(function(a){ return prefix && String(a.date||'').indexOf(prefix)===0; });
   var lines = ['"対象月","受付番号","被保険者記号","被保険者番号","事業所名","被接種者氏名","加入者区分（本人/家族）","実施医療機関等名称","接種年月日","接種に要した額","補助金額","手数料(税込)","合計"'];
-  var FEE = 440; // 当社手数料（1名・税込）
+  var FEE = 440; // HIA手数料（1名・税込）
   targets.forEach(function(a){
     (a.patients||[]).forEach(function(p){
       var kubun = (p.rel==='本人') ? '本人' : '家族';
@@ -7347,7 +7347,7 @@ function fluInvoiceHTML(b, month){
   var tdl = 'padding:8px 8px;border:1px solid '+BORDER+';text-align:left;';
   var tdr = 'padding:8px 8px;border:1px solid '+BORDER+';text-align:right;';
   var emptyRow = '<tr><td style="'+td+'">&nbsp;</td><td style="'+tdl+'"></td><td style="'+td+'"></td><td style="'+tdr+'"></td><td style="'+tdr+'"></td><td style="'+tdr+'"></td></tr>';
-  var FEE = 440; // 当社手数料（1名・税込）
+  var FEE = 440; // HIA手数料（1名・税込）
   var persons = Number(b.persons||0);
   var feeTotal = FEE * persons;
   var taxIn = Math.round(feeTotal * 10 / 110); // 内税(10%)

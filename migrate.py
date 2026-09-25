@@ -509,12 +509,13 @@ def ensure_schema(db_path=DB, verbose=False):
     else:
         add_col(con, "member", "updated_at", "TEXT", log)
 
-    # ---------- 5. 旧 department（企業直下の部署）だけを削除 ----------
-    # 現在の department は「事業所の下の部署」なので、
-    # 旧構造（company_id を持つもの）のときだけ削除する
-    if "department" in tables(con) and "company_id" in cols(con, "department"):
+    # ---------- 5. 旧 department（事業所の前身。企業直下だけの部署）を削除 ----------
+    # 旧構造は company_id だけを持ち office_id が無い。§7.9 で作り直した新しい
+    # department は company_id と office_id の両方を持つので、ここでは消さない。
+    if ("department" in tables(con) and "company_id" in cols(con, "department")
+            and "office_id" not in cols(con, "department")):
         con.execute("DROP TABLE department")
-        log.append("旧 department テーブル（企業直下の部署）を削除")
+        log.append("旧 department テーブル（事業所の前身）を削除")
 
     # ---------- 5.4 企業・事業所の追加項目（実際の登録フォーマットに合わせる） ----------
     for table, col, label in (("company", "cert_mark", "被保険者証記号"),
@@ -662,21 +663,21 @@ def ensure_schema(db_path=DB, verbose=False):
         n = con.execute("SELECT COUNT(*) FROM account_scope").fetchone()[0]
         log.append(f"アカウントの担当範囲テーブルを追加（既存{n}件を引き継ぎ）")
 
-    # ---------- 5.44 部署（事業所の下）を追加 ----------
+    # ---------- 5.44 部署を追加（事業所の配下でも企業の直下でも置ける） ----------
     if "department" not in tables(con):
         con.executescript("""
         CREATE TABLE department (
           id         INTEGER PRIMARY KEY AUTOINCREMENT,
-          office_id  INTEGER NOT NULL REFERENCES office(id),
+          company_id INTEGER NOT NULL REFERENCES company(id),
+          office_id  INTEGER REFERENCES office(id),
+          ext_code   TEXT,
           code       TEXT NOT NULL,
           name       TEXT NOT NULL,
           kana       TEXT,
           created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-          updated_at TEXT,
-          UNIQUE (office_id, code),
-          UNIQUE (office_id, name)
+          updated_at TEXT
         );""")
-        log.append("部署（事業所の下）のテーブルを追加")
+        log.append("部署のテーブルを追加（事業所の配下／企業の直下のどちらも可）")
     if "dept_id" not in cols(con, "member"):
         con.execute("ALTER TABLE member ADD COLUMN dept_id INTEGER REFERENCES department(id)")
         log.append("member に dept_id（部署）を追加")
@@ -699,6 +700,7 @@ def ensure_schema(db_path=DB, verbose=False):
                        ("email", "メールアドレス"), ("billing_code", "請求先コード"),
                        ("employee_code", "社員番号"),
                        ("kenpo_member_id", "健保別加入者管理ID"),
+                       ("connect_id", "connectID"),
                        ("subscriber_id", "加入者ID")):
         if col not in cols(con, "member"):
             con.execute(f"ALTER TABLE member ADD COLUMN {col} TEXT")
@@ -784,6 +786,53 @@ def ensure_schema(db_path=DB, verbose=False):
     if rows:
         log.append(f"採番キーを事業所用へ付け替え（{len(rows)} 件）")
 
+    # ---------- 7.8 CSVフォーマット（新様式）が必要とする項目 ----------
+    # 企業・事業所の代表者名、事業所の担当者メールアドレス、加入者のインフル接種対象
+    add_col(con, "company", "owner", "TEXT", log)
+    add_col(con, "office", "owner", "TEXT", log)
+    add_col(con, "office", "email", "TEXT", log)
+    # 事業所の被保険者証記号（健診データ連携のファイル名に使う）。初期値は企業から写す
+    if "cert_mark" not in cols(con, "office"):
+        con.execute("ALTER TABLE office ADD COLUMN cert_mark TEXT")
+        n = con.execute(
+            "UPDATE office SET cert_mark ="
+            " (SELECT c.cert_mark FROM company c WHERE c.id = office.company_id)"
+            " WHERE cert_mark IS NULL").rowcount
+        log.append(f"office に cert_mark（被保険者証記号）を追加し、企業の値を写した（{n}件）")
+    if "influenza" not in cols(con, "member"):
+        con.execute("ALTER TABLE member ADD COLUMN influenza INTEGER NOT NULL DEFAULT 1")
+        log.append("member に influenza（インフルエンザ予防接種の対象）を追加")
+
+    # ---------- 7.9 部署を任意階層にする（事業所の配下／企業の直下のどちらでも置ける） ----------
+    # 事業所を1件も持たない健保でも部署を登録できるようにする。
+    # 既存の部署は事業所の配下にあるため、その事業所の企業を company_id に埋める。
+    if "department" in tables(con) and "company_id" not in cols(con, "department"):
+        con.executescript("""
+        PRAGMA foreign_keys=OFF;
+        DROP TABLE IF EXISTS department_new;
+        CREATE TABLE department_new (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          company_id INTEGER NOT NULL REFERENCES company(id),
+          office_id  INTEGER REFERENCES office(id),
+          ext_code   TEXT,
+          code       TEXT NOT NULL,
+          name       TEXT NOT NULL,
+          kana       TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+          updated_at TEXT
+        );
+        INSERT INTO department_new
+              (id, company_id, office_id, ext_code, code, name, kana, created_at, updated_at)
+        SELECT d.id, o.company_id, d.office_id, d.ext_code, d.code, d.name, d.kana,
+               d.created_at, d.updated_at
+          FROM department d JOIN office o ON o.id = d.office_id;
+        DROP TABLE department;
+        ALTER TABLE department_new RENAME TO department;
+        PRAGMA foreign_keys=ON;""")
+        n = con.execute("SELECT COUNT(*) FROM department").fetchone()[0]
+        log.append(f"部署を任意階層に変更（企業直下にも置けるようにし、既存 {n} 件に企業を設定）")
+        con.commit()
+
     # ---------- 8. トリガーと索引 ----------
     con.executescript("""
         CREATE TRIGGER IF NOT EXISTS audit_log_no_update
@@ -801,6 +850,8 @@ def ensure_schema(db_path=DB, verbose=False):
         CREATE INDEX IF NOT EXISTS idx_member_off ON member(office_id);
         CREATE INDEX IF NOT EXISTS idx_office_cmp ON office(company_id);
         CREATE INDEX IF NOT EXISTS idx_ac_company  ON account_company(company_id);
+        CREATE INDEX IF NOT EXISTS idx_dept_cmp   ON department(company_id);
+        CREATE INDEX IF NOT EXISTS idx_dept_off   ON department(office_id);
     """)
     con.commit()
 

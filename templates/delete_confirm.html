@@ -1,0 +1,76 @@
+{#
+  削除の確認（企業・事業所・部署・加入者で共通）
+    what     … 対象の種類（「企業」など）
+    subject  … {"name", "sub"(添える情報), "id_label", "id"}
+    blockers … [(ラベル, 件数, 直し方の案内), ...]。1件でもあれば削除できない
+    notes    … 補足の段落（文字列の一覧）。加入者の「退職・脱退との違い」など
+    alt      … {"url", "label"} 削除の代わりにする操作への導線（任意）
+    back_url … 一覧へ戻る先
+#}
+{% extends LAYOUT %}{% block body %}
+{% set blocked = blockers | selectattr(1) | list %}
+<h1 class="page-title">{{ what }}の削除</h1>
+<p class="page-lead">
+  {% if blocked %}この{{ what }}には紐づいているデータがあるため、<b>削除できません</b>。
+  {% else %}この{{ what }}を削除します。<b>削除すると元に戻せません。</b>{% endif %}</p>
+
+<div class="rec-head">
+  <div class="rec-main">
+    <span class="rec-name">{{ subject.name }}</span>
+    {% if subject.sub %}<span class="hint" style="margin-left:10px">{{ subject.sub }}</span>{% endif %}
+  </div>
+  <div class="rec-meta">
+    <span class="rec-tag">{{ subject.id_label }} {{ subject.id }}</span>
+  </div>
+</div>
+
+<div class="block" style="border-left:4px solid {{ 'var(--error)' if blocked else 'var(--primary)' }}">
+  <h2>{% if blocked %}削除できない理由{% else %}紐づいているデータ{% endif %}</h2>
+  <div class="table-scroll">
+  <table class="result-table" style="table-layout:auto">
+    <thead><tr>
+      <th class="tl" style="width:200px">データ</th>
+      <th style="width:90px">件数</th>
+      <th class="tl">削除するには</th>
+    </tr></thead>
+    <tbody>
+    {% for label, n, how in blockers %}
+    <tr class="{{ 'bad' if n }}">
+      <td class="tl">{{ label }}</td>
+      <td class="num">{{ '{:,}'.format(n) }}</td>
+      <td class="tl wrap">{% if n %}{{ how }}{% else %}<span class="hint">—</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if blocked %}
+  <p class="note" style="margin-top:12px">
+    上の件数が<b>すべて 0 件</b>になると削除できます。
+    紐づいているデータは、削除ではなく<b>付け替え</b>でも解消できます。</p>
+  {% else %}
+  <p class="note" style="margin-top:12px">紐づいているデータはありません。</p>
+  {% endif %}
+</div>
+
+{% if notes %}
+<div class="block note-card">
+  <h2>削除する前に</h2>
+  {% for n in notes %}<p class="note" style="margin:6px 0 0">{{ n | safe }}</p>{% endfor %}
+</div>
+{% endif %}
+
+<div class="actions" style="justify-content:flex-end">
+  <a class="btn-back" href="{{ back_url }}" style="text-decoration:none">一覧へ戻る</a>
+  {% if alt %}
+  <a class="btn-sm" href="{{ alt.url }}"
+     style="text-decoration:none;display:inline-flex;align-items:center">{{ alt.label }}</a>
+  {% endif %}
+  <form method="post" style="display:inline">
+    <input type="hidden" name="confirmed" value="1">
+    <button class="btn-submit btn-del" {{ 'disabled' if blocked }}
+            style="{{ 'opacity:.5;cursor:not-allowed' if blocked }}">
+      {% if blocked %}削除できません{% else %}削除する{% endif %}</button>
+  </form>
+</div>
+{% endblock %}

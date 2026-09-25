@@ -1,34 +1,94 @@
 {% extends LAYOUT %}{% block body %}
-<h1 class="page-title">{{ row.name if row else '部署の登録' }}</h1>
+<h1 class="page-title">{{ '部署情報の編集' if row else '部署の登録' }}</h1>
 <p class="page-lead">
-  {% if row %}登録済みの部署を編集します。事業所は変更できません。
-  {% else %}事業所の下に置く部署を登録します。{% endif %}</p>
+  {% if row %}登録済みの部署を編集します。企業・事業所は変更できません。
+  {% else %}部署を1件ずつ登録します。まとめて登録する場合は一覧の「CSVで取り込む」をお使いください。{% endif %}</p>
 
+{% if row %}
+<div class="rec-head">
+  <div class="rec-main">
+    <span class="rec-code">{{ row.ext_code or '（番号なし）' }}</span>
+    <span class="rec-name">{{ row.name }}</span>
+  </div>
+  <div class="rec-meta">
+    <span class="rec-tag">{{ row.company_ext or row.company_id }}　{{ row.company_name }}</span>
+    {% if row.office_id %}
+    <span class="rec-tag">{{ row.office_ext or row.office_id }}　{{ row.office_name }}</span>
+    {% else %}<span class="rec-tag">事業所なし</span>{% endif %}
+    <span class="rec-tag">部署ID {{ row.id }}</span>
+    <span class="rec-tag">加入者 {{ '{:,}'.format(n_mem or 0) }}人</span>
+  </div>
+</div>
+{% endif %}
 
 <form method="post">
-  <div class="block mt-block">
-    <div class="mt-head"><h2>基本情報</h2>
-      <span class="mt-note"><b>部署コード</b>は企業が管理している番号があれば入れます（任意）。
-        <b>当社内部コード</b>は登録順に自動発番します{% if row %}：<b class="mono">{{ row.code }}</b>{% else %}
-        （この登録では <b class="mono" id="next-code">{{ nexts.values()|list|first if nexts else '001' }}</b>）{% endif %}。</span></div>
-    <div class="mt-tbl">
-      <label {{ 'for="office_id"' if not row }} class="mt-label">事業所{% if not row %}<span class="req">必須</span>{% endif %}</label><div class="mt-cell fld mt-w-l">{% if row %}
-        <input type="text" disabled
-               value="{{ row.company_name }}　／　{{ row.office_ext or row.office_code }}　{{ row.office_name }}">
+
+<div class="block mf-card">
+
+  <div class="mf-sec">
+    <div class="mf-sec-head">
+      <h2>基本情報</h2>
+      <span class="mf-sec-note"><b>事業所</b>は任意です。事業所を使っていない企業では空欄（事業所なし）にします。
+        <b>部署コード</b>は企業が管理している番号があれば入れます（任意）。
+        <b>部署ID</b>はHIAの通し番号で、登録時に自動で決まります{% if row %}：<b class="mono">{{ row.id }}</b>{% endif %}。
+        <b>部署名は同じ名前を登録できます</b>（同名があるときは登録後に注意を表示します）。</span>
+    </div>
+    <div class="mf-grid mf-g-d-basic">
+      <div class="fld">
+        <label {{ 'for="company_id"' if not row }} class="fld-label">
+          企業{% if not row %}<span class="req">必須</span>{% endif %}</label>
+        {% if row %}
+        <input type="text" value="{{ row.company_ext or row.company_id }}　{{ row.company_name }}" disabled>
         {% else %}
-        <select id="office_id" name="office_id" required>
-          {% for o in offs %}<option value="{{ o.id }}"
-            {{ 'selected' if form and form.office_id|int == o.id }}>{{ o.company_name }}　／　{{ o.ext_code or o.code }}　{{ o.name }}</option>{% endfor %}
+        {% set fcid = (form.company_id if form else '') or '' %}
+        <select id="company_id" name="company_id" required>
+          <option value="">選択してください</option>
+          {% for c in comps %}<option value="{{ c.id }}"
+            {{ 'selected' if fcid|string == c.id|string }}>{{ c.ext_code or c.id }}　{{ c.name }}</option>{% endfor %}
         </select>
-        {% endif %}</div>
-      <label for="ext_code" class="mt-label">部署コード</label><div class="mt-cell fld"><input type="text" id="ext_code" name="ext_code" maxlength="20"
-            value="{{ (form.ext_code if form else (row.ext_code if row else '')) or '' }}" placeholder="例：01"></div>
-      <label for="name" class="mt-label">部署名<span class="req">必須</span></label><div class="mt-cell fld mt-w-m"><input type="text" id="name" name="name" required
-            value="{{ (form.name if form else (row.name if row else '')) or '' }}" placeholder="例：総務部"></div>
-      <label for="kana" class="mt-label">部署名（フリガナ）</label><div class="mt-cell fld mt-w-m"><input type="text" id="kana" name="kana"
-            value="{{ (form.kana if form else (row.kana if row else '')) or '' }}" placeholder="例：ソウムブ"></div>
+        {% endif %}
+      </div>
+      <div class="fld">
+        <label {{ 'for="dp-under"' if not row }} class="fld-label">事業所</label>
+        {% if row %}
+        <input type="text" disabled
+               value="{{ (row.office_ext or row.office_id) ~ '　' ~ row.office_name if row.office_id else '（事業所なし）' }}">
+        {% else %}
+        {% set fp = (form.parent if form else '') or '' %}
+        <select id="dp-under" name="parent" required>
+          <option value="">選択してください</option>
+          <option value="company" {{ 'selected' if fp == 'company' }}>（事業所なし）</option>
+          {% for o in offs %}<option value="o{{ o.id }}" data-company="{{ o.company_id }}"
+            {{ 'selected' if fp == 'o' ~ o.id }}>{{ o.ext_code or o.id }}　{{ o.name }}</option>{% endfor %}
+        </select>
+        <p class="hint" id="dp-note"></p>
+        {% endif %}
+      </div>
+      <div class="fld"></div>
+    </div>
+    <div class="mf-grid mf-g-d-basic">
+      <div class="fld">
+        <label for="ext_code" class="fld-label">部署コード</label>
+        <input type="text" id="ext_code" name="ext_code" maxlength="20"
+          value="{{ (form.ext_code if form else (row.ext_code if row else '')) or '' }}"
+          placeholder="例：01">
+      </div>
+      <div class="fld">
+        <label for="name" class="fld-label">部署名<span class="req">必須</span></label>
+        <input type="text" id="name" name="name" required
+          value="{{ (form.name if form else (row.name if row else '')) or '' }}"
+          placeholder="例：総務部">
+      </div>
+      <div class="fld">
+        <label for="kana" class="fld-label">部署名（フリガナ）</label>
+        <input type="text" id="kana" name="kana"
+          value="{{ (form.kana if form else (row.kana if row else '')) or '' }}"
+          placeholder="例：ソウムブ">
+      </div>
     </div>
   </div>
+
+</div>
 
 {% if not row %}
 <div class="block next-steps">
@@ -50,16 +110,33 @@
 </div>
 </form>
 
-{% if offs and offs|length > 1 %}
+{% if not row %}
 <script>
-/* 事業所を変えると、採番される部署コードの表示も切り替える */
+/* 事業所のプルダウンを、選んだ企業の事業所だけに絞る。
+   事業所を1件も持たない企業では「（事業所なし）」だけが残る。 */
 (function(){
-  var sel = document.getElementById('office_id');
-  var out = document.getElementById('next-code');
-  var map = {{ nexts | tojson }};
-  if(!sel || !out) return;
-  function upd(){ out.textContent = map[sel.value] || '001'; }
-  sel.addEventListener('change', upd);
+  var comp = document.getElementById('company_id');
+  var under = document.getElementById('dp-under');
+  var note = document.getElementById('dp-note');
+  if(!comp || !under) return;
+  var offs = [].slice.call(under.querySelectorAll('option[data-company]'));
+
+  function upd(){
+    var cid = comp.value;
+    var n = 0;
+    offs.forEach(function(o){
+      var hit = o.dataset.company === cid;
+      o.hidden = !hit;
+      o.disabled = !hit;
+      if(!hit && o.selected){ o.selected = false; under.value = ''; }
+      if(hit) n++;
+    });
+    under.disabled = !cid;
+    if(!cid){ note.textContent = '先に企業を選択してください。'; }
+    else if(!n){ note.textContent = 'この企業には事業所がありません。'; }
+    else { note.textContent = '事業所 ' + n + ' 件から選べます。事業所を使わない場合は「（事業所なし）」を選びます。'; }
+  }
+  comp.addEventListener('change', upd);
   upd();
 })();
 </script>

@@ -26,9 +26,8 @@
     <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}"
        href="{{ url_for('member_edit', mid=r.id) }}"
        style="text-decoration:none">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
-    <form method="post" action="{{ url_for('member_delete', mid=r.id) }}" style="display:inline"
-          onsubmit="return confirm('被保険者証番号 {{ r.member_no }}（{{ r.name }}）を削除します。よろしいですか？')">
-      <button class="btn-sm btn-del">削除</button></form>
+    <a class="btn-sm btn-del" href="{{ url_for('member_delete', mid=r.id) }}"
+       style="text-decoration:none" title="確認画面で紐づきを見てから削除します">削除</a>
     {% else %}<span class="hint">閲覧のみ</span>{% endif %}
   </td>
 </tr>

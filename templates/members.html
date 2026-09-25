@@ -1,6 +1,5 @@
 {% set FIXED_HEIGHT = true %}
 {% extends LAYOUT %}
-{% from "_import_modal.html" import import_modal, import_script %}
 {% from "_listsearch.html" import search_card, search_script, rows_script %}
 {% block body %}
 {# 埋め込み時はシェル側に同じ見出しと説明があるため表示しない #}
@@ -29,10 +28,11 @@
                 title="いま絞り込んでいる条件に一致する全件を紐づけます">
           検索結果すべて（{{ '{:,}'.format(total) }}件）を紐づける</button>
         <a class="btn-sm" href="{{ url_for('members_link_page') }}" style="text-decoration:none"
-           title="紐づけ先を選んでから、ドラッグで紐づける専用ページを開きます">紐づけページ</a>
+           title="紐づけ先を選んでから、ドラッグで紐づける専用ページを開きます">企業・部署の紐づけ</a>
         {% endif %}
         {% if CAN_MASTER %}
-        <button type="button" class="btn-sm" onclick="openImport('imp-member')">一括インポート</button>
+        <a class="btn-sm" href="{{ url_for('import_upload', kind='member') }}"
+           style="text-decoration:none">CSVで取り込む</a>
         {% endif %}
         <a class="btn-sm" href="{{ url_for('members_export') }}" style="text-decoration:none">CSVで出力</a>
       </div>
@@ -107,9 +107,9 @@
         <label for="mk-dept" class="fld-label">部署</label>
         <select id="mk-dept" class="w-l">
           <option value="">未設定</option>
-          {% for d in depts %}<option value="{{ d.id }}" data-office="{{ d.office_id }}">{{ d.ext_code or d.code }}　{{ d.name }}</option>{% endfor %}
+          {% for d in depts %}<option value="{{ d.id }}" data-company="{{ d.company_id }}" data-office="{{ d.office_id or '' }}">{{ d.ext_code or d.code }}　{{ d.name }}</option>{% endfor %}
         </select>
-        <p class="fld-help">企業を選ぶとその企業の事業所、事業所を選ぶとその部署だけが候補になります。</p>
+        <p class="fld-help">企業を選ぶとその企業の事業所・部署が候補になります。事業所を選ぶと、部署はその事業所のものに絞られます。</p>
       </div>
 
       <p class="hint" id="mk-msg" style="margin-top:12px;"></p>
@@ -191,12 +191,16 @@
   var allO = of ? [].slice.call(of.options).map(snap) : [];
   var allD = dp ? [].slice.call(dp.options).map(snap) : [];
   function snap(o){
-    return {v:o.value, t:o.textContent, p:o.dataset.company || o.dataset.office || ''};
+    return {v:o.value, t:o.textContent,
+            p:(o.dataset.office !== undefined ? o.dataset.office : o.dataset.company) || '',
+            c:o.dataset.company || ''};
   }
-  function build(sel, list, parent){
+  /* 部署は事業所を選ばなくても選べる（企業で絞る）。事業所を選ぶとその事業所の部署だけ */
+  function build(sel, list, parent, company){
     sel.innerHTML = '';
     list.forEach(function(x){
-      if(x.v === '' || x.p === parent){
+      var hit = (company !== undefined && !parent) ? x.c === company : x.p === parent;
+      if(x.v === '' || hit){
         var op = document.createElement('option');
         op.value = x.v; op.textContent = x.t;
         sel.appendChild(op);
@@ -204,7 +208,7 @@
     });
   }
   window.mkFill = function(){ build(of, allO, co.value); mkFillDept(); };
-  window.mkFillDept = function(){ build(dp, allD, of.value); };
+  window.mkFillDept = function(){ build(dp, allD, of.value, co.value); };
 
   window.mkRun = function(){
     var msg = document.getElementById('mk-msg');
@@ -252,9 +256,4 @@
 {{ search_script([('no','no'), ('name','name'), ('cname','cname'), ('oname','oname'),
                   ('dname','dname')]) }}
 {{ rows_script() }}
-{% if CAN_MASTER %}
-{{ import_modal('imp-member', '加入者の一括インポート', url_for('members_import'),
-   kenpos if acc.role == 'system_admin' else None) }}
-{% endif %}
-{{ import_script() }}
 {% endblock %}

@@ -111,7 +111,11 @@ function reportHeight(){
       if (window.parent.SYS.fitHeight) window.parent.SYS.fitHeight(window.frameElement);
       return;
     }
-    var h = document.documentElement.scrollHeight;
+    /* iframe の実コンテンツ高さを親へ伝える。
+       documentElement.scrollHeight は iframe のビューポート高さが下限になるため、
+       親が高さを広げると次回さらに広がる…という増殖ループになる。
+       body 基準（ビューポート下限なし）で測る。 */
+    var h = Math.max(document.body.scrollHeight, document.body.offsetHeight);
     window.parent.SYS.resize(window.frameElement, h);
   }catch(e){}
 }

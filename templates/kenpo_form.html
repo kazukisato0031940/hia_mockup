@@ -2,7 +2,7 @@
 <h1 class="page-title">{{ '健康保険組合情報の編集' if row else '健康保険組合の登録' }}</h1>
 <p class="page-lead">
   {% if row %}登録済みの健康保険組合を編集します。
-  {% else %}保険者番号と名称を登録します。登録後、この組合に企業・部署・加入者を登録できます。{% endif %}</p>
+  {% else %}保険者番号と名称を登録します。登録後、この組合に企業・事業所・部署・加入者を登録できます。{% endif %}</p>
 
 {% if row %}
 <div class="rec-head">
@@ -46,8 +46,8 @@
       <span class="sf-body"><b>この組合の担当者アカウントを発行します</b><br>
         <span class="hint">「アカウント管理」から健保担当者を登録します。</span></span></li>
     <li><span class="sf-no">2</span>
-      <span class="sf-body"><b>企業・部署・加入者を登録します</b><br>
-        <span class="hint">HIA健保管理の「マスタ」から登録、または一括インポートで取り込みます。</span></span></li>
+      <span class="sf-body"><b>企業・事業所・部署・加入者を登録します</b><br>
+        <span class="hint">HIA健保管理の「マスタ」から登録、または「CSVで取り込む」「企業・事業所・部署一括取込」で取り込みます。</span></span></li>
   </ol>
 </div>
 {% endif %}

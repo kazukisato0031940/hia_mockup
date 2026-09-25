@@ -1,6 +1,5 @@
 {% set FIXED_HEIGHT = true %}
 {% extends LAYOUT %}
-{% from "_import_modal.html" import import_modal, import_script %}
 {% block body %}
 {# 企業・事業所・部署のマスタ。8-58 階層表示 → 8-59 フラット表示 → 8-65 で企業だけの一覧（事業所数・部署数の列）に。
    事業所・部署の登録・編集は企業の詳細表示（編集画面）で行う。 #}
@@ -24,9 +23,14 @@
       <span class="count"><span id="org-count">{{ comps|length }}</span>社（{{ offs|length }}事業所・{{ depts|length }}部署）</span>
       {% if CAN_MASTER %}
       <div class="actions">
-        <button type="button" class="btn-sm" onclick="openImport('imp-company')">企業を一括インポート</button>
-        <button type="button" class="btn-sm" onclick="openImport('imp-office')">事業所を一括インポート</button>
-        <button type="button" class="btn-sm" onclick="openImport('imp-dept')">部署を一括インポート</button>
+        <a class="btn-sm" href="{{ url_for('import_upload', kind='company') }}"
+           style="text-decoration:none">企業をCSVで取り込む</a>
+        <a class="btn-sm" href="{{ url_for('import_upload', kind='office') }}"
+           style="text-decoration:none">事業所をCSVで取り込む</a>
+        <a class="btn-sm" href="{{ url_for('import_upload', kind='dept') }}"
+           style="text-decoration:none">部署をCSVで取り込む</a>
+        <a class="btn-sm" href="{{ url_for('import_upload_bulk') }}"
+           style="text-decoration:none">企業・事業所・部署一括取込</a>
       </div>
       {% endif %}
     </div>
@@ -64,9 +68,8 @@
       <td class="ops"><div class="org-ops">
         <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}" href="{{ url_for('company_edit', cid=c.id) }}" style="text-decoration:none" title="企業の詳細。事業所・部署の登録・編集もここから">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
         {% if CAN_MASTER %}
-        <form method="post" action="{{ url_for('company_delete', cid=c.id) }}" style="display:inline"
-              onsubmit="return confirm('「{{ c.name }}」を削除します。よろしいですか？\n\n事業所・加入者・アカウントが紐づいている場合は削除できません。')">
-          <button class="btn-sm btn-del">削除</button></form>
+        <a class="btn-sm btn-del" href="{{ url_for('company_delete', cid=c.id) }}"
+           style="text-decoration:none" title="確認画面で紐づきを見てから削除します">削除</a>
         {% endif %}
       </div></td>
     </tr>
@@ -95,10 +98,4 @@ function orgFilter(){
   if(cnt) cnt.textContent = shown;
 }
 </script>
-{% if CAN_MASTER %}
-{{ import_modal('imp-company', '企業の一括インポート', url_for('companies_import')) }}
-{{ import_modal('imp-office', '事業所の一括インポート', url_for('offices_import')) }}
-{{ import_modal('imp-dept', '部署の一括インポート', url_for('departments_import')) }}
-{{ import_script() }}
-{% endif %}
 {% endblock %}

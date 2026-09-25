@@ -1,0 +1,48 @@
+{% extends LAYOUT %}{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">取込の結果</h1>
+{% endif %}
+
+<div class="imp-head ok">
+  <div class="imp-head-main"><b>取り込みました。</b>
+    {{ spec.label }}フォーマット　{{ '{:,}'.format(total) }} 行</div>
+  <div class="imp-head-sub"><span class="st st-own">{{ filename }}</span></div>
+</div>
+
+<div class="block">
+  <h2>登録された件数</h2>
+  <div class="stat-row">
+    {% for label, c in counts.items() %}
+    <div class="stat-box"><div class="stat-l">{{ label }}　新規</div>
+      <div class="stat-n">{{ c.ins }}</div></div>
+    <div class="stat-box"><div class="stat-l">{{ label }}　更新</div>
+      <div class="stat-n">{{ c.upd }}</div></div>
+    {% endfor %}
+  </div>
+  {% if warned %}
+  <p class="note" style="margin-top:12px">
+    注意のあった行が {{ warned }} 件あります（所属先が決まらない・既存の値が空になる など）。
+    内容は操作ログに残しています。</p>
+  {% endif %}
+</div>
+
+<div class="block next-steps">
+  <h2>次にすること</h2>
+  <ol class="steps-flow">
+    <li><span class="sf-no">1</span>
+      <span class="sf-body"><b>取り込んだ内容を一覧で確認します</b><br>
+        <span class="hint">下の「一覧へ戻る」から開けます。</span></span></li>
+    <li><span class="sf-no">2</span>
+      <span class="sf-body"><b>続けて別の階層を取り込みます</b><br>
+        <span class="hint">企業 → 事業所 → 部署 → 加入者 の順に入れると、
+          所属先の紐づけまで一度に決まります。</span></span></li>
+  </ol>
+</div>
+
+<div class="actions" style="justify-content:flex-end">
+  <a class="btn-back" href="{{ url_for('import_upload', kind=kind if kind != 'bulk' else 'company') }}"
+     style="text-decoration:none">続けて取り込む</a>
+  <a class="btn-submit btn-regsave" href="{{ url_for(back) }}"
+     style="text-decoration:none;display:inline-flex;align-items:center">一覧へ戻る</a>
+</div>
+{% endblock %}

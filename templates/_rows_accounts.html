@@ -1,0 +1,48 @@
+{# アカウント一覧の行だけ。スクロール読み込みでも同じものを使う #}
+{% for r in rows %}
+    <tr class="ls-row acc-row {{ 'muted' if r.status=='deleted' }}"
+    data-name="{{ r.name }}" data-email="{{ r.email }}"
+    data-company="{{ (r.companies + r.scopes) | join(' ') }}">
+      <td class="tl"><span class="ellip w110" title="{{ r.name }}">{{ r.name }}</span></td>
+      <td class="tl code"><span class="ellip wfull" title="{{ r.email }}">{{ r.email }}</span></td>
+      <td class="wrap"><span title="{{ role_full(r) }}">{{ ROLE_LABELS.get(r.role, r.role) }}</span>
+        {% if sub_role_of(r) %}<div style="margin-top:2px" class="hint"
+          title="サブロール">{{ SUB_ROLE_LABELS[sub_role_of(r)] }}</div>{% endif %}</td>
+      <td><span class="ellip" title="{{ SCOPE_LABELS[r.view_scope] }}">{{ SCOPE_LABELS[r.view_scope] }}</span></td>
+      <td class="tl"><span class="ellip wfull" title="{{ r.kenpo_name or '—' }}">{{ r.kenpo_name or '—' }}</span></td>
+      <td class="tl">
+        {% if r.companies or r.scopes %}
+        <span class="ellip wfull"
+              title="{{ (r.companies + r.scopes) | join('、') }}">{{ (r.companies + r.scopes)[0] }}</span>
+        {% set n = (r.companies + r.scopes) | length %}
+        {% if n > 1 %}<span class="hint"
+          title="{{ (r.companies + r.scopes) | join('、') }}">他{{ n - 1 }}件</span>{% endif %}
+        {% else %}—{% endif %}
+      </td>
+      <td>{% if r.can_download %}可{% else %}不可{% endif %}</td>
+      <td><span class="st-label {{ 'ok' if r.status == 'active' else ('warn' if r.status == 'invited' else ('ng' if r.status == 'deleted' else '')) }}">{{ STATUS_LABELS.get(r.status, r.status) }}</span></td>
+      <td class="ts">{% if r.last_login_at %}
+        <span title="{{ r.last_login_at }}">{{ r.last_login_at[:10] }}<br>
+        <span class="hint">{{ r.last_login_at[11:16] }}</span></span>
+        {% else %}—{% endif %}</td>
+      <td class="ops">
+        {% if r.status == 'deleted' %}
+          <a class="btn-sm" href="{{ url_for('accounts_purge', aid=r.id) }}"
+             style="text-decoration:none;color:var(--error);border-color:#fed7d7">完全削除</a>
+        {% elif r.id == acc.id %}
+          <a class="btn-sm primary" href="{{ url_for('me_account') }}"
+             style="text-decoration:none" title="自分の利用者名・メールアドレス・パスワードを変更します">
+            自分の情報を編集</a>
+          <div class="hint" style="margin-top:4px">権限の変更は他の管理者へ依頼してください</div>
+        {% else %}
+          <a class="btn-sm primary btn-edit" href="{{ url_for('accounts_edit', aid=r.id) }}"
+             style="text-decoration:none"
+             title="権限・担当範囲の変更と、案内リンク・パスワードの設定">編集</a>
+          <form method="post" action="{{ url_for('accounts_delete', aid=r.id) }}" style="display:inline"
+                onsubmit="return confirm('{{ r.email }} を削除します。\n\nログインできなくなり、【復元はできません】。\n同じメールアドレスを使い直す場合は、続けて完全削除を行ってください。\n\n操作ログの記録は残ります。よろしいですか？')">
+            <button class="btn-sm btn-del">削除</button></form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+{% if more is defined %}<tr class="ls-more" data-more="{{ more }}" hidden></tr>{% endif %}

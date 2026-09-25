@@ -1,0 +1,194 @@
+{% extends LAYOUT %}{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">取り込む内容の確認</h1>
+{% endif %}
+{# ---- 上位（親）の選択。
+     上位はまずCSVの列で指定する。列が空欄の行があるときだけ案内を出し、
+     選ぶ欄は下の「行ごとの判定」の所属先の列に、行ごとに置く。---- #}
+{% macro pick_name(k) %}{{ ('pick_c_' if k.startswith('c:') else 'pick_u_') ~ k.split(':')[1] }}{% endmacro %}
+{% set pm = {} %}
+{% for g in groups %}{% if pm.update({g.line: g}) %}{% endif %}{% endfor %}
+{% set left = groups|rejectattr('done')|list|length %}
+
+{# ---- 見出し：どこへ何件入るか。上位が未選択なら、選ぶまで確定できないことを出す ---- #}
+<div class="imp-head {{ 'ng' if not ready else ('bad' if summary['エラー'] else 'ok') }}">
+  <div class="imp-head-main">
+    {% if not ready %}
+      <b>取り込む先を選んでください。</b>選ぶまで確定できません。
+      上位（企業・事業所）の列が空欄の行は、下の「所属企業」「所属事業所」で行ごとに選びます（あと <b>{{ left }}</b> 行）。
+    {% else %}
+      <b>{{ kenpo.name if kenpo else '—' }}</b>
+      {% if place %}　の　<b>{{ place }}</b>　に
+      {% elif n_places > 1 %}　の　<b>{{ n_places }} か所</b>に{% endif %}
+      <b>{{ '{:,}'.format(total) }} 件</b>を取り込みます。
+    {% endif %}
+  </div>
+  <div class="imp-head-sub">
+    <span class="st st-role">{{ spec.label }}フォーマット</span>
+    <span class="st st-own">{{ filename }}</span>
+    <span class="st st-own">{{ '{:,}'.format(total) }} 行</span>
+  </div>
+</div>
+
+{# ---- 件数の要約と明細。上位を選ぶ前から出し、列で指定済みの行とこれから選ぶ行が
+     混在するのを見せる（所属先が「（これから選びます）」の行が選ぶ対象）---- #}
+<div class="block">
+  <div class="blk-head"><h2>行ごとの判定</h2>
+    <span class="hint">「エラー」が1行でもあると確定できません。
+      「注意」は取り込めますが、内容をご確認ください。</span></div>
+  <div class="stat-row imp-sum">
+    <div class="stat-box"><div class="stat-l">新規</div>
+      <div class="stat-n">{{ summary['新規'] }}</div></div>
+    <div class="stat-box"><div class="stat-l">更新</div>
+      <div class="stat-n">{{ summary['更新'] }}</div></div>
+    <div class="stat-box {{ 'warn' if summary['注意'] }}"><div class="stat-l">注意</div>
+      <div class="stat-n">{{ summary['注意'] }}</div></div>
+    <div class="stat-box {{ 'warn' if summary['エラー'] }}"><div class="stat-l">エラー</div>
+      <div class="stat-n">{{ summary['エラー'] }}</div></div>
+  </div>
+
+  {% if summary['エラー'] %}
+  <div class="flash error" style="margin-top:14px">
+    エラーのある行が <b>{{ summary['エラー'] }} 件</b>あります。
+    <b>1行でもエラーがあると確定できません。</b>
+    ファイルを直して、もう一度アップロードしてください。</div>
+  {% endif %}
+
+  {# ---- 明細。判定・所属先・エラーの内容を左に固定し、ファイルの列は横スクロールで見る ---- #}
+  <div class="imp-filter">
+    <label class="chk"><input type="checkbox" id="pv-only" onchange="pvFilter()">
+      <span>エラー・注意のある行だけを表示する</span></label>
+    <span class="hint" id="pv-count"></span>
+  </div>
+  <form method="get" action="{{ url_for('import_preview') }}" id="pp-form">
+  <input type="hidden" name="token" value="{{ token }}">
+  {% for k, v in picks.items() %}
+  {% if k.split(':')[1]|int not in pm %}
+  <input type="hidden" name="{{ pick_name(k) }}" value="{{ v }}">{% endif %}
+  {% endfor %}
+  <div class="table-scroll" style="max-height:440px;overflow:auto">
+  <table class="result-table imp-table" style="table-layout:auto">
+    <thead><tr>
+      <th style="width:50px">行</th>
+      <th style="width:70px">判定</th>
+      {% if kind in ('office', 'dept') %}
+      <th class="tl" style="width:{{ 220 if groups else 170 }}px">所属企業</th>
+      {% if kind == 'dept' %}<th class="tl" style="width:{{ 260 if groups else 170 }}px">所属事業所</th>{% endif %}
+      {% else %}
+      <th class="tl" style="width:200px">所属先</th>
+      {% endif %}
+      <th class="tl" style="width:280px">エラー・注意の内容</th>
+      {% for c in columns %}<th class="tl">{{ c }}</th>{% endfor %}
+    </tr></thead>
+    <tbody>
+    {% for r in rows[:500] %}
+    {% set g = pm.get(r.line) %}
+    <tr class="pv-row {{ 'bad' if r.judge == 'エラー' or (g and not g.done) }}"
+        data-flag="{{ 1 if r.judge in ('エラー', '注意') else 0 }}">
+      <td class="num">{{ r.line }}</td>
+      <td><span class="st-label {{ {'エラー':'ng', '注意':'warn', '更新':'ok'}.get(r.judge, '') }}">{{ r.judge }}</span></td>
+      {% set g = pm.get(r.line) %}
+      {% if kind in ('office', 'dept') %}
+      <td class="tl">
+        {% if g and not g.c.given %}
+        <select name="pick_c_{{ g.line }}" class="pp-sel" data-kind="c" data-company=""
+                onchange="ppChanged(this)" title="所属企業">
+          <option value="">企業を選択</option>
+          {% for o in g.c.options %}<option value="{{ o.v }}"
+            {{ 'selected' if o.v == g.c.value }}>{{ o.t }}</option>{% endfor %}
+        </select>
+        {% if kind == 'office' and g.done %}<button type="button" class="btn-sm pp-apply" onclick="ppApply(this)"
+            title="未選択の行に、この行と同じ企業を入れます">未選択の行にも</button>{% endif %}
+        {% else %}<span class="ellip w190" title="{{ r.place_c or '' }}">{{ r.place_c or '—' }}</span>{% endif %}
+      </td>
+      {% if kind == 'dept' %}
+      <td class="tl">
+        {% if g and g.u %}
+        <div class="pp-row">
+          <select name="pick_u_{{ g.line }}" class="pp-sel" data-kind="u" data-company="{{ g.u.company }}"
+                  onchange="ppChanged(this)" title="所属事業所" {{ 'disabled' if not g.u.enabled }}>
+            <option value="">{{ '事業所を選択' if g.u.enabled else '先に企業を選択' }}</option>
+            {% for o in g.u.options %}<option value="{{ o.v }}"
+              {{ 'selected' if o.v == g.u.value }}>{{ o.t }}</option>{% endfor %}
+          </select>
+          {% if g.done %}<button type="button" class="btn-sm pp-apply" onclick="ppApply(this)"
+              title="同じ企業で未選択の行に、この行と同じ値を入れます">未選択の行にも</button>{% endif %}
+        </div>
+        {% else %}<span class="ellip w190" title="{{ r.place_o or '' }}">{{ r.place_o or '—' }}</span>{% endif %}
+      </td>
+      {% endif %}
+      {% else %}
+      <td class="tl"><span class="ellip w190" title="{{ r.place }}">{{ r.place }}</span></td>
+      {% endif %}
+      <td class="tl wrap">
+        {% if r.errors %}<ul class="errlist">{% for m in r.errors %}<li>{{ m }}</li>{% endfor %}</ul>{% endif %}
+        {% if r.warnings %}<ul class="errlist warn">{% for m in r.warnings %}<li>{{ m }}</li>{% endfor %}</ul>{% endif %}
+        {% if kind == 'bulk' and r.levels and not r.errors %}<span class="hint">{{ r.levels }}</span>
+        {% elif not r.errors and not r.warnings %}<span class="hint">—</span>{% endif %}
+      </td>
+      {% for v in r.cells %}<td class="tl">{{ v or '—' }}</td>{% endfor %}
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  </form>
+  {% if rows|length > 500 %}
+  <p class="note">先頭500行を表示しています（全 {{ '{:,}'.format(rows|length) }} 行）。
+    確定すると全行が登録されます。</p>
+  {% endif %}
+</div>
+
+<div class="actions" style="justify-content:flex-end">
+  <a class="btn-back" href="{{ url_for('import_upload_bulk') if kind == 'bulk'
+       else url_for('import_upload', kind=kind) }}"
+     style="text-decoration:none">ファイルを選び直す</a>
+  <form method="post" action="{{ url_for('import_commit') }}" style="display:inline">
+    <input type="hidden" name="token" value="{{ token }}">
+    {% for k, v in picks.items() %}
+    <input type="hidden" name="{{ pick_name(k) }}" value="{{ v }}">
+    {% endfor %}
+    <button class="btn-submit btn-regsave" {{ 'disabled' if not can_commit }}>
+      {% if not ready %}取り込む先を選んでください
+      {% elif summary['エラー'] %}エラーがあるため確定できません
+      {% else %}この内容で確定する{% endif %}</button>
+  </form>
+</div>
+<p class="hint" style="text-align:right;margin-top:6px">
+  確認した内容は<b>この画面を離れると消えます</b>（上位の選択も同じです）。
+  確定できるのは、アップロードしたご本人・1回だけです。</p>
+
+<script>
+/* 上位の選択：選んだら画面を作り直す（判定と所属先が変わるため） */
+function ppChanged(sel){ sel.form.submit(); }
+/* 同じ種類（企業／事業所）で、同じ企業の未選択の行に、この行の値を入れてから作り直す */
+function ppApply(btn){
+  var tr = btn.closest('tr'), n = 0, form = null;
+  tr.querySelectorAll('select.pp-sel').forEach(function(me){
+    if(!me.value) return;
+    form = me.form;
+    document.querySelectorAll('select.pp-sel').forEach(function(s){
+      if(s === me || s.value || s.disabled) return;
+      if(s.dataset.kind !== me.dataset.kind) return;
+      if(me.dataset.kind === 'u' && s.dataset.company !== me.dataset.company) return;
+      s.value = me.value; n++;
+    });
+  });
+  if(n && form) form.submit();
+}
+/* エラー・注意のある行だけに絞る */
+function pvFilter(){
+  var only = document.getElementById('pv-only').checked;
+  var n = 0, all = 0;
+  document.querySelectorAll('tr.pv-row').forEach(function(tr){
+    all++;
+    var hit = !only || tr.dataset.flag === '1';
+    tr.style.display = hit ? '' : 'none';
+    if(hit) n++;
+  });
+  document.getElementById('pv-count').textContent =
+    only ? (n + ' 行を表示（全 ' + all + ' 行）') : '';
+  if(window.reportHeight) window.reportHeight();
+}
+</script>
+{% endblock %}

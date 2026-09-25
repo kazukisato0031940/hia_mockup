@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS kenpo (
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
--- 企業（企業コードはシステムが自動採番）
+-- 企業（企業IDは通し番号として自動採番。企業コードは健保が管理する番号）
 CREATE TABLE IF NOT EXISTS company (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   kenpo_id   INTEGER NOT NULL REFERENCES kenpo(id),
@@ -34,10 +34,11 @@ CREATE TABLE IF NOT EXISTS company (
   name       TEXT NOT NULL,
   kana       TEXT,
   cert_mark  TEXT,                    -- 被保険者証記号
+  owner      TEXT,                    -- 代表者名
   zip        TEXT,                    -- 郵便番号
   tel        TEXT,
   address    TEXT,
-  email      TEXT,                    -- 担当メールアドレス
+  email      TEXT,                    -- 担当者メールアドレス
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at TEXT,
   UNIQUE (kenpo_id, code),
@@ -45,17 +46,20 @@ CREATE TABLE IF NOT EXISTS company (
   UNIQUE (kenpo_id, name)
 );
 
--- 事業所（事業所コードはシステムが自動採番）
+-- 事業所（事業所IDは通し番号として自動採番。事業所コードは企業が管理する番号）
 CREATE TABLE IF NOT EXISTS office (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   company_id INTEGER NOT NULL REFERENCES company(id),
   ext_code   TEXT,                    -- 事業所コード（企業が管理する番号）。取込の照合キー
   code       TEXT NOT NULL,           -- 当社内部コード。登録順に自動発番
   name       TEXT NOT NULL,           -- 事業所名
-  kana       TEXT,                    -- 部署名（フリガナ）
+  kana       TEXT,                    -- 事業所名（フリガナ）
+  cert_mark  TEXT,                    -- 被保険者証記号（健診データ連携のファイル名に使う）
+  owner      TEXT,                    -- 代表者名
   zip        TEXT,                    -- 郵便番号
   tel        TEXT,
   address    TEXT,
+  email      TEXT,                    -- 担当者メールアドレス
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at TEXT,
   UNIQUE (company_id, code),
@@ -71,19 +75,18 @@ CREATE TABLE IF NOT EXISTS account_scope (
   UNIQUE (account_id, kind, ref_id)
 );
 
--- 部署（事業所の下）
+-- 部署は「事業所の配下」にも「企業の直下」にも置ける（事業所は任意階層）。
+-- office_id が NULL の行は企業直下の部署。同名の部署は許す（重複時は画面で注意を出す）。
 CREATE TABLE IF NOT EXISTS department (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  office_id  INTEGER NOT NULL REFERENCES office(id),
+  company_id INTEGER NOT NULL REFERENCES company(id),  -- 必ずどこかの企業に属する
+  office_id  INTEGER REFERENCES office(id),            -- NULL＝企業の直下
   ext_code   TEXT,                    -- 部署コード（企業が管理する番号）
   code       TEXT NOT NULL,           -- 当社内部コード。登録順に自動発番
   name       TEXT NOT NULL,
   kana       TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-  updated_at TEXT,
-  UNIQUE (office_id, code),
-  UNIQUE (office_id, ext_code),
-  UNIQUE (office_id, name)
+  updated_at TEXT
 );
 
 -- 加入者
@@ -91,8 +94,8 @@ CREATE TABLE IF NOT EXISTS member (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   kenpo_id     INTEGER NOT NULL REFERENCES kenpo(id),
   company_id   INTEGER REFERENCES company(id),  -- あとから紐づける運用のため任意
-  office_id    INTEGER REFERENCES office(id),   -- 事業所コードが空の場合は未設定
-  dept_id      INTEGER REFERENCES department(id),  -- 部署（事業所の下）。任意
+  office_id    INTEGER REFERENCES office(id),   -- 事業所は任意。未設定でもよい
+  dept_id      INTEGER REFERENCES department(id),  -- 部署。任意
   member_no    TEXT NOT NULL,                  -- 被保険者証番号
   cert_mark    TEXT,                            -- 被保険者証記号
   cert_branch  TEXT,                            -- 被保険者証枝番
@@ -113,6 +116,7 @@ CREATE TABLE IF NOT EXISTS member (
   email        TEXT,
   billing_code TEXT,                            -- 請求先コード
   employee_code TEXT,                           -- 社員番号
+  connect_id   TEXT,                            -- connectID
   kenpo_member_id TEXT,                         -- 健保別加入者管理ID（健保が独自に管理する番号）
   subscriber_id TEXT,                           -- 加入者ID（当システムで採番）
   src_company_code TEXT,                        -- 取込時の企業コード
@@ -120,6 +124,7 @@ CREATE TABLE IF NOT EXISTS member (
   memo         TEXT,                            -- メモ（加入者ごとの申し送り。画面で編集）
   night_work   INTEGER NOT NULL DEFAULT 0,      -- 深夜業従事（1＝深夜健診の対象）
   excluded     INTEGER NOT NULL DEFAULT 0,      -- 健診の対象から除外（1＝除外）
+  influenza    INTEGER NOT NULL DEFAULT 1,      -- インフルエンザ予防接種の対象（1＝対象）
   created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at   TEXT,
   -- 本人と家族は同じ被保険者証番号で枝番が異なるため、枝番まで含めて一意にする

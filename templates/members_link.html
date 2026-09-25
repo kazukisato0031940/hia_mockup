@@ -2,7 +2,7 @@
 <div class="frag-head">
   <div>
     <h1 class="page-title">企業・部署の紐づけ</h1>
-    <p class="page-lead">まず紐づけ先の企業と部署を選びます。次の画面で加入者を紐づけます。</p>
+    <p class="page-lead">まず紐づけ先の企業と事業所（必要なら部署）を選びます。次の画面で加入者を紐づけます。</p>
   </div>
   <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">戻る</a>
 </div>
@@ -17,6 +17,25 @@
   </div>
 </div>
 
+{% if n_auto or n_auto_ng %}
+<div class="block auto-link-card">
+  <div class="blk-head">
+    <div class="blk-head-left">
+      <h2>加入者情報のコードで紐づける</h2>
+      <span class="st st-invited">{{ n_auto }}件が自動で紐づけられます</span>
+      {% if n_auto_ng %}<span class="st st-disabled">確認が必要 {{ n_auto_ng }}件</span>{% endif %}
+    </div>
+    <div class="actions">
+      <a class="btn-sm primary" href="{{ url_for('members_link_auto') }}"
+         style="text-decoration:none">内容を確認して紐づける</a>
+    </div>
+  </div>
+  <p class="note" style="margin:0;">
+    取込した加入者情報に「企業コード」「事業所コード」が入っているため、
+    <b>一件ずつ選ばなくても紐づけられます</b>。
+    一覧で内容を確認してから実行できます。</p>
+</div>
+{% endif %}
 
 <div class="dest-cols three">
 
@@ -120,7 +139,7 @@
 
 <div class="link-foot">
   <div class="lf-info">
-    <span class="hint" id="lk-foot-hint">企業と部署の両方を選ぶと、次へ進めます。</span>
+    <span class="hint" id="lk-foot-hint">企業と事業所を選ぶと、次へ進めます。</span>
   </div>
   <div class="actions">
     <a class="btn-back" href="{{ url_for('members') }}" style="text-decoration:none">戻る</a>
