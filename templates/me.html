@@ -11,10 +11,12 @@
       {{ SCOPE_LABELS.get(row.view_scope, row.view_scope) }}</span>
     <span class="st st-{{ row.status }}">{{ STATUS_LABELS.get(row.status, row.status) }}</span>
   </div>
+  {% if CAN_ACCOUNTS %}
   <div class="actions">
     <a class="btn-sm" href="{{ url_for('accounts') }}"
        style="text-decoration:none">アカウント管理へ</a>
   </div>
+  {% endif %}
 </div>
 
 <div class="form-grid">

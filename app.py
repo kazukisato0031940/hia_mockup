@@ -559,6 +559,17 @@ def feature_overrides():
 ALL_FEATURE_ROLE = "system_admin"
 
 
+def can_download_now(acc=None):
+    """CSVのダウンロードができるか。export_csv と同じ条件で判定する。
+    画面側は、これが偽ならダウンロードのボタンを出さない。"""
+    acc = acc if acc is not None else current_account()
+    if not acc:
+        return False
+    if not feature_allowed("download", acc):
+        return False
+    return bool(acc["can_download"]) or acc["role"] == "system_admin"
+
+
 def feature_allowed(key, acc=None):
     """そのアカウントが機能を使えるか。設定があればそれを、無ければ既定値を使う。
     固定の機能（医学的判断）は設定に関係なく産業医だけが使える。
@@ -809,6 +820,10 @@ def inject_globals():
         # マスタの登録・変更・削除ができるか（機能制御で切り替えられる）
         "CAN_MASTER": feature_allowed("master.write"),
         "CAN_IMPORT": feature_allowed("master.import"),
+        # CSV出力ができるか（機能制御＋アカウントごとの許可）。押せないボタンを出さないため
+        "CAN_DOWNLOAD": can_download_now(),
+        # アカウント管理を開けるか（産業医・保健師・加入者本人は開けない）
+        "CAN_ACCOUNTS": feature_allowed("accounts"),
         "IS_DOCTOR": is_doctor(),
         "can_feature": feature_allowed,
         "SCOPE_LABELS": SCOPE_LABELS,

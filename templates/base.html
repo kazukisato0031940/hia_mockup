@@ -25,12 +25,16 @@
 <div class="sa-main frag">
   <div class="sa-nav">
     <a href="{{ url_for('dashboard') }}" class="{{ 'on' if request.endpoint=='dashboard' }}">ホーム</a>
+    {% if CAN_ACCOUNTS %}
     <a href="{{ url_for('accounts') }}" class="{{ 'on' if request.endpoint and request.endpoint.startswith('accounts') }}">アカウント管理</a>
+    {% endif %}
     {% if SHELL != 'km' %}
     <a href="{{ url_for('companies') }}" class="{{ 'on' if request.endpoint and (request.endpoint.startswith('compan') or request.endpoint.startswith('office') or request.endpoint.startswith('department')) }}">企業・事業所・部署</a>
     <a href="{{ url_for('members') }}" class="{{ 'on' if request.endpoint and request.endpoint.startswith('member') }}">加入者情報</a>
     {% endif %}
+    {% if can_feature('settings.log') %}
     <a href="{{ url_for('logs') }}" class="{{ 'on' if request.endpoint=='logs' }}">操作ログ</a>
+    {% endif %}
   </div>
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}

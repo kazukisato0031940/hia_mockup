@@ -34,7 +34,8 @@
         <a class="btn-sm" href="{{ url_for('import_upload', kind='member') }}"
            style="text-decoration:none">CSVで取り込む</a>
         {% endif %}
-        <a class="btn-sm" href="{{ url_for('members_export') }}" style="text-decoration:none">CSVで出力</a>
+        {% if CAN_DOWNLOAD %}<a class="btn-sm" href="{{ url_for('members_export') }}"
+           style="text-decoration:none">CSVで出力</a>{% endif %}
       </div>
     </div>
     <div class="actions">

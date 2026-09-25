@@ -47,12 +47,14 @@
     <div class="blk-head-left"><h2>記録</h2>
       <span class="count">該当 {{ '{:,}'.format(total) }} 件（画面には新しい順に最大300件）</span></div>
     <div class="actions">
+      {% if CAN_DOWNLOAD %}
       <a class="btn-sm" style="text-decoration:none"
          href="{{ url_for('logs_export', category=cat, shell=shell, q=kw, **{'from': dfrom, 'to': dto}) }}"
          title="いま絞り込んでいる条件に一致するログを全件出力します">この条件でCSV出力</a>
       <a class="btn-sm primary" style="text-decoration:none"
          href="{{ url_for('logs_export', all=1) }}"
          title="絞り込みを無視して、権限の範囲すべてのログを出力します">すべてCSV出力</a>
+      {% endif %}
     </div>
   </div>
   {% if rows %}

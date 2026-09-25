@@ -78,12 +78,14 @@
       {% if CAN_MAIL %}
       <button class="btn-sm primary" type="button" onclick="hmMailBulk()">案内を送付</button>
       {% endif %}
+      {% if CAN_DOWNLOAD %}
       <a class="btn-sm" style="text-decoration:none"
          href="{{ url_for('hm.hm_export', **f_query) }}">対象者出力</a>
       {# 対応の履歴（保健指導・受診勧奨・フォロー完了など）の実績をCSVで出す。業務フロー 7・8 #}
       <a class="btn-sm" style="text-decoration:none"
          href="{{ url_for('hm.hm_export_records', **f_query) }}"
          title="対応の履歴（支援実績）をCSVで出力します">対応履歴出力</a>
+      {% endif %}
     </div>
   </div>
 
