@@ -38,10 +38,12 @@
         {% endif %}
       </div>
       {% endif %}
+      {% if CAN_DOWNLOAD %}
       <div class="actions">
         <a class="btn-sm" href="{{ url_for('orgs_export') }}" style="text-decoration:none"
            title="企業・事業所・部署をCSVで出力します">出力</a>
       </div>
+      {% endif %}
     </div>
     {# 企業の登録は HIAスタッフ・健保担当者だけ。企業担当者には出さない #}
     {% if can_add %}

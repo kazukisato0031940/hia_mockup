@@ -679,6 +679,8 @@ ENDPOINT_FEATURES = {
     "member_new": "master.write", "member_edit": "master.write",
     "member_delete": "master.write",
     "members_link_page": "master.write",
+    # 加入者情報のコードでまとめて紐づける画面。ほかの紐づけと同じ扱い（割当が漏れていた）
+    "members_link_auto": "master.write",
     "members_link_assign": "master.write", "api_members_link": "master.write",
     "api_members_link_filtered": "master.write",
     "risk_group_edit": "master.write", "risk_group_delete": "master.write",
