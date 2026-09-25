@@ -29,6 +29,10 @@
         <button type="button" class="btn-sm" onclick="openImport('imp-dept')">部署を一括インポート</button>
       </div>
       {% endif %}
+      <div class="actions">
+        <a class="btn-sm" href="{{ url_for('orgs_export') }}" style="text-decoration:none"
+           title="企業・事業所・部署をCSVで出力します">出力</a>
+      </div>
     </div>
     {% if CAN_MASTER %}
     <div class="actions">

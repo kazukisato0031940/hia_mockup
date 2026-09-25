@@ -70,15 +70,15 @@
       <span class="mt-note"><b>本人と家族は同じ番号で枝番が異なります</b>（本人=0、家族=1、2…）。
         記号・番号・枝番の組み合わせが同じ加入者は登録できません。</span></div>
     <div class="mt-tbl">
-      <label for="cert_mark" class="mt-label">被保険者証記号</label><div class="mt-cell fld"><input type="text" id="cert_mark" name="cert_mark"
+      <label for="cert_mark" class="mt-label">被保険者証記号</label><div class="mt-cell fld mt-w-m"><input type="text" id="cert_mark" name="cert_mark"
             value="{{ (form.cert_mark if form else (row.cert_mark if row else '')) or '' }}" placeholder="例：1000"></div>
-      <label for="member_no" class="mt-label">被保険者証番号<span class="req">必須</span></label><div class="mt-cell fld"><input type="text" id="member_no" name="member_no" required
+      <label for="member_no" class="mt-label">被保険者証番号<span class="req">必須</span></label><div class="mt-cell fld mt-w-m"><input type="text" id="member_no" name="member_no" required
             value="{{ (form.member_no if form else (row.member_no if row else '')) or '' }}" placeholder="例：9001"></div>
-      <label for="cert_branch" class="mt-label">枝番</label><div class="mt-cell fld mt-w-s"><input type="text" id="cert_branch" name="cert_branch" maxlength="4"
+      <label for="cert_branch" class="mt-label">枝番</label><div class="mt-cell fld mt-w-m"><input type="text" id="cert_branch" name="cert_branch" maxlength="4"
             value="{{ (form.cert_branch if form else (row.cert_branch if row else '')) or '' }}" placeholder="例：0"></div>
-      <label for="relation" class="mt-label">続柄名称</label><div class="mt-cell fld"><input type="text" id="relation" name="relation"
+      <label for="relation" class="mt-label">続柄名称</label><div class="mt-cell fld mt-w-m"><input type="text" id="relation" name="relation"
             value="{{ (form.relation if form else (row.relation if row else '')) or '' }}" placeholder="例：本人"></div>
-      <label for="attr" class="mt-label">被保険者属性名</label><div class="mt-cell fld mt-span"><input type="text" id="attr" name="attr"
+      <label for="attr" class="mt-label">被保険者属性名</label><div class="mt-cell fld mt-span mt-w-m"><input type="text" id="attr" name="attr"
             value="{{ (form.attr if form else (row.attr if row else '')) or '' }}" placeholder="例：一般"></div>
     </div>
     {% if not row %}
@@ -98,17 +98,17 @@
             value="{{ (form.name if form else (row.name if row else '')) or '' }}" placeholder="例：見本 一郎"></div>
       <label for="kana" class="mt-label">氏名（カナ）</label><div class="mt-cell fld mt-w-m"><input type="text" id="kana" name="kana"
             value="{{ (form.kana if form else (row.kana if row else '')) or '' }}" placeholder="例：ミホン イチロウ"></div>
-      <label for="birth" class="mt-label">生年月日</label><div class="mt-cell fld"><input type="date" id="birth" name="birth"
+      <label for="birth" class="mt-label">生年月日</label><div class="mt-cell fld mt-w-m"><input type="date" id="birth" name="birth"
             value="{{ (form.birth if form else (row.birth if row else '')) or '' }}"></div>
-      <label for="sex" class="mt-label">性別</label><div class="mt-cell fld mt-w-s">{% set cs = (form.sex if form else (row.sex if row else '')) or '' %}
+      <label for="sex" class="mt-label">性別</label><div class="mt-cell fld mt-w-m">{% set cs = (form.sex if form else (row.sex if row else '')) or '' %}
         <select id="sex" name="sex">
           <option value="" {{ 'selected' if cs=='' }}>未設定</option>
           <option value="男" {{ 'selected' if cs=='男' }}>男</option>
           <option value="女" {{ 'selected' if cs=='女' }}>女</option>
         </select></div>
-      <label for="qualified_at" class="mt-label" title="資格取得日（家族認定日）">資格取得日</label><div class="mt-cell fld"><input type="date" id="qualified_at" name="qualified_at"
+      <label for="qualified_at" class="mt-label" title="資格取得日（家族認定日）">資格取得日</label><div class="mt-cell fld mt-w-m"><input type="date" id="qualified_at" name="qualified_at"
             value="{{ (form.qualified_at if form else (row.qualified_at if row else '')) or '' }}"></div>
-      <label for="lost_at" class="mt-label" title="資格喪失日（家族削除日）">資格喪失日</label><div class="mt-cell fld"><input type="date" id="lost_at" name="lost_at"
+      <label for="lost_at" class="mt-label" title="資格喪失日（家族削除日）">資格喪失日</label><div class="mt-cell fld mt-w-m"><input type="date" id="lost_at" name="lost_at"
             value="{{ (form.lost_at if form else (row.lost_at if row else '')) or '' }}"></div>
     </div>
   </div>
@@ -118,28 +118,28 @@
       <span class="mt-note">企業→事業所→部署の順に候補が絞られます。
         空欄のまま登録し、あとで「企業・部署の紐づけ」からまとめて紐づけることもできます。</span></div>
     <div class="mt-tbl">
-      <label for="company_id" class="mt-label">企業</label><div class="mt-cell fld mt-w-l">{% set cc = (form.company_id|int if form and form.company_id else (row.company_id if row else 0)) %}
+      <label for="company_id" class="mt-label">企業</label><div class="mt-cell fld mt-w-m">{% set cc = (form.company_id|int if form and form.company_id else (row.company_id if row else 0)) %}
         <select id="company_id" name="company_id">
           <option value="">未紐づけ（あとで紐づける）</option>
           {% for c in comps %}<option value="{{ c.id }}" {{ 'selected' if cc==c.id }}>{{ c.ext_code or c.code }}　{{ c.name }}</option>{% endfor %}
         </select></div>
-      <label for="office_id" class="mt-label">事業所</label><div class="mt-cell fld mt-w-l">{% set co = (form.office_id|int if form and form.office_id else (row.office_id if row else 0)) %}
+      <label for="office_id" class="mt-label">事業所</label><div class="mt-cell fld mt-w-m">{% set co = (form.office_id|int if form and form.office_id else (row.office_id if row else 0)) %}
         <select id="office_id" name="office_id">
           <option value="">未設定</option>
           {% for o in offs %}<option value="{{ o.id }}" data-company="{{ o.company_id }}"
             {{ 'selected' if co==o.id }}>{{ o.ext_code or o.code }}　{{ o.name }}</option>{% endfor %}
         </select></div>
-      <label for="dept_id" class="mt-label">部署</label><div class="mt-cell fld mt-w-l">{% set cd = (form.dept_id|int if form and form.dept_id else (row.dept_id if row else 0)) %}
+      <label for="dept_id" class="mt-label">部署</label><div class="mt-cell fld mt-w-m">{% set cd = (form.dept_id|int if form and form.dept_id else (row.dept_id if row else 0)) %}
         <select id="dept_id" name="dept_id">
           <option value="">未設定</option>
           {% for d in depts %}<option value="{{ d.id }}" data-office="{{ d.office_id }}"
             {{ 'selected' if cd==d.id }}>{{ d.ext_code or d.code }}　{{ d.name }}</option>{% endfor %}
         </select></div>
-      <label for="employee_code" class="mt-label">社員番号</label><div class="mt-cell fld"><input type="text" id="employee_code" name="employee_code"
+      <label for="employee_code" class="mt-label">社員番号</label><div class="mt-cell fld mt-w-m"><input type="text" id="employee_code" name="employee_code"
             value="{{ (form.employee_code if form else (row.employee_code if row else '')) or '' }}" placeholder="例：E0001"></div>
-      <label for="billing_code" class="mt-label">請求先コード</label><div class="mt-cell fld"><input type="text" id="billing_code" name="billing_code"
+      <label for="billing_code" class="mt-label">請求先コード</label><div class="mt-cell fld mt-w-m"><input type="text" id="billing_code" name="billing_code"
             value="{{ (form.billing_code if form else (row.billing_code if row else '')) or '' }}"></div>
-      <label for="kenpo_member_id" class="mt-label">健保別加入者管理ID</label><div class="mt-cell fld"><input type="text" id="kenpo_member_id" name="kenpo_member_id"
+      <label for="kenpo_member_id" class="mt-label">健保別加入者管理ID</label><div class="mt-cell fld mt-w-m"><input type="text" id="kenpo_member_id" name="kenpo_member_id"
             value="{{ (form.kenpo_member_id if form else (row.kenpo_member_id if row else '')) or '' }}">
         <p class="fld-help">健保が独自に管理している番号です（当システムの加入者IDとは別のものです）。</p></div>
     </div>
@@ -148,9 +148,9 @@
   <div class="block mt-block">
     <div class="mt-head"><h2>連絡先</h2></div>
     <div class="mt-tbl">
-<label for="zip" class="mt-label">郵便番号</label><div class="mt-cell fld mt-w-s"><input type="text" id="zip" name="zip" maxlength="8"
+<label for="zip" class="mt-label">郵便番号</label><div class="mt-cell fld mt-w-m"><input type="text" id="zip" name="zip" maxlength="8"
             value="{{ (form.zip if form else (row.zip if row else '')) or '' }}" placeholder="例：1710014"></div>
-      <label for="pref" class="mt-label">都道府県</label><div class="mt-cell fld mt-w-s"><input type="text" id="pref" name="pref"
+      <label for="pref" class="mt-label">都道府県</label><div class="mt-cell fld mt-w-m"><input type="text" id="pref" name="pref"
             value="{{ (form.pref if form else (row.pref if row else '')) or '' }}" placeholder="例：東京都"></div>
       <label for="city" class="mt-label">市区町村</label><div class="mt-cell fld mt-w-m"><input type="text" id="city" name="city"
             value="{{ (form.city if form else (row.city if row else '')) or '' }}" placeholder="例：豊島区"></div>
@@ -158,7 +158,7 @@
             value="{{ (form.address if form else (row.address if row else '')) or '' }}" placeholder="例：池袋2-43-1"></div>
       <label for="address2" class="mt-label">建物名</label><div class="mt-cell fld mt-w-xl mt-span"><input type="text" id="address2" name="address2"
             value="{{ (form.address2 if form else (row.address2 if row else '')) or '' }}" placeholder="例：池袋青柳ビル7F"></div>
-      <label for="tel" class="mt-label">電話番号</label><div class="mt-cell fld"><input type="text" id="tel" name="tel"
+      <label for="tel" class="mt-label">電話番号</label><div class="mt-cell fld mt-w-m"><input type="text" id="tel" name="tel"
             value="{{ (form.tel if form else (row.tel if row else '')) or '' }}" placeholder="例：03-6416-3872"></div>
       <label for="email" class="mt-label">メールアドレス</label><div class="mt-cell fld mt-w-m"><input type="text" id="email" name="email"
             value="{{ (form.email if form else (row.email if row else '')) or '' }}" placeholder="例：taro@example.jp"></div>

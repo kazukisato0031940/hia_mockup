@@ -1517,7 +1517,8 @@ body.tone-health a.btn-sm.btn-guide-blue {
 .mt-tbl{display:grid;grid-template-columns:190px minmax(0,1fr) 190px minmax(0,1fr);
   gap:1px;margin:16px 20px 20px;border:1px solid #cbd5e0;border-radius:6px;overflow:hidden;
   background:#cbd5e0}   /* 罫線：セルの隙間（1px）に下地の色を見せる（表示倍率が変わっても線が消えない） */
-.mt-label,.mt-cell{display:flex;align-items:center;min-height:58px;padding:9px 14px;background:#fff}
+.mt-label,.mt-cell{display:flex;align-items:center;min-height:58px;padding:9px 14px;background:#fff;
+  box-shadow:0 0 0 1px #cbd5e0}   /* 罫線を影でも描く：表示倍率0.9×Windowsの拡大率で 1px の隙間が消えても線が残る（8-75） */
 .mt-label{gap:8px;background:#f8fafc;color:#718096;font-size:12.5px;font-weight:500;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mt-label .req{flex:0 0 auto}
@@ -1526,7 +1527,7 @@ body.tone-health a.btn-sm.btn-guide-blue {
 .mt-cell input[type=text],.mt-cell select{width:220px;max-width:100%}
 .mt-cell input[type=date]{width:180px;max-width:100%}
 .mt-cell.mt-w-s input[type=text],.mt-cell.mt-w-s select{width:160px}
-.mt-cell.mt-w-m input[type=text],.mt-cell.mt-w-m select{width:300px}
+.mt-cell.mt-w-m input[type=text],.mt-cell.mt-w-m input[type=date],.mt-cell.mt-w-m select{width:300px}
 .mt-cell.mt-w-l select,.mt-cell.mt-w-l input[type=text]{width:100%;max-width:460px}
 .mt-cell.mt-w-xl input[type=text]{width:100%;max-width:860px}
 .mt-cell.mt-w-full input[type=text],.mt-cell.mt-w-full textarea{width:100%}
