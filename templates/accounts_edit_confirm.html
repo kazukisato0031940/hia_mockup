@@ -12,7 +12,6 @@
   <input type="hidden" name="kenpo_id" value="{{ kenpo_id or '' }}">
   {% for i in (scopes.office if scopes else []) %}<input type="hidden" name="office_ids" value="{{ i }}">{% endfor %}
   {% for i in (scopes.dept if scopes else []) %}<input type="hidden" name="dept_ids" value="{{ i }}">{% endfor %}
-  <input type="hidden" name="can_download" value="{{ 1 if can_dl else 0 }}">
   <input type="hidden" name="confirmed" value="1">
 
 <div class="block">

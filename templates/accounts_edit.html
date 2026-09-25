@@ -54,15 +54,6 @@
         産業医はデータ取込とメール配信を行えません。
         保健師は加入者の健康管理（対応区分の変更・案内メール）を行い、判定は行いません。</p>
     </div>
-    <hr class="switch-sep">
-    <label class="switch">
-      <input type="checkbox" name="can_download" value="1"
-        {{ 'checked' if (form.can_download if form else row.can_download) }}>
-      <span class="track"></span>
-      <span class="sw-body"><b>CSVのダウンロードを許可する</b>
-        <span>1回あたり {{ '{:,}'.format(MAX_EXPORT_ROWS) }} 件が上限です。
-          上限を超える出力はブロックし、操作ログに記録します。</span></span>
-    </label>
 
     <hr class="switch-sep">
     <div class="acc-state">
@@ -150,49 +141,42 @@
    以前は一覧の「リンク」「PW」ボタンから別画面に移っていたものを、
    この編集画面にまとめている。 #}
 {% if row.status in ('invited', 'active') %}
-<div class="block" id="card-password">
-  <h2>ログイン用パスワードの設定</h2>
-  <p class="note" style="margin-bottom:14px;">
-    メールが使えない場合の手段です。<b>ご本人が案内リンクから設定する</b>方法が安全なので、
-    まずは案内リンクをお試しください。</p>
-
-  {% if generated %}
-  <div class="pw-done">
-    <h3>パスワードを設定しました</h3>
-    <p class="note" style="margin:6px 0 12px;">
-      このアカウントで<b>すぐにログインできます</b>。下のパスワードをご本人へお伝えください。</p>
-    <div class="pw-box" id="pw-val">{{ generated }}</div>
-    <div class="actions" style="margin-top:12px">
-      <button type="button" class="btn-sm primary" id="pw-copy" onclick="accCopy('pw-val','pw-copy')">
-        パスワードをコピー</button>
-    </div>
-    <p class="fld-help" style="margin-top:10px;">
-      <b>この画面を離れると再表示できません。</b>今のうちに控えてください。
-      ご本人には、ログイン後すぐに「マイアカウント」からパスワードを変更するようお伝えください。</p>
-  </div>
-  {% endif %}
-
-  <div class="pw-cols">
-    {# ---- 1. 案内リンク ---- #}
-    <div class="pw-col">
-      <div class="pw-col-head"><span class="pw-no">1</span>
-        <div><b>案内リンクを本人に渡す</b>
-          <span class="hint">ご本人が開いて自分でパスワードを設定します（1回だけ有効）</span></div>
+{# 8-79：他の登録・編集フォームと同じ「見出しの帯＋表形式」に。左に項目名、右に操作 #}
+<div class="block mt-block" id="card-password">
+  <div class="mt-head"><h2>ログイン用パスワードの設定</h2>
+    <span class="mt-note">メールが使えない場合の手段です。<b>ご本人が案内リンクから設定する</b>方法が安全なので、まずは案内リンクをお試しください。
+      設定するとアカウントは「有効」になり、未使用の案内リンクは無効になります（記録は操作ログに残り、パスワードそのものは記録しません）。</span></div>
+  <div class="mt-tbl">
+    {% if generated %}
+    <span class="mt-label">設定したパスワード</span>
+    <div class="mt-cell mt-span pw-done-cell">
+      <div class="pw-done" style="width:100%">
+        <h3>パスワードを設定しました</h3>
+        <p class="note" style="margin:6px 0 12px;">このアカウントで<b>すぐにログインできます</b>。下のパスワードをご本人へお伝えください。</p>
+        <div class="pw-box" id="pw-val">{{ generated }}</div>
+        <div class="actions" style="margin-top:12px">
+          <button type="button" class="btn-sm primary" id="pw-copy" onclick="accCopy('pw-val','pw-copy')">パスワードをコピー</button>
+        </div>
+        <p class="fld-help" style="margin-top:10px;"><b>この画面を離れると再表示できません。</b>今のうちに控えてください。
+          ご本人には、ログイン後すぐに「マイアカウント」からパスワードを変更するようお伝えください。</p>
       </div>
+    </div>
+    {% endif %}
+
+    {# ---- 1. 案内リンク ---- #}
+    <span class="mt-label">案内リンク</span>
+    <div class="mt-cell mt-span pw-stack">
       {% if link %}
       {% if link_renewed %}
-      <p class="hint" style="color:var(--warn, #b45309);margin-bottom:8px;">
-        以前のリンクは期限切れ（または未発行）だったため、新しく発行しました。古いリンクは使えません。</p>
+      <p class="hint" style="color:var(--warn, #b45309);margin:0;">以前のリンクは期限切れ（または未発行）だったため、新しく発行しました。古いリンクは使えません。</p>
       {% endif %}
       <div class="link-box" id="lk-url">{{ link }}</div>
-      <p class="hint" style="margin-top:6px;">有効期限 {{ link_expire }}（{{ hours }}時間）</p>
-      <div class="actions" style="margin-top:10px">
-        <button type="button" class="btn-sm primary" id="lk-copy" onclick="accCopy('lk-url','lk-copy')">
-          リンクをコピー</button>
-        <button type="button" class="btn-sm" id="lk-tcopy" onclick="accCopy('lk-text','lk-tcopy')">
-          文例をコピー</button>
+      <div class="actions" style="margin:0;gap:8px;align-items:center">
+        <button type="button" class="btn-sm primary" id="lk-copy" onclick="accCopy('lk-url','lk-copy')">リンクをコピー</button>
+        <button type="button" class="btn-sm" id="lk-tcopy" onclick="accCopy('lk-text','lk-tcopy')">文例をコピー</button>
+        <span class="hint">有効期限 {{ link_expire }}（{{ hours }}時間）。1回だけ使えます。<b>ご本人にだけ</b>お伝えください</span>
       </div>
-      <div class="mail-prev" style="margin-top:12px">
+      <div class="mail-prev" style="width:100%">
         <div class="mail-prev-head">そのままコピーして使えます</div>
         <div class="mail-prev-body keep" id="lk-text">{{ row.name }} 様
 
@@ -204,45 +188,28 @@ HIAシステムのアカウントを発行しました。
 有効期限：{{ link_expire }}（{{ hours }}時間）
 リンクは1回だけ使用できます。</div>
       </div>
-      <p class="fld-help" style="margin-top:10px;">
-        リンクを知っている人は誰でもパスワードを設定できます。<b>ご本人にだけ</b>お伝えください。
-        発行と表示は操作ログに記録されます。</p>
       {% else %}
-      <p class="fld-help" style="margin-bottom:10px;">
-        社内チャットや口頭で伝えるためのリンクを画面に表示します。
-        期限が切れている場合は、新しいリンクを発行し直します。</p>
-      <a class="btn-sm primary" href="{{ url_for('accounts_edit', aid=row.id, link=1) }}#card-password"
-         style="text-decoration:none">案内リンクを表示する</a>
+      <a class="btn-sm primary" href="{{ url_for('accounts_edit', aid=row.id, link=1) }}#card-password" style="text-decoration:none">案内リンクを表示する</a>
+      <span class="hint">ご本人が開いて自分でパスワードを設定するリンク（1回だけ有効）を表示します。期限切れなら新しく発行します。</span>
       {% endif %}
     </div>
 
-    {# ---- 2. その場で設定 ---- #}
-    <div class="pw-col">
-      <div class="pw-col-head"><span class="pw-no">2</span>
-        <div><b>管理者がその場で設定する</b>
-          <span class="hint">設定後は管理者もパスワードを知っている状態になります</span></div>
-      </div>
-      <div style="margin-bottom:14px">
-        <button type="submit" form="pw-auto-form" class="btn-sm primary">
-          パスワードを自動で作って設定する</button>
-        <p class="fld-help" style="margin-top:6px;">
-          読み間違えにくい文字で、条件を満たすパスワードを作ります。作成後に1度だけ表示します。</p>
-      </div>
-      <div class="fld">
-        <label for="pw1" class="fld-label">自分で決める（新しいパスワード）</label>
-        <input type="password" id="pw1" name="pw1" class="w-m" form="pw-manual-form"
-               autocomplete="new-password">
-        <p class="fld-help">12文字以上で、英字と数字をそれぞれ1文字以上含めてください。</p>
-      </div>
-      <div class="fld">
-        <label for="pw2" class="fld-label">確認のためもう一度</label>
-        <input type="password" id="pw2" name="pw2" class="w-m" form="pw-manual-form"
-               autocomplete="new-password">
-      </div>
+    {# ---- 2. 自動で設定 ---- #}
+    <span class="mt-label">自動で設定</span>
+    <div class="mt-cell mt-span">
+      <button type="submit" form="pw-auto-form" class="btn-sm primary">パスワードを自動で作って設定する</button>
+      <span class="hint">読み間違えにくい文字で条件を満たすパスワードを作り、1度だけ表示します。設定後は管理者もパスワードを知っている状態になります。</span>
+    </div>
+
+    {# ---- 3. 手入力で設定 ---- #}
+    <label for="pw1" class="mt-label">新しいパスワード</label>
+    <div class="mt-cell fld mt-w-m"><input type="password" id="pw1" name="pw1" form="pw-manual-form" autocomplete="new-password" placeholder="12文字以上・英字と数字を含む"></div>
+    <label for="pw2" class="mt-label">確認のためもう一度</label>
+    <div class="mt-cell fld mt-w-m"><input type="password" id="pw2" name="pw2" form="pw-manual-form" autocomplete="new-password"></div>
+    <span class="mt-label">手入力で設定</span>
+    <div class="mt-cell mt-span">
       <button type="submit" form="pw-manual-form" class="btn-sm">この内容で設定する</button>
-      <p class="fld-help" style="margin-top:10px;">
-        設定するとアカウントは「有効」になり、未使用の案内リンクは無効になります。
-        設定した記録は操作ログに残ります（パスワードそのものは記録しません）。</p>
+      <span class="hint">12文字以上で、英字と数字をそれぞれ1文字以上含めてください。</span>
     </div>
   </div>
 </div>
