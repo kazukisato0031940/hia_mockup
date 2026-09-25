@@ -85,8 +85,6 @@
         <td class="tl wrap">{{ companies }}</td></tr>
       <tr class="ls-row"><td class="tl">担当する範囲</td>
         <td class="tl wrap">{{ scope_label }}</td></tr>
-      <tr class="ls-row"><td class="tl">CSVのダウンロード</td>
-        <td class="tl">{{ '可' if row.can_download else '不可' }}</td></tr>
       <tr class="ls-row"><td class="tl">最終ログイン</td>
         <td class="tl code">{{ row.last_login_at or '—' }}</td></tr>
     </tbody>

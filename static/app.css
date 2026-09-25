@@ -1117,6 +1117,10 @@ button.icon-only, .btn-icon {
 .frag .page-lead, .page-lead{margin:0 0 18px}
 
 /* アカウント編集：パスワードの設定（案内リンク／その場で設定）を2段組みで置く */
+/* パスワード設定カード（表形式）：リンク・文例を縦に積む（8-79） */
+.mt-cell.pw-stack{flex-direction:column;align-items:flex-start;gap:10px}
+.mt-cell.pw-done-cell{align-items:flex-start}
+.mt-cell .link-box,.mt-cell .pw-box{word-break:break-all;width:100%}
 .pw-cols{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
 .pw-col{min-width:0}
 .pw-col-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
@@ -1524,10 +1528,10 @@ body.tone-health a.btn-sm.btn-guide-blue {
 .mt-label .req{flex:0 0 auto}
 .mt-cell{flex-wrap:wrap;gap:6px 12px;max-width:none;margin:0}
 .mt-span{grid-column:2 / -1}
-.mt-cell input[type=text],.mt-cell select{width:220px;max-width:100%}
+.mt-cell input[type=text],.mt-cell input[type=password],.mt-cell select{width:220px;max-width:100%}
 .mt-cell input[type=date]{width:180px;max-width:100%}
 .mt-cell.mt-w-s input[type=text],.mt-cell.mt-w-s select{width:160px}
-.mt-cell.mt-w-m input[type=text],.mt-cell.mt-w-m input[type=date],.mt-cell.mt-w-m select{width:300px}
+.mt-cell.mt-w-m input[type=text],.mt-cell.mt-w-m input[type=password],.mt-cell.mt-w-m input[type=date],.mt-cell.mt-w-m select{width:300px}
 .mt-cell.mt-w-l select,.mt-cell.mt-w-l input[type=text]{width:100%;max-width:460px}
 .mt-cell.mt-w-xl input[type=text]{width:100%;max-width:860px}
 .mt-cell.mt-w-full input[type=text],.mt-cell.mt-w-full textarea{width:100%}

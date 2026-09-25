@@ -7,8 +7,6 @@
   <dl>
     <dt>権限ロール</dt><dd>{{ ROLE_LABELS[acc.role] }}</dd>
     <dt>閲覧範囲</dt><dd>{{ SCOPE_LABELS[acc.view_scope] }}</dd>
-    <dt>ダウンロード</dt>
-    <dd>{% if acc.can_download or acc.role=='system_admin' %}可（1回あたり {{ '{:,}'.format(MAX_EXPORT_ROWS) }} 件まで）{% else %}<span class="no">不可</span>{% endif %}</dd>
   </dl>
 </div>
 

@@ -56,15 +56,6 @@
         産業医はデータ取込とメール配信を行えません。
         保健師は加入者の健康管理（対応区分の変更・案内メール）を行い、判定は行いません。</p>
     </div>
-    <hr class="switch-sep">
-    <label class="switch">
-      <input type="checkbox" name="can_download" value="1"
-             {{ 'checked' if form and form.can_download }}>
-      <span class="track"></span>
-      <span class="sw-body"><b>CSVのダウンロードを許可する</b>
-        <span>既定は不許可です。1回あたり {{ '{:,}'.format(MAX_EXPORT_ROWS) }} 件が上限です。
-          上限を超える出力はブロックし、操作ログに記録します。</span></span>
-    </label>
   </div>
 </div>
 

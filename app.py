@@ -53,7 +53,7 @@ OUTBOX = os.path.join(BASE_DIR, "outbox")
 BUILD = "2.1.0 (2026-09-01)"
 # 配布ZIPごとの番号（app.py・templates・static がそろっているかの確認用。8-70）。
 # templates/_build.txt と static/build.txt にも同じ番号を入れて配布し、違っていれば起動時とログイン画面で知らせる
-BUILD_ID = "20260925c"
+BUILD_ID = "20260925d"
 
 
 def build_mismatch():
@@ -2380,10 +2380,6 @@ def predict_score(band, sex, disease, horizon, meds, kens=None):
 def risk_export():
     """予測結果をCSVで出力する（加入者ごと）"""
     db, acc = get_db(), current_account()
-    if not acc["can_download"]:
-        log("risk", "予測結果の出力をブロック", "blocked", detail="CSV出力の権限なし")
-        flash("CSV出力の権限がありません。", "error")
-        return redirect(url_for("risk_list"))
     kid = risk_kenpo_id(acc)
     run = db.execute("SELECT * FROM risk_run WHERE kenpo_id=? ORDER BY id DESC LIMIT 1",
                      (kid,)).fetchone()
@@ -5289,10 +5285,7 @@ def export_csv(filename, header, rows, kind, cap=True):
             detail=f"機能制御で不可（role={role_key(acc)}）")
         flash("このロールではCSVのダウンロードができません（機能制御の設定）。", "error")
         return None
-    if not acc["can_download"] and acc["role"] != "system_admin":
-        log("download", "出力をブロック", "blocked", target=kind, detail="ダウンロード権限なし")
-        flash("このアカウントにはダウンロード権限がありません。", "error")
-        return None
+    # アカウントごとの「CSVダウンロードの許可」は 8-78 で廃止（機能制御 download と件数上限だけで判断）
     # 操作ログのように「全件を出せること」が要件の出力では cap=False で上限を外します
     if cap and len(rows) > MAX_EXPORT_ROWS:
         log("download", "出力をブロック（上限超過）", "blocked", target=kind,
@@ -5726,7 +5719,7 @@ def accounts_new():
     srole = clean_sub_role(role, request.form.get("sub_role"))
     company_ids = [int(x) for x in request.form.getlist("company_ids") if x.isdigit()]
     kenpo_id = request.form.get("kenpo_id", type=int)
-    can_dl = 1 if request.form.get("can_download") else 0
+    can_dl = 1        # CSVダウンロードの許可は画面から外した（8-78）。常に許可（機能制御・件数上限は従来どおり）
 
     errs = []
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}", email):
@@ -5785,7 +5778,7 @@ def accounts_create():
     srole = clean_sub_role(role, request.form.get("sub_role"))
     company_ids = [int(x) for x in request.form.getlist("company_ids") if x.isdigit()]
     kenpo_id = request.form.get("kenpo_id", type=int)
-    can_dl = 1 if request.form.get("can_download") == "1" else 0
+    can_dl = 1
 
     if request.form.get("confirmed") != "1":
         flash("閲覧できる加入者の範囲を確認してから発行してください。", "error")
@@ -5911,7 +5904,7 @@ def accounts_edit(aid):
     role = request.form.get("role") or row["role"]
     srole = clean_sub_role(role, request.form.get("sub_role"))
     company_ids = [int(x) for x in request.form.getlist("company_ids") if x.isdigit()]
-    can_dl = 1 if request.form.get("can_download") else 0
+    can_dl = 1    # 8-78：画面から外したため常に許可
     errs = []
     if not name:
         errs.append("利用者名を入力してください。")
@@ -5960,7 +5953,6 @@ def accounts_edit(aid):
         ("対象の企業", company_names(cur_ids), company_names(company_ids)),
         ("閲覧範囲", SCOPE_LABELS.get(row["view_scope"], row["view_scope"]),
          SCOPE_LABELS[view_scope]),
-        ("ダウンロード", "可" if row["can_download"] else "不可", "可" if can_dl else "不可"),
         ("閲覧できる加入者", f"{vb['total']:,}件（{vb['companies']}社）",
          f"{va['total']:,}件（{va['companies']}社）"),
     ]
@@ -5989,7 +5981,7 @@ def accounts_edit_apply(aid):
     role = request.form.get("role")
     srole = clean_sub_role(role, request.form.get("sub_role"))
     company_ids = [int(x) for x in request.form.getlist("company_ids") if x.isdigit()]
-    can_dl = 1 if request.form.get("can_download") == "1" else 0
+    can_dl = 1
     if not name or role not in issuable_roles(acc):
         log("account", "権限変更をブロック", "blocked", target=row["email"],
             detail=f"権限外のロール（{ROLE_LABELS.get(role, role)}）への変更を試行")
@@ -6044,9 +6036,6 @@ def accounts_edit_apply(aid):
     if set(old_ids) != set(company_ids):
         changes.append(("対象の企業", before_company["name"] if before_company else "—",
                         after_company["name"] if after_company else "—"))
-    if bool(row["can_download"]) != bool(can_dl):
-        changes.append(("CSVのダウンロード", "可" if row["can_download"] else "不可",
-                        "可" if can_dl else "不可"))
 
     db.execute("UPDATE account SET name=?, role=?, sub_role=?, view_scope=?, kenpo_id=?,"
                " can_download=?, updated_at=? WHERE id=?",
