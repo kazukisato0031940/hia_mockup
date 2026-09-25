@@ -3021,11 +3021,14 @@ def _company_children(cid):
     """企業の詳細表示（編集画面）に出す、この企業の事業所・部署と加入者数。8-59"""
     db = get_db()
     offs = db.execute("SELECT * FROM office WHERE company_id=? ORDER BY code", (cid,)).fetchall()
-    depts_by_office = {}
-    for d in db.execute("SELECT d.* FROM department d JOIN office o ON o.id=d.office_id"
-                        " WHERE o.company_id=? ORDER BY o.code, d.code", (cid,)):
-        depts_by_office.setdefault(d["office_id"], []).append(d)
-    return dict(offs=offs, depts_by_office=depts_by_office,
+    depts_by_office, depts_direct = {}, []
+    for d in db.execute("SELECT * FROM department WHERE company_id=? ORDER BY office_id, code",
+                        (cid,)):
+        if d["office_id"]:
+            depts_by_office.setdefault(d["office_id"], []).append(d)
+        else:
+            depts_direct.append(d)      # 事業所を使わない企業の部署（企業の直下）
+    return dict(offs=offs, depts_by_office=depts_by_office, depts_direct=depts_direct,
                 mem_by_office=_office_counts(), mem_by_dept=_dept_counts())
 
 
@@ -3080,8 +3083,9 @@ def _save_company_children(cid, form):
 
     dep_ids, dep_off = form.getlist("dep_id"), form.getlist("dep_office")
     dep_ext, dep_name = form.getlist("dep_ext"), form.getlist("dep_name")
+    # 事業所なしの部署（office_id が NULL）も含める。JOIN だと落ちる
     cur_depts = {d["id"]: d for d in db.execute(
-        "SELECT d.* FROM department d JOIN office o ON o.id=d.office_id WHERE o.company_id=?", (cid,))}
+        "SELECT * FROM department WHERE company_id=?", (cid,))}
     valid_offs = set(cur_offs) | set(key_to_id.values())
     seen_d = set()
     for i in range(len(dep_ids)):
@@ -3093,11 +3097,17 @@ def _save_company_children(cid, form):
             raise ValueError("部署名が空の行があります。部署名を入力してください。")
         if ext and not re.fullmatch(r"[0-9A-Za-z\-]{1,20}", ext):
             raise ValueError(f"部署コード {ext} は英数字とハイフンで入力してください。")
-        oid = int(ref) if ref.isdigit() else key_to_id.get(ref)
-        if oid not in valid_offs:
-            raise ValueError(f"部署「{name}」の事業所が選ばれていません。")
+        # "company" は「（事業所なし）」＝企業の直下。それ以外は既存の事業所IDか、
+        # この画面で追加したばかりの事業所のキー（n1, n2…）。
+        if ref == "company":
+            oid = None
+        else:
+            oid = int(ref) if ref.isdigit() else key_to_id.get(ref)
+            if oid not in valid_offs:
+                raise ValueError(f"部署「{name}」の事業所が選ばれていません"
+                                 f"（事業所を使わない場合は「（事業所なし）」を選びます）。")
         if (oid, name) in seen_d:
-            raise ValueError(f"部署「{name}」が同じ事業所の中で重複しています。")
+            raise ValueError(f"部署「{name}」が同じ{" 事業所の中" if oid else "企業の直下"}で重複しています。")
         seen_d.add((oid, name))
         if did is not None:
             cur = cur_depts.get(did)
@@ -3108,10 +3118,10 @@ def _save_company_children(cid, form):
                            (ext or None, name, now(), did))
                 changes.append(f"部署を更新：{cur['name']}→{name}")
         else:
-            if db.execute("SELECT 1 FROM department WHERE office_id=? AND name=?",
-                          (oid, name)).fetchone():
+            if db.execute("SELECT 1 FROM department WHERE company_id=? AND name=?"
+                          " AND IFNULL(office_id, 0)=?", (cid, name, oid or 0)).fetchone():
                 raise ValueError(f"部署「{name}」は既に登録されています。")
-            code = next_code("dept", str(oid), width=3)
+            code = next_code("dept", str(oid) if oid else f"c{cid}", width=3)
             # department.company_id は必須（事業所なしの部署も持てるため）
             db.execute("INSERT INTO department (company_id, office_id, ext_code, code,"
                        " name, kana) VALUES (?,?,?,?,?,?)",

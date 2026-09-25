@@ -51,7 +51,7 @@
 {# ================= 事業所・部署（この企業の配下をここで入力する。8-59） ================= #}
   <div class="block mt-block" id="org-sub-card">
     <div class="mt-head"><h2>事業所・部署</h2>
-      <span class="mt-note">この企業の事業所と、その下の部署です。行の入力欄を書き換えて「更新」を押すと企業情報と一緒に保存されます。
+      <span class="mt-note">この企業の事業所と、その下の部署です。<b>事業所を使わない場合は、部署の「事業所」で「（事業所なし）」を選びます</b>（企業の直下に置かれます）。行の入力欄を書き換えて「更新」を押すと企業情報と一緒に保存されます。
         「＋事業所を追加」「＋部署を追加」で行を増やせます（追加したばかりの事業所にも部署を置けます）。</span></div>
     <div class="org-sub">
     <table class="result-table org-sub-tbl" id="org-sub-tbl">
@@ -64,6 +64,29 @@
         <th>電話番号</th><th>加入者</th><th class="ops">操作</th>
       </tr></thead>
       <tbody id="org-sub-body">
+      {# 事業所を使わない企業の部署（企業の直下）。事業所の行より前に置く #}
+      {% for d in depts_direct %}
+      <tr class="org-sub-row" data-kind="dept">
+        <td><span class="st-label org-kind org-kind-dept">部署</span>
+          <input type="hidden" name="dep_id" value="{{ d.id }}">
+          <input type="hidden" name="dep_office" value="company"></td>
+        <td class="tl"><span class="hint">（事業所なし）</span></td>
+        <td><input type="text" name="dep_ext" maxlength="20" value="{{ d.ext_code or '' }}"
+                   placeholder="例：01" aria-label="部署コード"></td>
+        <td><input type="text" name="dep_name" value="{{ d.name }}"
+                   placeholder="部署名（必須）" aria-label="部署名"></td>
+        <td class="tl">—</td>
+        <td class="tl">—</td>
+        <td class="num">{{ mem_by_dept.get(d.id, 0) }}</td>
+        <td class="ops">
+          <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}"
+             href="{{ url_for('department_edit', did=d.id) }}" style="text-decoration:none">
+            {{ '編集' if SHELL == 'km' else '詳細表示' }}</a>
+          {% if CAN_MASTER %}<button type="button" class="btn-sm btn-del"
+            onclick="orgSubDelete(this, '{{ url_for('department_delete', did=d.id) }}', '{{ d.name }}', '加入者・管理者が紐づいていると削除できません。')">削除</button>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
       {% for o in offs %}
       <tr class="org-sub-row" data-kind="office" data-key="o{{ o.id }}">
         <td><span class="st-label org-kind org-kind-office">事業所</span>
@@ -96,7 +119,7 @@
         </tr>
         {% endfor %}
       {% endfor %}
-      <tr id="org-sub-none"{% if offs %} style="display:none"{% endif %}><td colspan="8" style="padding:18px;color:#a0aec0;text-align:center">事業所がまだ登録されていません。「＋事業所を追加」から追加してください。</td></tr>
+      <tr id="org-sub-none"{% if offs or depts_direct %} style="display:none"{% endif %}><td colspan="8" style="padding:18px;color:#a0aec0;text-align:center">事業所がまだ登録されていません。「＋事業所を追加」から追加してください。</td></tr>
       </tbody>
     </table>
     </div>
@@ -178,8 +201,8 @@
    同じ画面で追加した部署の「事業所」にもその事業所を選べるようにする */
 var orgSubSeq = 0;
 function orgSubOffices(){
-  /* 既存の事業所（o<id>）と、この画面で追加した事業所（n<n>）の一覧 */
-  var out = [];
+  /* 「（事業所なし）」＋ 既存の事業所（o<id>）＋ この画面で追加した事業所（n<n>） */
+  var out = [{value: 'company', label: '（事業所なし）', isNew: false}];
   [].forEach.call(document.querySelectorAll('#org-sub-body tr[data-kind="office"]'), function(tr){
     var key = tr.querySelector('input[name="off_key"]').value;
     var id = tr.querySelector('input[name="off_id"]').value;
@@ -212,12 +235,12 @@ function orgSubAddOffice(){
   tr.querySelector('input[name="off_name"]').focus();
 }
 function orgSubAddDept(){
-  if(!orgSubOffices().length){ orgSubAddOffice(); }
+  /* 事業所が無くても「（事業所なし）」で追加できる（事業所を勝手に作らない） */
   var tr = document.getElementById('tpl-dep').content.firstElementChild.cloneNode(true);
   document.getElementById('org-sub-body').insertBefore(tr, document.getElementById('org-sub-none'));
   orgSubRefreshOffices();
   var sel = tr.querySelector('select.dep-office');
-  if(sel.options.length) sel.selectedIndex = sel.options.length - 1;   /* 直近の事業所を既定にする */
+  if(sel.options.length) sel.selectedIndex = sel.options.length - 1;   /* 直近の事業所。無ければ（事業所なし） */
   tr.querySelector('input[name="dep_name"]').focus();
 }
 function orgSubRemove(btn){
