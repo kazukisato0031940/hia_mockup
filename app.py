@@ -53,7 +53,7 @@ OUTBOX = os.path.join(BASE_DIR, "outbox")
 BUILD = "2.1.0 (2026-09-01)"
 # 配布ZIPごとの番号（app.py・templates・static がそろっているかの確認用。8-70）。
 # templates/_build.txt と static/build.txt にも同じ番号を入れて配布し、違っていれば起動時とログイン画面で知らせる
-BUILD_ID = "20260918z"
+BUILD_ID = "20260925c"
 
 
 def build_mismatch():
@@ -654,7 +654,7 @@ def roles_required(*roles):
 # ここに載っているエンドポイントは、機能が「利用不可」のロールでは403で拒否する。
 ENDPOINT_FEATURES = {
     # マスタの閲覧
-    "orgs": "master.view",
+    "orgs": "master.view", "orgs_export": "master.view",
     "companies": "master.view", "offices": "master.view", "departments": "master.view",
     "members": "master.view", "members_rows": "master.view",
     "api_members_by_office": "master.view",
@@ -6283,6 +6283,43 @@ def members_export():
     rows = _format_rows("member", acc, import_kenpo(acc))
     return export_csv("subscriber.csv", MEMBER_COLUMNS, rows,
                       "加入者情報") or redirect(url_for("members"))
+
+
+@app.route("/orgs/export")
+@login_required
+def orgs_export():
+    """企業・事業所・部署を1つのCSVで出力する（1行＝1レコード。種別で区別）。8-76"""
+    acc = current_account()
+    comps = scoped_companies(acc)
+    offs = scoped_offices(acc)
+    depts = scoped_departments(acc)
+    n_off = {}
+    for o in offs:
+        n_off[o["company_id"]] = n_off.get(o["company_id"], 0) + 1
+    n_dep_c, n_dep_o = {}, {}
+    for d in depts:
+        n_dep_c[d["company_id"]] = n_dep_c.get(d["company_id"], 0) + 1
+        n_dep_o[d["office_id"]] = n_dep_o.get(d["office_id"], 0) + 1
+    mem_c = {r["id"]: r["c"] for r in get_db().execute(
+        "SELECT company_id AS id, COUNT(*) c FROM member WHERE company_id IS NOT NULL GROUP BY company_id")}
+    mem_o, mem_d = _office_counts(), _dept_counts()
+    rows = []
+    for c in comps:
+        rows.append(("企業", c["kenpo_code"], c["ext_code"] or "", c["name"], "", "", "", "",
+                     c["zip"] or "", c["address"] or "", c["tel"] or "",
+                     n_off.get(c["id"], 0), n_dep_c.get(c["id"], 0), mem_c.get(c["id"], 0)))
+        for o in [x for x in offs if x["company_id"] == c["id"]]:
+            rows.append(("事業所", c["kenpo_code"], c["ext_code"] or "", c["name"],
+                         o["ext_code"] or "", o["name"], "", "",
+                         o["zip"] or "", o["address"] or "", o["tel"] or "",
+                         "", n_dep_o.get(o["id"], 0), mem_o.get(o["id"], 0)))
+            for d in [x for x in depts if x["office_id"] == o["id"]]:
+                rows.append(("部署", c["kenpo_code"], c["ext_code"] or "", c["name"],
+                             o["ext_code"] or "", o["name"], d["ext_code"] or "", d["name"],
+                             "", "", "", "", "", mem_d.get(d["id"], 0)))
+    header = ["種別", "保険者番号", "企業コード", "企業名", "事業所コード", "事業所名",
+              "部署コード", "部署名", "郵便番号", "住所", "電話番号", "事業所数", "部署数", "加入者数"]
+    return export_csv("orgs.csv", header, rows, "企業・事業所・部署") or redirect(url_for("orgs"))
 
 
 # ================================================================ 機能制御の設定
