@@ -3001,6 +3001,11 @@ def fetch_nsips(acc, kid, endpoint):
 PAGE_ROWS = 30      # 一覧の初期表示件数。以降はスクロールで読み込む
 
 
+# 企業・事業所・部署のマスタは HIA健保管理（青）だけの機能（8-64 で総合管理のマスタ管理から外した）。
+# 当社スタッフが直接開いても HIA健保管理のトンマナ（青・「詳細表示」）で出す
+ORG_SHELL = {"SHELL": "kenpo"}
+
+
 def _back_url(default_endpoint):
     """戻り先のURL（削除の確認画面の「戻る」に使う）。next があればそこへ。"""
     nxt = request.form.get("next") or request.args.get("next") or ""
@@ -3154,7 +3159,7 @@ def orgs():
     mem_by_company = {r["id"]: r["c"] for r in db.execute(
         "SELECT company_id AS id, COUNT(*) c FROM member WHERE company_id IS NOT NULL GROUP BY company_id")}
     # 企業の登録・削除は HIAスタッフと健保担当者だけ（企業担当者は編集のみ）
-    return render_template("orgs.html", comps=comps, offs=offs, depts=depts,
+    return render_template("orgs.html", **ORG_SHELL, comps=comps, offs=offs, depts=depts,
                            offs_by_company=offs_by_company, depts_by_office=depts_by_office,
                            depts_no_office=depts_no_office,
                            mem_by_company=mem_by_company, mem_by_office=_office_counts(),
@@ -3179,8 +3184,10 @@ def company_new():
         kenpos = db.execute("SELECT * FROM kenpo WHERE id=?", (acc["kenpo_id"],)).fetchall()
     # 健保ごとに、次に採番される企業コードを先読みする
     nexts = {str(k["id"]): peek_code("company", str(k["id"])) for k in kenpos}
+    empty = dict(offs=[], depts_by_office={}, mem_by_office={}, mem_by_dept={})
     if request.method == "GET":
-        return render_template("company_form.html", row=None, kenpos=kenpos, nexts=nexts)
+        return render_template("company_form.html", **ORG_SHELL, row=None, kenpos=kenpos, nexts=nexts,
+                               **empty)
     g = lambda k: (request.form.get(k) or "").strip()
     name, ext = g("name"), g("ext_code")
     kenpo_id = (request.form.get("kenpo_id", type=int) if acc["role"] == "system_admin"
@@ -3208,22 +3215,33 @@ def company_new():
     if errs:
         for e in errs:
             flash(e, "error")
-        return render_template("company_form.html", row=None, kenpos=kenpos,
-                               nexts=nexts, form=request.form)
+        return render_template("company_form.html", **ORG_SHELL, row=None, kenpos=kenpos,
+                               nexts=nexts, form=request.form, **empty)
     code = internal_company_code(kn["name"] if kn else "", name)
-    db.execute("INSERT INTO company (kenpo_id, ext_code, code, name, kana, cert_mark, zip,"
-               " tel, address, email) VALUES (?,?,?,?,?,?,?,?,?,?)",
-               (kenpo_id, ext or None, code, name, g("kana"), g("cert_mark"), g("zip"),
-                g("tel"), g("address"), g("email")))
+    cur = db.execute("INSERT INTO company (kenpo_id, ext_code, code, name, kana, cert_mark, zip,"
+                     " tel, address, email) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                     (kenpo_id, ext or None, code, name, g("kana"), g("cert_mark"), g("zip"),
+                      g("tel"), g("address"), g("email")))
+    new_cid = cur.lastrowid
+    # 事業所・部署も一緒に登録（登録画面は編集画面と同じ構成。8-67）。駄目なら企業も登録しない
+    try:
+        changes = _save_company_children(new_cid, request.form)
+    except ValueError as e:
+        db.rollback()
+        flash(str(e), "error")
+        return render_template("company_form.html", **ORG_SHELL, row=None, kenpos=kenpos,
+                               nexts=nexts, form=request.form, **empty)
     db.commit()
     cid = db.execute("SELECT id FROM company WHERE kenpo_id=? AND name=?"
                      " ORDER BY id DESC LIMIT 1", (kenpo_id, name)).fetchone()["id"]
     log("master", "企業を登録", "success", target=name,
-        detail=f"企業コード={ext or '（未設定）'}／企業ID={cid}")
+        detail=f"企業コード={ext or '（未設定）'}／企業ID={cid}"
+        + ("／" + "、".join(changes) if changes else ""))
     flash(f"「{name}」を登録しました。"
           + (f"企業コードは {ext} です。" if ext
              else "企業コードは未設定です。")
-          + f"（企業ID {cid}）", "ok")
+          + f"（企業ID {cid}）"
+          + (f"事業所・部署 {len(changes)} 件も登録しました。" if changes else ""), "ok")
     return _back_to("orgs")
 
 
@@ -3243,7 +3261,7 @@ def company_edit(cid):
             (cid, cid)).fetchone()
         kn = db.execute("SELECT name, code FROM kenpo WHERE id=?",
                         (row["kenpo_id"],)).fetchone()
-        return render_template("company_form.html", row=row, kenpos=[], stat=stat, kenpo=kn,
+        return render_template("company_form.html", **ORG_SHELL, row=row, kenpos=[], stat=stat, kenpo=kn,
                                **_company_children(cid))
     name = (request.form.get("name") or "").strip()
     errs = []
@@ -3261,7 +3279,7 @@ def company_edit(cid):
             (cid, cid)).fetchone()
         kn = db.execute("SELECT name, code FROM kenpo WHERE id=?",
                         (row["kenpo_id"],)).fetchone()
-        return render_template("company_form.html", row=row, kenpos=[], stat=stat,
+        return render_template("company_form.html", **ORG_SHELL, row=row, kenpos=[], stat=stat,
                                kenpo=kn, form=request.form, **_company_children(cid))
     g = lambda k: (request.form.get(k) or "").strip()
     ext = g("ext_code")
@@ -3282,7 +3300,7 @@ def company_edit(cid):
             "SELECT (SELECT COUNT(*) FROM office WHERE company_id=?) AS n_off,"
             " (SELECT COUNT(*) FROM member WHERE company_id=?) AS n_mem",
             (cid, cid)).fetchone()
-        return render_template("company_form.html", row=row, kenpos=[], stat=stat,
+        return render_template("company_form.html", **ORG_SHELL, row=row, kenpos=[], stat=stat,
                                kenpo=kn, form=request.form, **_company_children(cid))
     db.execute("UPDATE company SET ext_code=?, code=?, name=?, kana=?, cert_mark=?, zip=?,"
                " tel=?, address=?, email=?, updated_at=? WHERE id=?",
@@ -3373,7 +3391,7 @@ def office_new():
     if request.method == "GET":
         # 一覧の「事業所を追加」から来たときは、その企業を選んだ状態で開く
         pre = request.args if request.args.get("company_id") else None
-        return render_template("office_form.html", row=None, comps=comps, nexts=nexts, form=pre)
+        return render_template("office_form.html", **ORG_SHELL, row=None, comps=comps, nexts=nexts, form=pre)
     g = lambda k: (request.form.get(k) or "").strip()
     cid = request.form.get("company_id", type=int)
     name, ext = g("name"), g("ext_code")
@@ -3393,7 +3411,7 @@ def office_new():
     if errs:
         for e in errs:
             flash(e, "error")
-        return render_template("office_form.html", row=None, comps=comps,
+        return render_template("office_form.html", **ORG_SHELL, row=None, comps=comps,
                                nexts=nexts, form=request.form)
     code = next_code("office", str(cid), width=3)
     db.execute("INSERT INTO office (company_id, ext_code, code, name, kana, zip, tel,"
@@ -3426,7 +3444,7 @@ def office_edit(oid):
     n_mem = db.execute("SELECT COUNT(*) c FROM member WHERE office_id=?",
                        (oid,)).fetchone()["c"]
     if request.method == "GET":
-        return render_template("office_form.html", row=row, comps=[], n_mem=n_mem)
+        return render_template("office_form.html", **ORG_SHELL, row=row, comps=[], n_mem=n_mem)
     name = (request.form.get("name") or "").strip()
     errs = []
     if not name:
@@ -3437,7 +3455,7 @@ def office_edit(oid):
     if errs:
         for e in errs:
             flash(e, "error")
-        return render_template("office_form.html", row=row, comps=[], n_mem=n_mem,
+        return render_template("office_form.html", **ORG_SHELL, row=row, comps=[], n_mem=n_mem,
                                form=request.form)
     before = f"{row['name']}／TEL {row['tel'] or '—'}"
     g = lambda k: (request.form.get(k) or "").strip()
@@ -3583,7 +3601,9 @@ def department_new():
     db, acc = get_db(), current_account()
     comps, offs = scoped_companies(acc), scoped_offices(acc)
     if request.method == "GET":
-        return render_template("department_form.html", row=None, comps=comps, offs=offs)
+        # 一覧の「部署を追加」から来たときは、その事業所を選んだ状態で開く
+        pre = request.args if request.args.get("office_id") else None
+        return render_template("department_form.html", **ORG_SHELL, row=None, comps=comps, offs=offs, form=pre)
     g = lambda k: (request.form.get(k) or "").strip()
     name, ext = g("name"), g("ext_code")
     cid, oid, errs = _dept_parent(acc, request.form)
@@ -3599,7 +3619,7 @@ def department_new():
     if errs:
         for e in errs:
             flash(e, "error")
-        return render_template("department_form.html", row=None, comps=comps, offs=offs,
+        return render_template("department_form.html", **ORG_SHELL, row=None, comps=comps, offs=offs,
                                form=request.form)
     dup = _dept_same_name(cid, oid, name)
     code = next_code("dept", str(oid or f"c{cid}"), width=3)
@@ -3635,12 +3655,12 @@ def department_edit(did):
     row = next(d for d in scoped_departments(acc) if d["id"] == did)
     n_mem = db.execute("SELECT COUNT(*) c FROM member WHERE dept_id=?", (did,)).fetchone()["c"]
     if request.method == "GET":
-        return render_template("department_form.html", row=row, comps=[], offs=[], n_mem=n_mem)
+        return render_template("department_form.html", **ORG_SHELL, row=row, comps=[], offs=[], n_mem=n_mem)
     g = lambda k: (request.form.get(k) or "").strip()
     name = g("name")
     if not name:
         flash("部署名を入力してください。", "error")
-        return render_template("department_form.html", row=row, comps=[], offs=[], n_mem=n_mem,
+        return render_template("department_form.html", **ORG_SHELL, row=row, comps=[], offs=[], n_mem=n_mem,
                                form=request.form)
     ext = g("ext_code")
     dup_code = bool(ext and db.execute(

@@ -1,23 +1,18 @@
 {% set FIXED_HEIGHT = true %}
 {% extends LAYOUT %}
 {% block body %}
-{# 企業・事業所・部署のマスタは1つの一覧。8-58 で階層（折りたたみ）表示 → 8-59 で1行＝1レコードのフラット表示に変更。
-   上位（企業・事業所）は列で示す。事業所・部署の追加は企業の詳細表示（編集画面）から行う。 #}
+{# 企業・事業所・部署のマスタ。8-58 階層表示 → 8-59 フラット表示 → 8-65 で企業だけの一覧（事業所数・部署数の列）に。
+   事業所・部署の登録・編集は企業の詳細表示（編集画面）で行う。 #}
 {% if not EMBED %}
 <h1 class="page-title">企業・事業所・部署</h1>
-<p class="page-lead">企業・事業所・部署のマスタを1つの一覧で登録・編集・削除します。1行が1レコードで、事業所・部署の行には所属する企業・事業所を列で表示します。</p>
+<p class="page-lead">企業のマスタを一覧で登録・編集・削除します。事業所・部署は各企業の「詳細表示」で登録・編集します（一覧には事業所数・部署数を表示）。</p>
 {% endif %}
 
 <div class="block">
   <h2>検索条件</h2>
   <form class="search-row" onsubmit="return false;">
-    <div class="search-group"><label for="org-q">コード・名称</label>
-      <input type="text" id="org-q" autocomplete="off" placeholder="企業コード・事業所コード・部署コード・名称" style="width:320px" oninput="orgFilter()"></div>
-    <div class="search-group"><label for="org-kind">種別</label>
-      <select id="org-kind" style="width:150px" onchange="orgFilter()">
-        <option value="">すべて</option><option value="company">企業</option>
-        <option value="office">事業所</option><option value="dept">部署</option>
-      </select></div>
+    <div class="search-group"><label for="org-q">企業コード・企業名</label>
+      <input type="text" id="org-q" autocomplete="off" placeholder="企業コード・企業名・フリガナ" style="width:320px" oninput="orgFilter()"></div>
   </form>
 </div>
 
@@ -25,7 +20,7 @@
   <div class="blk-head">
     <div class="blk-head-left">
       <h2>企業・事業所・部署の一覧</h2>
-      <span class="count"><span id="org-count">{{ comps|length + offs|length + depts|length }}</span>件（{{ comps|length }}社・{{ offs|length }}事業所・{{ depts|length }}部署）</span>
+      <span class="count"><span id="org-count">{{ comps|length }}</span>社（{{ offs|length }}事業所・{{ depts|length }}部署）</span>
       {% if CAN_MASTER %}
       <div class="actions">
         <a class="btn-sm" href="{{ url_for('import_upload', kind='company') }}"
@@ -49,25 +44,27 @@
   {% if comps %}
   <div class="table-scroll paged grow org-scroll">
   <table class="result-table org-table" style="width:100%">
-    <!-- 種別・加入者は 80px、コードは 120px、電話番号は 150px、企業名・事業所名・部署名・住所は残り幅を等分（最低150px）。操作は標準の 260px -->
+    <!-- 企業コード・事業所数・部署数・加入者は 120px、企業名・住所は残り幅を等分。電話番号 150px、操作は標準の 260px -->
     <colgroup>
-      <col class="col-flag"><col class="col-num"><col class="col-long"><col class="col-long"><col class="col-long">
-      <col class="col-long"><col class="col-dt"><col class="col-flag"><col class="col-ops">
+      <col class="col-num"><col class="col-long"><col class="col-long"><col class="col-dt">
+      <col class="col-num"><col class="col-num"><col class="col-num"><col class="col-ops">
     </colgroup>
     <thead><tr>
-      <th>種別</th><th>コード</th><th class="tl">企業名</th><th class="tl">事業所名</th><th class="tl">部署名</th>
-      <th class="tl">住所</th><th>電話番号</th><th>加入者</th><th class="ops">操作</th>
+      <th>企業コード</th><th class="tl">企業名</th><th class="tl">住所</th><th>電話番号</th>
+      <th>事業所数</th><th>部署数</th><th>加入者</th><th class="ops">操作</th>
     </tr></thead>
     <tbody id="org-tbody">
     {% for c in comps %}
+    {% set c_offs = offs_by_company.get(c.id, []) %}
+    {% set n_depts = namespace(n=0) %}
+    {% for o in c_offs %}{% set n_depts.n = n_depts.n + depts_by_office.get(o.id, [])|length %}{% endfor %}
     <tr class="org-row org-company" data-kind="company" data-id="{{ c.id }}" data-text="{{ c.ext_code or '' }} {{ c.name }} {{ c.kana or '' }}">
-      <td><span class="st-label org-kind org-kind-company">企業</span></td>
       <td class="code">{{ c.ext_code or '—' }}</td>
       <td class="tl col-long" title="{{ c.name }}"><b>{{ c.name }}</b>{% if acc.role == 'system_admin' %}<span class="hint" style="margin-left:8px">{{ c.kenpo_name }}</span>{% endif %}</td>
-      <td class="tl col-long">—</td>
-      <td class="tl col-long">—</td>
       <td class="tl col-long" title="{{ c.address or '' }}">{{ c.address or '—' }}</td>
       <td class="tl">{{ c.tel or '—' }}</td>
+      <td class="num">{{ c_offs|length }}</td>
+      <td class="num">{{ n_depts.n }}</td>
       <td class="num">{{ mem_by_company.get(c.id, 0) }}</td>
       <td class="ops"><div class="org-ops">
         <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}" href="{{ url_for('company_edit', cid=c.id) }}" style="text-decoration:none" title="企業の詳細。事業所・部署の追加もここから">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
@@ -78,69 +75,8 @@
         {% endif %}
       </div></td>
     </tr>
-      {# 事業所を使わない企業の部署（企業の直下）。事業所名は「（事業所なし）」で示す #}
-      {% for d in depts_no_office.get(c.id, []) %}
-      <tr class="org-row org-dept" data-kind="dept" data-id="{{ d.id }}" data-root="{{ c.id }}"
-          data-text="{{ d.ext_code or '' }} {{ d.name }} {{ d.kana or '' }} {{ c.name }}">
-        <td><span class="st-label org-kind org-kind-dept">部署</span></td>
-        <td class="code">{{ d.ext_code or '—' }}</td>
-        <td class="tl col-long" title="{{ c.name }}">{{ c.name }}</td>
-        <td class="tl col-long"><span class="hint">（事業所なし）</span></td>
-        <td class="tl col-long" title="{{ d.name }}"><b>{{ d.name }}</b></td>
-        <td class="tl col-long">—</td>
-        <td class="tl">—</td>
-        <td class="num">{{ mem_by_dept.get(d.id, 0) }}</td>
-        <td class="ops"><div class="org-ops">
-          <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}"
-             href="{{ url_for('department_edit', did=d.id) }}" style="text-decoration:none">
-            {{ '編集' if SHELL == 'km' else '詳細表示' }}</a>
-          {% if CAN_MASTER %}
-          <a class="btn-sm btn-del" href="{{ url_for('department_delete', did=d.id) }}"
-             style="text-decoration:none" title="確認画面で紐づきを見てから削除します">削除</a>
-          {% endif %}
-        </div></td>
-      </tr>
-      {% endfor %}
-      {% for o in offs_by_company.get(c.id, []) %}
-      <tr class="org-row org-office" data-kind="office" data-id="{{ o.id }}" data-parent="{{ c.id }}" data-text="{{ o.ext_code or '' }} {{ o.name }} {{ o.kana or '' }} {{ c.name }}">
-        <td><span class="st-label org-kind org-kind-office">事業所</span></td>
-        <td class="code">{{ o.ext_code or '—' }}</td>
-        <td class="tl col-long" title="{{ c.name }}">{{ c.name }}</td>
-        <td class="tl col-long" title="{{ o.name }}"><b>{{ o.name }}</b></td>
-        <td class="tl col-long">—</td>
-        <td class="tl col-long" title="{{ o.address or '' }}">{{ o.address or '—' }}</td>
-        <td class="tl">{{ o.tel or '—' }}</td>
-        <td class="num">{{ mem_by_office.get(o.id, 0) }}</td>
-        <td class="ops"><div class="org-ops">
-          <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}" href="{{ url_for('office_edit', oid=o.id) }}" style="text-decoration:none">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
-          {% if CAN_MASTER %}
-          <a class="btn-sm btn-del" href="{{ url_for('office_delete', oid=o.id) }}"
-             style="text-decoration:none" title="確認画面で紐づきを見てから削除します">削除</a>
-          {% endif %}
-        </div></td>
-      </tr>
-        {% for d in depts_by_office.get(o.id, []) %}
-        <tr class="org-row org-dept" data-kind="dept" data-id="{{ d.id }}" data-parent="{{ o.id }}" data-root="{{ c.id }}" data-text="{{ d.ext_code or '' }} {{ d.name }} {{ d.kana or '' }} {{ c.name }} {{ o.name }}">
-          <td><span class="st-label org-kind org-kind-dept">部署</span></td>
-          <td class="code">{{ d.ext_code or '—' }}</td>
-          <td class="tl col-long" title="{{ c.name }}">{{ c.name }}</td>
-          <td class="tl col-long" title="{{ o.name }}">{{ o.name }}</td>
-          <td class="tl col-long" title="{{ d.name }}"><b>{{ d.name }}</b></td>
-          <td class="tl col-long">—</td>
-          <td class="tl">—</td>
-          <td class="num">{{ mem_by_dept.get(d.id, 0) }}</td>
-          <td class="ops"><div class="org-ops">
-            <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}" href="{{ url_for('department_edit', did=d.id) }}" style="text-decoration:none">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
-            {% if CAN_MASTER %}
-            <a class="btn-sm btn-del" href="{{ url_for('department_delete', did=d.id) }}"
-               style="text-decoration:none" title="確認画面で紐づきを見てから削除します">削除</a>
-            {% endif %}
-          </div></td>
-        </tr>
-        {% endfor %}
-      {% endfor %}
     {% endfor %}
-    <tr id="org-none" style="display:none"><td colspan="9" style="padding:22px;color:#a0aec0;text-align:center">条件に一致する企業・事業所・部署がありません。</td></tr>
+    <tr id="org-none" style="display:none"><td colspan="8" style="padding:22px;color:#a0aec0;text-align:center">条件に一致する企業がありません。</td></tr>
     </tbody>
   </table>
   </div>
@@ -148,14 +84,13 @@
 </div>
 
 <script>
-/* 1行＝1レコード。検索条件（コード・名称、種別）で行をしぼり込むだけで、折りたたみはしない */
+/* 1行＝1企業。企業コード・企業名でしぼり込む（事業所・部署は企業の詳細表示で扱う） */
 function orgRows(){ return [].slice.call(document.querySelectorAll('#org-tbody tr.org-row')); }
 function orgFilter(){
   var q = (document.getElementById('org-q').value || '').trim().toLowerCase();
-  var kind = document.getElementById('org-kind').value;
   var shown = 0;
   orgRows().forEach(function(r){
-    var ok = (!q || (r.dataset.text || '').toLowerCase().indexOf(q) >= 0) && (!kind || r.dataset.kind === kind);
+    var ok = !q || (r.dataset.text || '').toLowerCase().indexOf(q) >= 0;
     r.style.display = ok ? '' : 'none';
     if(ok) shown++;
   });
