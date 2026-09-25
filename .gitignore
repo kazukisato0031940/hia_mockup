@@ -5,7 +5,7 @@
 *.db-wal
 *.db-shm
 *.db.bak
-hia.db.premerge.*
+hia.db.*
 hia_initial.db
 backup/
 

@@ -1,8 +1,0 @@
-{# 企業・事業所・部署のマスタは1つの画面（タブで切り替え）。active は company / office / dept #}
-{% macro org_tabs(active) -%}
-<div class="hm-tabs org-tabs" role="tablist" aria-label="企業・事業所・部署">
-  <a class="hm-tab{{ ' is-on' if active == 'company' }}" role="tab" href="{{ url_for('companies') }}">企業</a>
-  <a class="hm-tab{{ ' is-on' if active == 'office' }}" role="tab" href="{{ url_for('offices') }}">事業所</a>
-  <a class="hm-tab{{ ' is-on' if active == 'dept' }}" role="tab" href="{{ url_for('departments') }}">部署</a>
-</div>
-{%- endmacro %}

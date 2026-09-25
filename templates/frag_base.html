@@ -13,6 +13,7 @@ if(window.top===window){document.write('<link rel="stylesheet" href="/ui/zoom.cs
 </head>
 <body class="theme-{{ SHELL }}{% if TONE %} tone-{{ TONE }}{% endif %}{% if FIXED_HEIGHT is defined and FIXED_HEIGHT %} fixed-h{% endif %}">
 <div class="frag">
+  {% if BUILD_MISMATCH %}<div class="flash error">【版の不一致】{{ BUILD_MISMATCH }}</div>{% endif %}
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
   {% endwith %}

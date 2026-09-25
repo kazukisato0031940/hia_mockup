@@ -56,18 +56,18 @@
     <div class="org-sub">
     <table class="result-table org-sub-tbl" id="org-sub-tbl">
       <colgroup>
-        <col style="width:110px"><col class="col-long"><col class="col-long"><col style="width:70px"><col style="width:180px">
+        <col style="width:120px"><col class="col-long"><col style="width:70px"><col style="width:180px">
       </colgroup>
       <thead><tr>
-        <th>事業所コード</th><th class="tl">事業所名</th><th class="tl">住所</th><th>加入者</th><th class="ops">操作</th>
+        <th>事業所コード</th><th class="tl">事業所名</th><th>加入者</th><th class="ops">操作</th>
       </tr></thead>
       <tbody id="org-sub-body">
       {% for o in offs %}
       <tr class="org-sub-row" data-kind="office" data-key="o{{ o.id }}">
-        <td><input type="hidden" name="off_id" value="{{ o.id }}"><input type="hidden" name="off_key" value="o{{ o.id }}"><input type="hidden" name="off_tel" value="{{ o.tel or '' }}">
+        <td><input type="hidden" name="off_id" value="{{ o.id }}"><input type="hidden" name="off_key" value="o{{ o.id }}">
+          <input type="hidden" name="off_tel" value="{{ o.tel or '' }}"><input type="hidden" name="off_address" value="{{ o.address or '' }}">
           <input type="text" name="off_ext" maxlength="20" value="{{ o.ext_code or '' }}" placeholder="例：8718" aria-label="事業所コード"></td>
         <td><input type="text" name="off_name" class="off-name" value="{{ o.name }}" placeholder="事業所名（必須）" aria-label="事業所名"></td>
-        <td><input type="text" name="off_address" value="{{ o.address or '' }}" placeholder="住所" aria-label="住所"></td>
         <td class="num">{{ mem_by_office.get(o.id, 0) }}</td>
         <td class="ops">
           <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}" href="{{ url_for('office_edit', oid=o.id) }}" style="text-decoration:none">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
@@ -75,16 +75,16 @@
         </td>
       </tr>
       {% endfor %}
-      <tr id="org-sub-none"{% if offs %} style="display:none"{% endif %}><td colspan="5" style="padding:18px;color:#a0aec0;text-align:center">事業所がまだ登録されていません。「＋事業所を追加」から追加してください。</td></tr>
+      <tr id="org-sub-none"{% if offs %} style="display:none"{% endif %}><td colspan="4" style="padding:18px;color:#a0aec0;text-align:center">事業所がまだ登録されていません。「＋事業所を追加」から追加してください。</td></tr>
       </tbody>
     </table>
     </div>
     <template id="tpl-off">
       <tr class="org-sub-row is-new" data-kind="office">
-        <td><input type="hidden" name="off_id" value=""><input type="hidden" name="off_key" value=""><input type="hidden" name="off_tel" value="">
+        <td><input type="hidden" name="off_id" value=""><input type="hidden" name="off_key" value="">
+          <input type="hidden" name="off_tel" value=""><input type="hidden" name="off_address" value="">
           <input type="text" name="off_ext" maxlength="20" placeholder="例：8718" aria-label="事業所コード"></td>
         <td><input type="text" name="off_name" class="off-name" placeholder="事業所名（必須）" aria-label="事業所名" oninput="orgSubRefreshOffices()"></td>
-        <td><input type="text" name="off_address" placeholder="住所" aria-label="住所"></td>
         <td class="num">0</td>
         <td class="ops"><button type="button" class="btn-sm" onclick="orgSubRemove(this)">取り消す</button></td>
       </tr>
@@ -92,22 +92,27 @@
   </div>
 
   <div class="block mt-block org-sub-card" id="org-dep-card">
+    {# 事業所の列は置かず、事業所ごとの見出し行（.org-grp）で分ける。追加先の事業所は見出し右の選択で決める（8-69） #}
     <div class="mt-head"><h2>部署</h2>
-      <span class="mt-note">追加した行は黄色で表示されます（追加したばかりの事業所 ★ にも置けます）。</span>
-      <button type="button" class="btn-sm mt-head-btn" id="org-add-dept" onclick="orgSubAddDept()">＋部署を追加</button></div>
+      <span class="mt-note">追加した行は黄色で表示されます。</span>
+      <span class="mt-head-btn" style="display:flex;gap:6px;align-items:center">
+        <select id="org-dep-office" class="control-select" aria-label="追加先の事業所" title="追加先の事業所"></select>
+        <button type="button" class="btn-sm" id="org-add-dept" onclick="orgSubAddDept()">＋部署を追加</button></span></div>
     <div class="org-sub">
     <table class="result-table org-sub-tbl" id="org-dep-tbl">
       <colgroup>
-        <col style="width:170px"><col style="width:110px"><col class="col-long"><col style="width:70px"><col style="width:180px">
+        <col style="width:120px"><col class="col-long"><col style="width:70px"><col style="width:180px">
       </colgroup>
       <thead><tr>
-        <th class="tl">事業所</th><th>部署コード</th><th class="tl">部署名</th><th>加入者</th><th class="ops">操作</th>
+        <th>部署コード</th><th class="tl">部署名</th><th>加入者</th><th class="ops">操作</th>
       </tr></thead>
       <tbody id="org-dep-body">
-      {% for o in offs %}{% for d in depts_by_office.get(o.id, []) %}
-        <tr class="org-sub-row" data-kind="dept">
-          <td class="tl col-long" title="{{ o.name }}"><input type="hidden" name="dep_id" value="{{ d.id }}"><input type="hidden" name="dep_office" value="{{ o.id }}">{{ o.name }}</td>
-          <td><input type="text" name="dep_ext" maxlength="20" value="{{ d.ext_code or '' }}" placeholder="例：01" aria-label="部署コード"></td>
+      {% for o in offs %}{% set o_depts = depts_by_office.get(o.id, []) %}
+        <tr class="org-grp" data-office="o{{ o.id }}"><td colspan="4" class="tl"><span class="org-grp-name">{{ o.name }}</span></td></tr>
+        {% for d in o_depts %}
+        <tr class="org-sub-row" data-kind="dept" data-office="o{{ o.id }}">
+          <td><input type="hidden" name="dep_id" value="{{ d.id }}"><input type="hidden" name="dep_office" value="{{ o.id }}">
+            <input type="text" name="dep_ext" maxlength="20" value="{{ d.ext_code or '' }}" placeholder="例：01" aria-label="部署コード"></td>
           <td><input type="text" name="dep_name" value="{{ d.name }}" placeholder="部署名（必須）" aria-label="部署名"></td>
           <td class="num">{{ mem_by_dept.get(d.id, 0) }}</td>
           <td class="ops">
@@ -115,20 +120,23 @@
             {% if CAN_MASTER %}<button type="button" class="btn-sm btn-del" onclick="orgSubDelete(this, '{{ url_for('department_delete', did=d.id) }}', '{{ d.name }}', '加入者・管理者が紐づいている場合は削除できません。')">削除</button>{% endif %}
           </td>
         </tr>
-      {% endfor %}{% endfor %}
-      {% set n_dep = namespace(n=0) %}{% for o in offs %}{% set n_dep.n = n_dep.n + depts_by_office.get(o.id, [])|length %}{% endfor %}
-      <tr id="org-dep-none"{% if n_dep.n %} style="display:none"{% endif %}><td colspan="5" style="padding:18px;color:#a0aec0;text-align:center">部署がまだ登録されていません。「＋部署を追加」から追加してください。</td></tr>
+        {% endfor %}
+      {% endfor %}
+      <tr id="org-dep-none"{% if offs %} style="display:none"{% endif %}><td colspan="4" style="padding:18px;color:#a0aec0;text-align:center">先に事業所を追加してください。部署は事業所の下に置きます。</td></tr>
       </tbody>
     </table>
     </div>
     <template id="tpl-dep">
       <tr class="org-sub-row is-new" data-kind="dept">
-        <td><input type="hidden" name="dep_id" value=""><select name="dep_office" class="dep-office" aria-label="事業所"></select></td>
-        <td><input type="text" name="dep_ext" maxlength="20" placeholder="例：01" aria-label="部署コード"></td>
+        <td><input type="hidden" name="dep_id" value=""><input type="hidden" name="dep_office" value="">
+          <input type="text" name="dep_ext" maxlength="20" placeholder="例：01" aria-label="部署コード"></td>
         <td><input type="text" name="dep_name" placeholder="部署名（必須）" aria-label="部署名"></td>
         <td class="num">0</td>
         <td class="ops"><button type="button" class="btn-sm" onclick="orgSubRemove(this)">取り消す</button></td>
       </tr>
+    </template>
+    <template id="tpl-grp">
+      <tr class="org-grp is-new"><td colspan="4" class="tl"><span class="org-grp-name"></span></td></tr>
     </template>
   </div>
   </div>
@@ -155,8 +163,8 @@
 {% endif %}
 
 <script>
-/* 事業所・部署の行を増やす／取り消す／削除する（8-59、8-66 で左右のカードに）。新しい事業所には n1, n2… のキーを付け、
-   同じ画面で追加した部署の「事業所」にもその事業所を選べるようにする */
+/* 事業所・部署の行を増やす／取り消す／削除する（8-59 → 8-66 左右のカード → 8-69 部署は事業所ごとの見出し行で分ける）。
+   新しい事業所には n1, n2… のキーを付け、部署の追加先（見出し右の選択）にもその事業所を選べる */
 var orgSubSeq = 0;
 function orgSubOffices(){
   /* 既存の事業所（o<id>）と、この画面で追加した事業所（n<n>）の一覧 */
@@ -165,27 +173,46 @@ function orgSubOffices(){
     var key = tr.querySelector('input[name="off_key"]').value;
     var id = tr.querySelector('input[name="off_id"]').value;
     var nm = (tr.querySelector('input[name="off_name"]').value || '').trim();
-    out.push({value: id || key, label: nm || ('（新しい事業所 ' + key.replace('n', '') + '）'), isNew: !id});
+    out.push({key: key, value: id || key, label: nm || ('（新しい事業所 ' + key.replace('n', '') + '）'), isNew: !id});
   });
   return out;
 }
 function orgSubRefreshOffices(){
   var offs = orgSubOffices();
-  [].forEach.call(document.querySelectorAll('#org-dep-body select.dep-office'), function(sel){
+  var sel = document.getElementById('org-dep-office');
+  if(sel){
     var cur = sel.value;
     sel.innerHTML = '';
     offs.forEach(function(o){
       var op = document.createElement('option');
-      op.value = o.value; op.textContent = (o.isNew ? '★ ' : '') + o.label;
+      op.value = o.key; op.textContent = (o.isNew ? '★ ' : '') + o.label;
       sel.appendChild(op);
     });
     if(cur && [].some.call(sel.options, function(op){ return op.value === cur; })) sel.value = cur;
+    sel.disabled = !offs.length;
+    var btn = document.getElementById('org-add-dept');
+    if(btn) btn.disabled = !offs.length;
+  }
+  /* 事業所ごとの見出し行の名前も追いかける */
+  offs.forEach(function(o){
+    var g = document.querySelector('#org-dep-body tr.org-grp[data-office="' + o.key + '"] .org-grp-name');
+    if(g) g.textContent = (o.isNew ? '★ ' : '') + o.label;
   });
 }
 function orgSubEmpty(){
   var no = document.getElementById('org-sub-none'), nd = document.getElementById('org-dep-none');
   if(no) no.style.display = document.querySelectorAll('#org-sub-body tr.org-sub-row').length ? 'none' : '';
-  if(nd) nd.style.display = document.querySelectorAll('#org-dep-body tr.org-sub-row').length ? 'none' : '';
+  if(nd) nd.style.display = document.querySelectorAll('#org-dep-body tr.org-grp').length ? 'none' : '';
+}
+function orgSubGroup(key){
+  /* 部署の表の、その事業所の見出し行（無ければ作る） */
+  var g = document.querySelector('#org-dep-body tr.org-grp[data-office="' + key + '"]');
+  if(g) return g;
+  g = document.getElementById('tpl-grp').content.firstElementChild.cloneNode(true);
+  g.dataset.office = key;
+  document.getElementById('org-dep-body').insertBefore(g, document.getElementById('org-dep-none'));
+  orgSubRefreshOffices();
+  return g;
 }
 function orgSubAddOffice(){
   var tr = document.getElementById('tpl-off').content.firstElementChild.cloneNode(true);
@@ -193,17 +220,26 @@ function orgSubAddOffice(){
   tr.dataset.key = key;
   tr.querySelector('input[name="off_key"]').value = key;
   document.getElementById('org-sub-body').insertBefore(tr, document.getElementById('org-sub-none'));
-  orgSubEmpty();
   orgSubRefreshOffices();
+  orgSubGroup(key);
+  var sel = document.getElementById('org-dep-office');
+  if(sel) sel.value = key;                                   /* 追加先を今の事業所にする */
+  orgSubEmpty();
   tr.querySelector('input[name="off_name"]').focus();
 }
 function orgSubAddDept(){
   if(!orgSubOffices().length){ orgSubAddOffice(); }
+  var sel = document.getElementById('org-dep-office');
+  var key = sel.value;
+  var g = orgSubGroup(key);
+  /* その事業所の最後の行の後ろに入れる */
+  var last = g;
+  while(last.nextElementSibling && last.nextElementSibling.classList.contains('org-sub-row')
+        && last.nextElementSibling.dataset.office === key) last = last.nextElementSibling;
   var tr = document.getElementById('tpl-dep').content.firstElementChild.cloneNode(true);
-  document.getElementById('org-dep-body').insertBefore(tr, document.getElementById('org-dep-none'));
-  orgSubRefreshOffices();
-  var sel = tr.querySelector('select.dep-office');
-  if(sel.options.length) sel.selectedIndex = sel.options.length - 1;   /* 直近の事業所を既定にする */
+  tr.dataset.office = key;
+  tr.querySelector('input[name="dep_office"]').value = key.charAt(0) === 'o' ? key.slice(1) : key;
+  last.parentNode.insertBefore(tr, last.nextElementSibling);
   orgSubEmpty();
   tr.querySelector('input[name="dep_name"]').focus();
 }
@@ -212,10 +248,9 @@ function orgSubRemove(btn){
   var key = tr.dataset.key;
   tr.parentNode.removeChild(tr);
   if(key){
-    /* 取り消した事業所を選んでいた新しい部署の行も取り消す */
-    [].forEach.call(document.querySelectorAll('#org-dep-body tr.is-new[data-kind="dept"]'), function(d){
-      var sel = d.querySelector('select.dep-office');
-      if(sel && sel.value === key) d.parentNode.removeChild(d);
+    /* 取り消した事業所の見出し行と、その下に追加した部署の行も取り消す */
+    [].forEach.call(document.querySelectorAll('#org-dep-body tr[data-office="' + key + '"]'), function(d){
+      d.parentNode.removeChild(d);
     });
   }
   orgSubRefreshOffices();
@@ -229,5 +264,6 @@ function orgSubDelete(btn, url, name, note){
   n.value = location.pathname + location.search;
   f.appendChild(n); document.body.appendChild(f); f.submit();
 }
+orgSubRefreshOffices();
 </script>
 {% endblock %}

@@ -1,0 +1,147 @@
+{% extends LAYOUT %}
+{% from "_csv_columns.html" import csv_columns %}
+{% block body %}
+{% if not EMBED %}
+<h1 class="page-title">{% if bulk %}企業・事業所・部署一括取込{% else %}CSVで取り込む{% endif %}</h1>
+{% endif %}
+<p class="page-lead">
+  {% if bulk %}企業・事業所・部署を<b>1行にまとめて</b>取り込みます。
+    <b>初期投入や全体の入れ替え</b>に使う専用の画面です。
+  {% else %}ファイルを置くだけで、<b>様式は見出しの行から自動で判別</b>します。
+    アップロードしたあと、行ごとの内容を確認してから確定します。{% endif %}</p>
+
+{# ---- 取込先の健保。CSVに保険者番号の列を置かないため、ここで必ず示す ---- #}
+<div class="block imp-dest">
+  <div class="imp-dest-row">
+    <span class="imp-dest-label">取込先の健康保険組合</span>
+    {% if kenpos %}
+    <form method="get" class="imp-dest-form">
+      {% if not bulk %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
+      <select name="kenpo_id" onchange="this.form.submit()">
+        {% for k in kenpos %}<option value="{{ k.id }}"
+          {{ 'selected' if k.id == kenpo_id }}>{{ k.code }}　{{ k.name }}</option>{% endfor %}
+      </select>
+      <span class="hint">HIAスタッフのみ切り替えられます。取り違えを防ぐため常に表示します。</span>
+    </form>
+    {% else %}
+    <span class="imp-dest-name">{{ kenpo.name if kenpo else '—' }}</span>
+    <span class="hint">この健保に取り込みます。CSVに保険者番号の列はありません。</span>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('import_receive') }}" enctype="multipart/form-data"
+      id="imp-form">
+  <input type="hidden" name="bulk" value="{{ 1 if bulk else 0 }}">
+  <input type="hidden" name="kind" value="{{ kind }}">
+  <input type="hidden" name="kenpo_id" value="{{ kenpo_id or '' }}">
+
+<div class="block">
+  <h2>ファイルを選ぶ</h2>
+  <div class="drop" id="imp-drop" tabindex="0"
+       onclick="document.getElementById('imp-file').click()"
+       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('imp-file').click();}">
+    <div class="drop-ico">⬆</div>
+    <div class="drop-main">ここにCSVファイルをドラッグ＆ドロップ</div>
+    <div class="drop-sub">またはクリックしてファイルを選択<br>
+      文字コードは Shift_JIS または UTF-8（自動で判別します）／拡張子は .csv<br>
+      1回に取り込める行数は {{ '{:,}'.format(max_rows) }} 行までです</div>
+    <input type="file" id="imp-file" name="file" accept=".csv,text/csv" required>
+  </div>
+  <div class="drop-file" id="imp-info">
+    <span class="fn" id="imp-name"></span>
+    <span class="fs" id="imp-size"></span>
+    <button type="button" class="btn-sm" onclick="impClear()">取り消す</button>
+  </div>
+  <div class="drop-err" id="imp-err"></div>
+  <p class="hint" style="margin-top:10px">
+    <b>様式を選ぶ欄はありません。</b>見出しの行から
+    {% if bulk %}企業・事業所・部署一括取込の様式かどうかを判別します
+    {% else %}企業登録／事業所登録／部署登録／加入者情報のどれかを判別します{% endif %}。
+    判別できない場合は、もっとも近い様式と不足している列をお知らせします。</p>
+</div>
+
+{# ---- 様式のダウンロードと、必要な列 ---- #}
+<div class="block">
+  <h2>様式のダウンロード</h2>
+  <p class="note">
+    <b>様式には、いま登録されている内容（担当範囲の全件）が入って出てきます。</b>
+    HIAの通し番号（ID）も埋まって出てくるので、<b>これを直して戻すのが更新のいちばん簡単な方法</b>です。
+    新しく作る場合は「見本」（見出しだけの雛形）をお使いください。</p>
+  <div class="imp-dl on">
+    <span class="imp-dl-name">{{ spec.label }}フォーマット（{{ spec.columns|length }}列・1行＝{{ spec.unit }}）</span>
+    <a class="btn-sm primary" href="{{ url_for('import_format', kind=kind, kenpo_id=kenpo_id) }}"
+       style="text-decoration:none">様式（登録済みの内容入り）</a>
+    <a class="btn-sm" href="{{ url_for('import_blank', kind=kind) }}"
+       style="text-decoration:none">見本（見出しだけ）</a>
+  </div>
+  {{ csv_columns(spec) }}
+</div>
+
+<div class="actions" style="justify-content:flex-end">
+  <a class="btn-back" href="{{ url_for(spec.back) }}" style="text-decoration:none">戻る</a>
+  <button class="btn-submit btn-regsave" id="imp-go" disabled>内容を確認する</button>
+</div>
+</form>
+
+<script>
+/* ファイルの選択（ドラッグ＆ドロップ／クリック）。この画面では登録しない */
+(function(){
+  var drop = document.getElementById('imp-drop');
+  var input = document.getElementById('imp-file');
+  var err = document.getElementById('imp-err');
+  var info = document.getElementById('imp-info');
+  var go = document.getElementById('imp-go');
+  if(!drop || !input) return;
+
+  window.impClear = function(){
+    input.value = '';
+    info.classList.remove('on');
+    err.classList.remove('on');
+    go.disabled = true;
+  };
+  function setFile(f){
+    if(!f){ window.impClear(); return; }
+    if(!/\.csv$/i.test(f.name)){
+      window.impClear();
+      err.textContent = 'CSVファイル（.csv）を選択してください。選択されたファイル：' + f.name;
+      err.classList.add('on');
+      return;
+    }
+    err.classList.remove('on');
+    document.getElementById('imp-name').textContent = f.name;
+    document.getElementById('imp-size').textContent = '（' + (f.size/1024).toFixed(1) + ' KB）';
+    info.classList.add('on');
+    go.disabled = false;
+  }
+  input.addEventListener('change', function(){ setFile(this.files[0]); });
+  ['dragenter','dragover'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation();
+      drop.classList.add('over'); });
+  });
+  ['dragleave','dragend'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation();
+      drop.classList.remove('over'); });
+  });
+  drop.addEventListener('drop', function(e){
+    e.preventDefault(); e.stopPropagation(); drop.classList.remove('over');
+    var f = e.dataTransfer.files;
+    if(f && f.length){
+      try{ input.files = e.dataTransfer.files; }catch(x){}
+      setFile(f[0]);
+    }
+  });
+  /* 画面全体へのドロップで誤ってファイルを開かないようにする */
+  ['dragover','drop'].forEach(function(ev){
+    window.addEventListener(ev, function(e){
+      if(!e.target.closest || !e.target.closest('.drop')) e.preventDefault();
+    });
+  });
+  /* 送信したら「処理中」に切り替える */
+  document.getElementById('imp-form').addEventListener('submit', function(){
+    go.disabled = true;
+    go.textContent = '確認しています…';
+  });
+})();
+</script>
+{% endblock %}

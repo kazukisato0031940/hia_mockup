@@ -51,6 +51,27 @@ BACKUP_KEEP = int(os.environ.get("HIA_BACKUP_KEEP", "10"))
 OUTBOX = os.path.join(BASE_DIR, "outbox")
 
 BUILD = "2.1.0 (2026-09-01)"
+# 配布ZIPごとの番号（app.py・templates・static がそろっているかの確認用。8-70）。
+# templates/_build.txt と static/build.txt にも同じ番号を入れて配布し、違っていれば起動時とログイン画面で知らせる
+BUILD_ID = "20260918y"
+
+
+def build_mismatch():
+    """templates／static の版番号が app.py と違えば、その内訳（説明文）を返す。そろっていれば空文字"""
+    bad = []
+    for label, path in (("templates", os.path.join(BASE_DIR, "templates", "_build.txt")),
+                        ("static", os.path.join(BASE_DIR, "static", "build.txt"))):
+        try:
+            with open(path, encoding="utf-8") as f:
+                v = f.read().strip()
+        except OSError:
+            v = "（無し）"
+        if v != BUILD_ID:
+            bad.append(f"{label}={v}")
+    if not bad:
+        return ""
+    return (f"プログラム（app.py）は {BUILD_ID} ですが、{'／'.join(bad)} です。"
+            "配布ZIPの templates・static フォルダを丸ごと入れ替えてください（hia.db・secret.key は残します）。")
 
 MAX_EXPORT_ROWS = int(os.environ.get("HIA_MAX_EXPORT_ROWS", "1000"))
 INVITE_HOURS = 72
@@ -661,7 +682,7 @@ ENDPOINT_FEATURES = {
     "departments_import": "master.import",
     "departments_import_commit": "master.import",
     # 疾患予測
-    "risk_list": "risk", "risk_member": "risk", "risk_run_exec": "risk",
+    "risk_list": "risk", "risk_members": "risk", "risk_member": "risk", "risk_run_exec": "risk",
     "risk_export": "risk", "risk_groups": "risk", "risk_kenshin": "risk",
     "risk_kenshin_sync": "risk", "risk_kenshin_xml": "risk",
     "risk_nsips": "risk", "risk_nsips_sync": "risk",
@@ -696,7 +717,7 @@ VIEW_PAGES = {
     "accounts": "アカウント一覧", "accounts_new": "アカウントの登録",
     "accounts_edit": "アカウントの編集", "me_account": "マイアカウント",
     "feature_settings": "機能制御", "logs": "操作ログ管理",
-    "risk_list": "疾患予測", "risk_member": "疾患予測（加入者別）",
+    "risk_list": "疾患予測", "risk_members": "疾患予測 対象者一覧", "risk_member": "疾患予測（加入者別）",
     "risk_groups": "リスクグループ", "risk_group_edit": "リスクグループの編集",
     "risk_kenshin": "健診データ連携", "risk_nsips": "NSIPSデータ連携",
     "oh.oh_dashboard": "面談ダッシュボード", "oh.oh_list": "面談対象者一覧",
@@ -816,6 +837,7 @@ def inject_globals():
         "SCOPE_LABELS": SCOPE_LABELS,
         "STATUS_LABELS": STATUS_LABELS,
         "BUILD": BUILD,
+        "BUILD_MISMATCH": build_mismatch(),
         "VIEW_LOG_GAP": VIEW_LOG_GAP,
         "MAX_EXPORT_ROWS": MAX_EXPORT_ROWS,
         "MAIL_ENABLED": mail_enabled(),
@@ -2095,6 +2117,50 @@ def risk_list():
                            engine=risk_engine(), g=risk_aggregate(run))
 
 
+@app.route("/risk/list")
+@login_required
+def risk_members():
+    """疾患予測 対象者一覧（加入者ごとの予測結果。ダッシュボードのカードから開く。8-71）"""
+    db, acc = get_db(), current_account()
+    kid = risk_kenpo_id(acc)
+    f = {k: (request.args.get(k) or "").strip()
+         for k in ("name", "cname", "disease", "level")}
+    run = db.execute("SELECT * FROM risk_run WHERE kenpo_id=? ORDER BY id DESC LIMIT 1",
+                     (kid,)).fetchone()
+    rows = []
+    if run:
+        sql = ("SELECT s.*, m.name, m.kana, m.member_no, m.cert_branch,"
+               " c.name AS company_name, o.name AS office_name"
+               " FROM risk_score s JOIN member m ON m.id=s.member_id"
+               " LEFT JOIN company c ON c.id=m.company_id"
+               " LEFT JOIN office o ON o.id=m.office_id"
+               " WHERE s.run_id=?")
+        params = [run["id"]]
+        if f["disease"]:
+            sql += " AND s.disease=?"
+            params.append(f["disease"])
+        else:
+            # 疾病を選んでいないときは、その人で最もリスクの高い疾病だけを出す
+            sql += (" AND s.score = (SELECT MAX(s2.score) FROM risk_score s2"
+                    " WHERE s2.run_id=s.run_id AND s2.member_id=s.member_id)")
+        if f["name"]:
+            sql += " AND (m.name LIKE ? OR m.kana LIKE ?)"
+            params += [f"%{f['name']}%"] * 2
+        if f["cname"]:
+            sql += " AND c.name LIKE ?"
+            params.append(f"%{f['cname']}%")
+        if f["level"]:
+            sql += " AND s.level=?"
+            params.append(f["level"])
+        if not f["disease"]:
+            sql += " GROUP BY s.member_id"
+        rows = db.execute(sql + " ORDER BY s.score DESC, m.member_no", params).fetchall()
+    kenpos = (db.execute("SELECT id, code, name FROM kenpo ORDER BY code").fetchall()
+              if not acc["kenpo_id"] else [])
+    return render_template("risk_members.html", rows=rows, run=run, f=f, kenpos=kenpos, kid=kid,
+                           diseases=DISEASES)
+
+
 def risk_hist(rows):
     """スコアの分布（10点刻み）"""
     bins = [0] * 10
@@ -3351,6 +3417,7 @@ def office_new():
         return render_template("office_form.html", **ORG_SHELL, row=None, comps=comps,
                                nexts=nexts, form=request.form)
     code = next_code("office", str(cid), width=3)
+    # 所在地・連絡先の欄は 8-72 で画面から外した（届けば保存、無ければ空）
     db.execute("INSERT INTO office (company_id, ext_code, code, name, kana, zip, tel,"
                " address) VALUES (?,?,?,?,?,?,?,?)",
                (cid, ext or None, code, name, g("kana"), g("zip"), g("tel"), g("address")))
@@ -3378,8 +3445,14 @@ def office_edit(oid):
         " WHERE o.id=?", (oid,)).fetchone()
     n_mem = db.execute("SELECT COUNT(*) c FROM member WHERE office_id=?",
                        (oid,)).fetchone()["c"]
+
+    def _children():
+        """この事業所の部署（編集画面の「部署」カード。8-72）"""
+        return dict(depts=db.execute("SELECT * FROM department WHERE office_id=? ORDER BY code",
+                                     (oid,)).fetchall(), mem_by_dept=_dept_counts())
     if request.method == "GET":
-        return render_template("office_form.html", **ORG_SHELL, row=row, comps=[], n_mem=n_mem)
+        return render_template("office_form.html", **ORG_SHELL, row=row, comps=[], n_mem=n_mem,
+                               **_children())
     name = (request.form.get("name") or "").strip()
     errs = []
     if not name:
@@ -3391,7 +3464,7 @@ def office_edit(oid):
         for e in errs:
             flash(e, "error")
         return render_template("office_form.html", **ORG_SHELL, row=row, comps=[], n_mem=n_mem,
-                               form=request.form)
+                               form=request.form, **_children())
     before = f"{row['name']}／TEL {row['tel'] or '—'}"
     g = lambda k: (request.form.get(k) or "").strip()
     ext = g("ext_code")
@@ -3399,13 +3472,24 @@ def office_edit(oid):
                           (row["company_id"], ext, oid)).fetchone():
         flash(f"事業所コード {ext} は、この企業で既に使われています。", "error")
         return redirect(url_for("office_edit", oid=oid))
+    # 部署の行（8-72）。駄目なら事業所も保存しない。所在地・連絡先は画面に無いので今の値を保つ
+    try:
+        changes = _save_company_children(row["company_id"], request.form)
+    except ValueError as e:
+        db.rollback()
+        flash(str(e), "error")
+        return render_template("office_form.html", **ORG_SHELL, row=row, comps=[], n_mem=n_mem,
+                               form=request.form, **_children())
+    keep = lambda k: g(k) if k in request.form else (row[k] or "")
     db.execute("UPDATE office SET ext_code=?, name=?, kana=?, zip=?, tel=?, address=?,"
                " updated_at=? WHERE id=?",
-               (ext or None, name, g("kana"), g("zip"), g("tel"), g("address"), now(), oid))
+               (ext or None, name, g("kana"), keep("zip"), keep("tel"), keep("address"), now(), oid))
     db.commit()
     log("master", "事業所情報を編集", "success", target=f"{row['company_name']}／{name}",
-        detail=f"事業所コード={row['code']}／変更前: {before}")
-    flash(f"「{name}」の情報を更新しました。", "ok")
+        detail=f"事業所コード={row['code']}／変更前: {before}"
+        + ("／" + "、".join(changes) if changes else ""))
+    flash(f"「{name}」の情報を更新しました。"
+          + (f"（部署 {len(changes)} 件を反映）" if changes else ""), "ok")
     return redirect(url_for("offices"))
 
 
@@ -6244,6 +6328,33 @@ def nf(e):
     return render_template("denied.html", path=request.path, notfound=True), 404
 
 
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+
+
+@app.errorhandler(500)
+def server_error(e):
+    """画面の処理でエラーになったとき（8-68）。原因（トレースバック）を logs/error.log に残し、
+    画面には日本語の案内と「エラーID」を出す。エラーIDで error.log の該当箇所を探せる"""
+    import traceback
+    err_id = datetime.now().strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2)
+    orig = getattr(e, "original_exception", None) or e
+    tb = "".join(traceback.format_exception(type(orig), orig, orig.__traceback__))
+    try:
+        os.makedirs(LOG_DIR, exist_ok=True)
+        with open(os.path.join(LOG_DIR, "error.log"), "a", encoding="utf-8") as f:
+            f.write(f"===== {err_id}  {datetime.now():%Y-%m-%d %H:%M:%S}  {request.method} {request.path}\n"
+                    f"{tb}\n")
+    except Exception:
+        pass
+    summary = f"{type(orig).__name__}: {orig}"[:300]
+    try:
+        html = render_template("error500.html", err_id=err_id, path=request.path, summary=summary)
+    except Exception:
+        html = (f"<h1>エラーが発生しました</h1><p>エラーID: {err_id}</p><p>{summary}</p>"
+                f"<p>logs/error.log に詳細を記録しました。</p>")
+    return html, 500
+
+
 # ================================================================ 産業医面談管理
 # 別システム「産業医面談管理システム」の機能を組み込んだモジュール（/oh …）。
 # 認証・ロール・担当範囲・操作ログ・CSV出力は、このファイルの共通処理をそのまま使う。
@@ -6310,6 +6421,10 @@ _DB_WAS_MISSING = not os.path.exists(DB_PATH) and not os.path.exists(INITIAL_DB)
 BOOTSTRAP_LINES = init_db()
 
 
+# 起動方法（run.bat の waitress／python app.py）に関わらず、版の不一致は起動時のコンソールに出す（8-70）
+if build_mismatch():
+    print("[HIA] ******** 注意 ******** " + build_mismatch())
+
 if __name__ == "__main__":
     for line in BOOTSTRAP_LINES:
         print("[HIA] " + line)
@@ -6318,7 +6433,9 @@ if __name__ == "__main__":
     host = os.environ.get("HIA_HOST", "0.0.0.0")
     port = pick_port(host, int(os.environ.get("HIA_PORT", "8000")))
     ip = local_ipv4() if host == "0.0.0.0" else host
-    print(f"[HIA] build {BUILD}")
+    print(f"[HIA] build {BUILD} / {BUILD_ID}")
+    if build_mismatch():
+        print("[HIA] ******** 注意 ******** " + build_mismatch())
     try:
         _con = sqlite3.connect(DB_PATH)
         _n_acc = _con.execute("SELECT COUNT(*) FROM account"

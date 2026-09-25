@@ -14,19 +14,21 @@
 
 {# ================= サマリーカード（他のダッシュボードと同じ形） ================= #}
 <div class="summary-grid">
-  <div class="summary-card" style="border-top-color:#3182ce">
+{% set LM = url_for('risk_members', kenpo_id=(kid if kenpos else none)) %}
+{% set SEP = '&' if kenpos else '?' %}
+  <a class="summary-card" style="border-top-color:#3182ce" href="{{ LM }}">
     <div class="label">予測した加入者</div>
     <div class="value"><span>{{ '{:,}'.format(run.n_members) if run else '—' }}</span>
       <span class="total"> 名</span></div>
-    <div class="rate">健診結果を取り込んだ加入者が対象</div>
-  </div>
+    <div class="rate">健診結果を取り込んだ加入者が対象 →</div>
+  </a>
   {% for lv in ['高', '中', '低'] %}
-  <div class="summary-card" style="border-top-color:{{ LC[lv] }}">
+  <a class="summary-card" style="border-top-color:{{ LC[lv] }}" href="{{ LM }}{{ SEP }}level={{ lv }}">
     <div class="label">リスク {{ lv }}</div>
     <div class="value"><span>{{ LV.get(lv, 0) if run else '—' }}</span>
       <span class="total">/ {{ TOTAL if run else '—' }}</span></div>
-    <div class="rate">{% if run %}予測した加入者の {{ '%.1f'|format(LV.get(lv, 0) * 100.0 / BASE) }}%{% else %}—{% endif %}</div>
-  </div>
+    <div class="rate">{% if run %}予測した加入者の {{ '%.1f'|format(LV.get(lv, 0) * 100.0 / BASE) }}% →{% else %}— →{% endif %}</div>
+  </a>
   {% endfor %}
   <div class="summary-card" style="border-top-color:#805ad5">
     <div class="label">最新の予測</div>
@@ -94,49 +96,31 @@
   </div>
 </div>
 
-{# ================= 内訳（疾病ごと・年代ごと） ================= #}
-<div class="bottom-flex">
-  <div class="block-inner">
-    <h2>疾病ごとの高リスク者数</h2>
-    <p class="hint" style="margin:-8px 0 12px">予測した加入者 {{ TOTAL }}名。8つの生活習慣病それぞれで、リスク「高」の人数です。
-      1人で複数の疾病に該当することがあります。</p>
-    {% set DC = ['#e53e3e', '#dd6b20', '#805ad5', '#3182ce', '#0694a2', '#38a169', '#b7791f', '#718096'] %}
-    <div class="insured-grid">
-      {% for r in g.diseases %}
-      {% set c = DC[loop.index0 % DC|length] %}
-      <div class="insured-card">
-        <div class="ic-label">{{ r.disease }}</div>
-        <div class="ic-rate" style="color:{{ c }}">{{ r.high }}名</div>
-        <div class="ic-sub">対象の {{ '%.0f'|format(r.high * 100.0 / BASE) }}%　平均スコア {{ '%.1f'|format(r.avg) }}</div>
-        <div class="ic-bar"><div class="ic-bar-fg" style="background:{{ c }};
-          width:{{ '%.0f'|format(r.high * 100.0 / BASE) }}%"></div></div>
-      </div>
-      {% endfor %}
-    </div>
+{# ================= 内訳（疾病ごと。カードを押すとその疾病で高リスクの一覧） ================= #}
+<div class="block-inner">
+  <h2>疾病ごとの高リスク者数</h2>
+  <p class="hint" style="margin:-8px 0 12px">予測した加入者 {{ TOTAL }}名。8つの生活習慣病それぞれで、リスク「高」の人数です。
+    1人で複数の疾病に該当することがあります。カードを押すとその疾病で高リスクの方の一覧が開きます。</p>
+  {% set DC = ['#e53e3e', '#dd6b20', '#805ad5', '#3182ce', '#0694a2', '#38a169', '#b7791f', '#718096'] %}
+  <div class="insured-grid" style="grid-template-columns:repeat(4,1fr)">
+    {% for r in g.diseases %}
+    {% set c = DC[loop.index0 % DC|length] %}
+    <a class="insured-card" href="{{ LM }}{{ SEP }}disease={{ r.disease }}&level=高">
+      <div class="ic-label">{{ r.disease }}</div>
+      <div class="ic-rate" style="color:{{ c }}">{{ r.high }}名</div>
+      <div class="ic-sub">対象の {{ '%.0f'|format(r.high * 100.0 / BASE) }}%　平均スコア {{ '%.1f'|format(r.avg) }} →</div>
+      <div class="ic-bar"><div class="ic-bar-fg" style="background:{{ c }};
+        width:{{ '%.0f'|format(r.high * 100.0 / BASE) }}%"></div></div>
+    </a>
+    {% endfor %}
   </div>
-
-  <div class="block-inner">
-    <h2>年代ごとの状況</h2>
-    <p class="hint" style="margin:-8px 0 12px">年代ごとの人数と高リスク者数、その人でいちばん高い疾病のスコアの平均です。</p>
-    <div class="level-bar-wrap" style="margin-top:0">
-      {% for r in g.bands %}
-      <div class="level-row">
-        <span class="level-label">{{ r.band }}<span class="hint" style="font-weight:400;margin-left:4px">{{ r.n }}名</span></span>
-        <div class="bar-bg"><div class="bar-fg" style="background:#e53e3e;
-          width:{{ '%.0f'|format(r.high * 100.0 / (r.n or 1)) }}%"></div></div>
-        <span class="level-val" style="width:150px">高 {{ r.high }}名／平均 {{ '%.1f'|format(r.avg) }}点</span>
-      </div>
-      {% endfor %}
-    </div>
-    <p class="hint" style="margin:14px 0 0">棒はその年代の中で高リスクと判定された人の割合です。
-      予測は参考情報で、保健指導や受診勧奨の判断は保健師・医師などの専門職が行います。加入者ごとの結果はマイページの「疾患予測」タブで確認します。</p>
-  </div>
+  <p class="hint" style="margin:14px 0 0">予測は参考情報で、保健指導や受診勧奨の判断は保健師・医師などの専門職が行います。加入者ごとの結果は一覧の「詳細表示」（マイページの「疾患予測」タブ）で確認します。</p>
 </div>
 
 {# ================= 企業ごとの状況 ================= #}
 <div class="block-inner" style="margin-top:20px">
   <h2>企業ごとの状況</h2>
-  <p class="hint" style="margin:-8px 0 12px">高リスク者の多い企業を上に並べています。保健事業の重点先を決めるときの目安になります。</p>
+  <p class="hint" style="margin:-8px 0 12px">高リスク者の多い企業を上に並べています。保健事業の重点先を決めるときの目安になります。企業名を押すとその企業の一覧が開きます。</p>
   {% if g.companies %}
   <div class="table-scroll" style="max-height:360px;overflow-y:auto">
   <table class="result-table">
@@ -145,7 +129,7 @@
     <tbody>
     {% for r in g.companies %}
     <tr class="ls-row">
-      <td class="tl col-long" title="{{ r.name }}">{% if r.name != '未紐づけ' %}{{ r.name }}{% else %}<span class="hint">未紐づけ</span>{% endif %}</td>
+      <td class="tl col-long" title="{{ r.name }}">{% if r.name != '未紐づけ' %}<a href="{{ LM }}{{ SEP }}cname={{ r.name }}">{{ r.name }}</a>{% else %}<span class="hint">未紐づけ</span>{% endif %}</td>
       <td class="num">{{ r.n }}</td>
       <td class="num">{% if r.high %}<span class="hm-bad">{{ r.high }}</span>{% else %}<span class="hint">0</span>{% endif %}</td>
       <td class="num">{{ '%.1f'|format(r.avg) }}</td>
