@@ -1,7 +1,7 @@
 {% extends LAYOUT %}{% block body %}
 <h1 class="page-title">{{ row.name if row else '事業所の登録' }}</h1>
 <p class="page-lead">
-  {% if row %}登録済みの事業所を編集します。企業は変更できません。
+  {% if row %}登録済みの事業所を編集します。企業は変更できません。この事業所の部署もここで登録・編集できます。
   {% else %}事業所を1件ずつ登録します。まとめて登録する場合は一覧の「CSVで取り込む」をお使いください。{% endif %}</p>
 
 
@@ -30,23 +30,56 @@
     </div>
   </div>
 
-  <div class="block mt-block">
-    <div class="mt-head"><h2>所在地・連絡先</h2>
-      <span class="mt-note">郵便番号はハイフンなしでも構いません。</span></div>
-    <div class="mt-tbl">
-      <label for="zip" class="mt-label">郵便番号</label><div class="mt-cell fld mt-w-s"><input type="text" id="zip" name="zip" maxlength="8"
-            value="{{ (form.zip if form else (row.zip if row else '')) or '' }}" placeholder="例：1080023"></div>
-      <label for="address" class="mt-label">住所</label><div class="mt-cell fld mt-w-xl"><input type="text" id="address" name="address"
-            value="{{ (form.address if form else (row.address if row else '')) or '' }}" placeholder="例：東京都港区芝浦4-16-25　安全ビル4F"></div>
-      <label for="tel" class="mt-label">電話番号</label><div class="mt-cell fld mt-span"><input type="text" id="tel" name="tel"
-            value="{{ (form.tel if form else (row.tel if row else '')) or '' }}" placeholder="例：03-6365-1454"></div>
+{% if row %}
+{# ================= 部署（この事業所の部署をここで登録・編集する。8-72） ================= #}
+  <div class="block mt-block org-sub-card" id="org-dep-card">
+    <div class="mt-head"><h2>部署</h2>
+      <span class="mt-note">入力欄を書き換えて「更新」を押すと保存されます。追加した行は黄色で表示されます。</span>
+      <button type="button" class="btn-sm mt-head-btn" id="org-add-dept" onclick="orgDepAdd()">＋部署を追加</button></div>
+    <div class="org-sub">
+    <table class="result-table org-sub-tbl" id="org-dep-tbl">
+      <colgroup>
+        <col style="width:120px"><col class="col-long"><col style="width:120px"><col style="width:180px">
+      </colgroup>
+      <thead><tr>
+        <th>部署コード</th><th class="tl">部署名</th><th>加入者</th><th class="ops">操作</th>
+      </tr></thead>
+      <tbody id="org-dep-body">
+      {% for d in depts %}
+        <tr class="org-sub-row" data-kind="dept">
+          <td><input type="hidden" name="dep_id" value="{{ d.id }}"><input type="hidden" name="dep_office" value="{{ row.id }}">
+            <input type="text" name="dep_ext" maxlength="20" value="{{ d.ext_code or '' }}" placeholder="例：01" aria-label="部署コード"></td>
+          <td><input type="text" name="dep_name" value="{{ d.name }}" placeholder="部署名（必須）" aria-label="部署名"></td>
+          <td class="num">{{ mem_by_dept.get(d.id, 0) }}</td>
+          <td class="ops">
+            <a class="btn-sm primary {{ 'btn-detail-blue' if SHELL == 'kenpo' else 'btn-edit' }}" href="{{ url_for('department_edit', did=d.id) }}" style="text-decoration:none">{{ '詳細表示' if SHELL == 'kenpo' else '編集' }}</a>
+            {% if CAN_MASTER %}<button type="button" class="btn-sm btn-del" onclick="orgDepDelete(this, '{{ url_for('department_delete', did=d.id) }}', '{{ d.name }}')">削除</button>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      <tr id="org-dep-none"{% if depts %} style="display:none"{% endif %}><td colspan="4" style="padding:18px;color:#a0aec0;text-align:center">部署がまだ登録されていません。「＋部署を追加」から追加してください。</td></tr>
+      </tbody>
+    </table>
     </div>
+    <template id="tpl-dep">
+      <tr class="org-sub-row is-new" data-kind="dept">
+        <td><input type="hidden" name="dep_id" value=""><input type="hidden" name="dep_office" value="{{ row.id }}">
+          <input type="text" name="dep_ext" maxlength="20" placeholder="例：01" aria-label="部署コード"></td>
+        <td><input type="text" name="dep_name" placeholder="部署名（必須）" aria-label="部署名"></td>
+        <td class="num">0</td>
+        <td class="ops"><button type="button" class="btn-sm" onclick="orgDepRemove(this)">取り消す</button></td>
+      </tr>
+    </template>
   </div>
+{% endif %}
 
 {% if not row %}
 <div class="block next-steps">
   <h2>登録したあとの流れ</h2>
   <ol class="steps-flow">
+    <li><span class="sf-no">0</span>
+      <span class="sf-body"><b>部署を登録します</b><br>
+        <span class="hint">登録後の「詳細表示」（この事業所の編集画面）で部署を追加できます。</span></span></li>
     <li><span class="sf-no">1</span>
       <span class="sf-body"><b>加入者を登録します</b><br>
         <span class="hint">「加入者情報」から登録、または「CSVで取り込む」で取り込みます。</span></span></li>
@@ -75,6 +108,34 @@
   sel.addEventListener('change', upd);
   upd();
 })();
+</script>
+{% endif %}
+{% if row %}
+<script>
+/* 部署の行を増やす／取り消す／削除する（事業所の編集画面。8-72） */
+function orgDepEmpty(){
+  var nd = document.getElementById('org-dep-none');
+  if(nd) nd.style.display = document.querySelectorAll('#org-dep-body tr.org-sub-row').length ? 'none' : '';
+}
+function orgDepAdd(){
+  var tr = document.getElementById('tpl-dep').content.firstElementChild.cloneNode(true);
+  document.getElementById('org-dep-body').insertBefore(tr, document.getElementById('org-dep-none'));
+  orgDepEmpty();
+  tr.querySelector('input[name="dep_name"]').focus();
+}
+function orgDepRemove(btn){
+  var tr = btn.closest('tr');
+  tr.parentNode.removeChild(tr);
+  orgDepEmpty();
+}
+function orgDepDelete(btn, url, name){
+  if(!confirm('「' + name + '」を削除します。よろしいですか？\n\n加入者・管理者が紐づいている場合は削除できません。')) return;
+  var f = document.createElement('form');
+  f.method = 'post'; f.action = url; f.style.display = 'none';
+  var n = document.createElement('input'); n.type = 'hidden'; n.name = 'next';
+  n.value = location.pathname + location.search;
+  f.appendChild(n); document.body.appendChild(f); f.submit();
+}
 </script>
 {% endif %}
 {% endblock %}

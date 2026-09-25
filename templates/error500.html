@@ -1,0 +1,14 @@
+{% extends LAYOUT %}{% block body %}
+<h1 class="page-title">エラーが発生しました</h1>
+<p class="page-lead">画面の処理中にエラーになりました。内容は <b class="mono">logs/error.log</b> に記録しています。</p>
+<div class="block">
+  <p class="note">お手数ですが、下の<b>エラーID</b>と <b class="mono">logs/error.log</b> の該当箇所（同じエラーIDで始まる部分）を当社スタッフへお知らせください。</p>
+  <p class="mono" style="font-size:13px">エラーID：<b>{{ err_id }}</b></p>
+  <p class="mono hint">{{ path }}</p>
+  <p class="mono hint" style="white-space:pre-wrap;word-break:break-all">{{ summary }}</p>
+  <div class="actions">
+    <a class="btn-back" href="{{ url_for('spa_km') if SHELL=='km' else url_for('spa') }}"
+       {% if EMBED %}target="_top"{% endif %} style="text-decoration:none">戻る</a>
+  </div>
+</div>
+{% endblock %}

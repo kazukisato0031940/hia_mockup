@@ -36,6 +36,7 @@
     <a href="{{ url_for('logs') }}" class="{{ 'on' if request.endpoint=='logs' }}">操作ログ</a>
     {% endif %}
   </div>
+  {% if BUILD_MISMATCH %}<div class="flash error">【版の不一致】{{ BUILD_MISMATCH }}</div>{% endif %}
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
   {% endwith %}

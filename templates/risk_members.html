@@ -1,0 +1,94 @@
+{% extends LAYOUT %}
+{% block body %}
+{# 疾患予測 対象者一覧（加入者ごとの予測結果）。ダッシュボード（/risk）のカードから条件つきで開く。8-71 #}
+{% set L = url_for('risk_list', kenpo_id=(kid if kenpos else none)) %}
+{# 見出しはこの画面が持ち、右端に「戻る」（加入者マイページと同じ .frag-head） #}
+<div class="frag-head">
+  <h1 class="page-title">疾患予測 対象者一覧</h1>
+  <a class="btn-back" href="{{ L }}" style="text-decoration:none">戻る</a>
+</div>
+<p class="page-lead">予測した加入者ごとの{{ run.horizon if run else '' }}年後のリスクです。行の「詳細表示」でその方のマイページ（疾患予測タブ）を開きます。予測は参考情報で、保健指導や受診勧奨の判断は保健師・医師などの専門職が行います。</p>
+
+<div class="block">
+  <h2>検索条件</h2>
+  <form method="get" class="search-row" style="margin-top:10px">
+    {% if kenpos %}<input type="hidden" name="kenpo_id" value="{{ kid }}">{% endif %}
+    <div class="search-group"><label for="name">氏名・カナ</label>
+      <input type="text" id="name" name="name" value="{{ f.name }}" style="width:180px"></div>
+    <div class="search-group"><label for="cname">企業名</label>
+      <input type="text" id="cname" name="cname" value="{{ f.cname }}" style="width:180px"></div>
+    <div class="search-group"><label for="disease">疾病</label>
+      <select id="disease" name="disease" style="width:180px">
+        <option value="">最もリスクの高い疾病</option>
+        {% for d in diseases %}<option value="{{ d }}" {{ 'selected' if f.disease == d }}>{{ d }}</option>{% endfor %}
+      </select></div>
+    <div class="search-group"><label for="level">リスク区分</label>
+      <select id="level" name="level" style="width:120px">
+        <option value="">すべて</option>
+        {% for x in ['高', '中', '低'] %}<option value="{{ x }}" {{ 'selected' if f.level == x }}>{{ x }}</option>{% endfor %}
+      </select></div>
+    <button class="btn-sm primary">絞り込む</button>
+    <a class="btn-sm" href="{{ url_for('risk_members', kenpo_id=(kid if kenpos else none)) }}" style="text-decoration:none">条件をクリア</a>
+  </form>
+</div>
+
+<div class="block">
+  <div class="blk-head">
+    <div class="blk-head-left">
+      <h2>対象者一覧</h2>
+      <span class="count">{{ rows|length }}名</span>
+    </div>
+    <div class="actions">
+      <a class="btn-sm" href="{{ url_for('risk_export') }}" style="text-decoration:none">CSVで出力</a>
+    </div>
+  </div>
+  {% if not run %}
+  <div class="empty-box">まだ予測がありません。</div>
+  {% elif rows %}
+  <div class="table-scroll" style="max-height:600px;overflow-y:auto">
+  <table class="result-table">
+    <!-- 列幅は「列幅の標準」（.col-*）に合わせています -->
+    <colgroup>
+      <col class="col-num"><col class="col-name"><col class="col-long">
+      <col class="col-long"><col class="col-flag"><col class="col-flag">
+      <col class="col-long"><col class="col-status"><col class="col-status">
+      <col class="col-ops">
+    </colgroup>
+    <thead><tr>
+      <th>被保険者<br>証番号</th><th class="tl">氏名</th><th class="tl">企業名</th>
+      <th class="tl">事業所名</th><th>年代</th><th>性別</th>
+      <th class="tl">{{ f.disease or '最もリスクの高い疾病' }}</th>
+      <th>リスクスコア</th><th>リスク区分</th><th class="ops">操作</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr class="ls-row">
+      <td class="code">{{ r.member_no }}{% if r.cert_branch %}<span class="hint">-{{ r.cert_branch }}</span>{% endif %}</td>
+      <td class="tl"><span class="ellip" title="{{ r.name }}">{{ r.name }}</span></td>
+      <td class="tl">{% if r.company_name %}
+        <span class="ellip" title="{{ r.company_name }}">{{ r.company_name }}</span>
+        {% else %}<span class="hint">未紐づけ</span>{% endif %}</td>
+      <td class="tl">{% if r.office_name %}
+        <span class="ellip" title="{{ r.office_name }}">{{ r.office_name }}</span>
+        {% else %}<span class="hint">未設定</span>{% endif %}</td>
+      <td>{{ r.age_band }}</td>
+      <td>{{ r.sex }}</td>
+      <td class="tl">{{ r.disease }}</td>
+      <td class="num">
+        <span class="score-bar"><span class="score-fill" style="width:{{ r.score }}%"></span></span>
+        <b>{{ '%.1f'|format(r.score) }}</b></td>
+      <td><span class="st risk-tag risk-{{ r.level }}">{{ r.level }}</span>
+        <span class="hint">{{ r.priority }}</span></td>
+      <td class="ops">
+        <a class="btn-sm primary btn-detail-blue" href="{{ url_for('hm.hm_member', mid=r.member_id, tab='risk') }}"
+           style="text-decoration:none">詳細表示</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-box">条件に一致する加入者がいません。</div>
+  {% endif %}
+</div>
+{% endblock %}

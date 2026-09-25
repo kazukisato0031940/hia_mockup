@@ -20,27 +20,24 @@
     <div class="blk-head-left">
       <h2>加入者一覧</h2>
       <div class="actions">
-        {% if CAN_MASTER %}
-        <button type="button" class="btn-sm primary" id="mk-open" onclick="mkOpen()" disabled
-                title="選択した加入者に企業・事業所・部署を設定します">
-          選択した<span id="mk-n">0</span>件を紐づける</button>
-        <button type="button" class="btn-sm" id="mk-open-all" onclick="mkOpen(true)"
-                title="いま絞り込んでいる条件に一致する全件を紐づけます">
-          検索結果すべて（{{ '{:,}'.format(total) }}件）を紐づける</button>
-        <a class="btn-sm" href="{{ url_for('members_link_page') }}" style="text-decoration:none"
-           title="紐づけ先を選んでから、ドラッグで紐づける専用ページを開きます">企業・部署の紐づけ</a>
-        {% endif %}
+        {# 「検索結果すべてを紐づける」「紐づけページ」は 8-74 で廃止（URL直打ちの受け口は残置）。「出力」は 8-76 #}
         {% if CAN_MASTER %}
         <a class="btn-sm" href="{{ url_for('import_upload', kind='member') }}"
            style="text-decoration:none">CSVで取り込む</a>
         {% endif %}
-        {% if CAN_DOWNLOAD %}<a class="btn-sm" href="{{ url_for('members_export') }}"
-           style="text-decoration:none">CSVで出力</a>{% endif %}
+        {% if CAN_DOWNLOAD %}
+        <a class="btn-sm" href="{{ url_for('members_export') }}" style="text-decoration:none"
+           title="いま表示できる加入者を取込フォーマットと同じ並びのCSVで出力します">出力</a>
+        {% endif %}
       </div>
     </div>
     <div class="actions">
       {% if CAN_MASTER %}
       <a class="btn-sm primary" href="{{ url_for('member_new') }}" style="text-decoration:none">加入者情報を登録する</a>
+      {# 「選択した n 件を紐づける」は右端（8-76） #}
+      <button type="button" class="btn-sm primary" id="mk-open" onclick="mkOpen()" disabled
+              title="選択した加入者に企業・事業所・部署を設定します">
+        選択した<span id="mk-n">0</span>件を紐づける</button>
       {% endif %}
     </div>
   </div>
