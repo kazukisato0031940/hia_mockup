@@ -48,10 +48,10 @@
   </div>
 
 {# ================= 事業所・部署（この企業の配下をここで入力する。8-59 → 8-66 で左右2枚のカードに。登録画面にも同じカード） ================= #}
+  <p class="org-sub-lead">入力欄を書き換えて「{{ '更新' if row else '登録' }}」を押すと、企業の情報と一緒に保存されます。追加した行は黄色で表示されます。<b>事業所を使わない場合は、部署の「事業所」で「（事業所なし）」を選びます</b>（企業の直下に置かれます）。1行でも入力に不備があると、企業の情報も保存されません。</p>
   <div class="org-sub-cols">
   <div class="block mt-block org-sub-card" id="org-sub-card">
     <div class="mt-head"><h2>事業所</h2>
-      <span class="mt-note">入力欄を書き換えて「{{ '更新' if row else '登録' }}」を押すと保存されます。</span>
       <button type="button" class="btn-sm mt-head-btn" id="org-add-office" onclick="orgSubAddOffice()">＋事業所を追加</button></div>
     <div class="org-sub">
     <table class="result-table org-sub-tbl" id="org-sub-tbl">
@@ -93,7 +93,6 @@
 
   <div class="block mt-block org-sub-card" id="org-dep-card">
     <div class="mt-head"><h2>部署</h2>
-      <span class="mt-note">追加した行は黄色で表示されます（追加したばかりの事業所 ★ にも置けます）。<b>事業所を使わない場合は、「事業所」で「（事業所なし）」を選びます</b>（企業の直下に置かれます）。</span>
       <button type="button" class="btn-sm mt-head-btn" id="org-add-dept" onclick="orgSubAddDept()">＋部署を追加</button></div>
     <div class="org-sub">
     <table class="result-table org-sub-tbl" id="org-dep-tbl">

@@ -2112,6 +2112,11 @@ body.theme-km .org-kind-company{background:#e8f4ec;color:#15803d}
 .org-sub tr.is-new td{background:#fffbea}
 /* 事業所と部署は左右2枚のカード。「＋事業所を追加」「＋部署を追加」はカード見出しの右端（8-66） */
 .org-sub-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+/* 2枚のカードは表の位置をそろえる（見出しの高さを固定し、注記はカードの外に出す） */
+.org-sub-lead{margin:0 0 10px;font-size:11.5px;color:var(--gray-label);line-height:1.7}
+.org-sub-cols .org-sub-card > .mt-head{min-height:56px;align-items:center;padding-top:0;padding-bottom:0}
+.org-sub-cols .org-sub-card{display:flex;flex-direction:column}
+.org-sub-cols .org-sub-card > .org-sub{flex:1}
 .org-sub-cols .org-sub-card{margin-bottom:0;min-width:0}
 .mt-head .mt-head-btn{margin-left:auto;align-self:center}
 @media (max-width:1180px){.org-sub-cols{grid-template-columns:1fr}}
