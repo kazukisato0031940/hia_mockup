@@ -2097,7 +2097,8 @@ a.hm-stat-box:hover{border-color:var(--accent);box-shadow:0 1px 4px rgba(26,54,9
 .org-kind-dept{background:#eef1f3;color:#4c5761}
 body.theme-km .org-kind-company{background:#e8f4ec;color:#15803d}
 /* 企業の詳細表示（編集画面）の「事業所・部署」カード：行ごとに入力欄を持つ表。＋ボタンで行を増やし「更新」でまとめて保存する */
-.org-sub{overflow-x:auto}
+/* 表はカードの端まで広げず、他のカードの表（.mt-tbl）と同じ 20px の余白を取る */
+.org-sub{overflow-x:auto;padding:16px 20px 20px}   /* 上も .mt-tbl と同じ 16px あける（見出しの罫線と表がくっつかない） */
 /* 左右2枚に分けて幅が半分になるため、名称・住所の最低幅は 120px に抑える */
 .org-sub .col-long,.org-sub .result-table th.col-long{min-width:120px}
 .org-sub .result-table td{padding:5px 6px}
@@ -2110,6 +2111,9 @@ body.theme-km .org-kind-company{background:#e8f4ec;color:#15803d}
 .org-sub .result-table td.ops{padding-left:0;padding-right:0}
 .org-sub .result-table td.ops .btn-sm{margin:0 !important}
 .org-sub tr.is-new td{background:#fffbea}
+/* 部署の表：事業所ごとの見出し行（列にはしない。8-69） */
+.org-sub tr.org-grp td{background:#f1f5f9;color:#4a5568;font-weight:700;font-size:12px;padding:6px 10px}
+.org-sub tr.org-grp.is-new td{background:#fff3c4}
 /* 事業所と部署は左右2枚のカード。「＋事業所を追加」「＋部署を追加」はカード見出しの右端（8-66） */
 .org-sub-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
 .org-sub-cols .org-sub-card{margin-bottom:0;min-width:0}
