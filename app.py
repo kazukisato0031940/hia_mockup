@@ -4936,6 +4936,14 @@ CSV_FORMATS = {
 # 各マスタ画面から開く取込（入口①）で使う様式
 HIER_KINDS = ("company", "office", "dept", "member")
 
+# 企業そのものを作る様式は、企業の登録と同じ扱い（HIAスタッフ・健保担当者だけ）。
+# 企業担当者は担当範囲の中しか触れないため、企業を増やす取込は行わせない。
+COMPANY_KINDS = ("company", "bulk")
+
+
+def can_import_kind(acc, kind):
+    return kind not in COMPANY_KINDS or acc["role"] in ("system_admin", "kenpo_user")
+
 # 旧様式の見出し → 新しい呼び名。2つ以上見つかったら旧様式として止める
 # 旧様式の見出し → いまの扱い。新様式で無くなった／名前が変わった列だけを挙げる。
 # 現行の列名をそのまま残したもの（企業名・郵便番号・続柄名称 など）はここに入れない。
@@ -5786,6 +5794,12 @@ def import_upload():
     kind = request.args.get("kind") or "company"
     if kind not in HIER_KINDS:
         kind = "company"
+    if not can_import_kind(acc, kind):
+        log("import", "企業の取込をブロック", "blocked", target=kind,
+            detail=f"role={role_key(acc)}")
+        flash("企業の取込は健康保険組合のご担当者が行います。"
+              "事業所・部署・加入者の取込はお使いいただけます。", "error")
+        return redirect(url_for("orgs"))
     return render_template("import_upload.html", bulk=False, **_import_ctx(acc, kind))
 
 
@@ -5832,6 +5846,12 @@ def import_receive():
         flash(f"この画面は企業・事業所・部署一括取込の様式だけを受け付けます"
               f"（読み取った様式：{CSV_FORMATS[kind]['label']}）。"
               f"階層ごとの取込は各マスタ画面から行ってください。", "error")
+        return redirect(back)
+    if not can_import_kind(acc, kind):
+        log("import", "企業の取込をブロック", "blocked", target=fname,
+            detail="様式=" + CSV_FORMATS[kind]["label"] + "／role=" + role_key(acc))
+        flash("企業を作る様式のため、取り込めません。"
+              "企業の登録は健康保険組合のご担当者が行います。", "error")
         return redirect(back)
     if not bulk and kind == "bulk":
         flash("企業・事業所・部署一括取込の様式です。「企業・事業所・部署一括取込」の画面から取り込んでください。",
@@ -5903,6 +5923,11 @@ def import_commit():
               "error")
         return redirect(url_for("import_upload"))
     kind, spec = stg["kind"], CSV_FORMATS[stg["kind"]]
+    if not can_import_kind(acc, kind):
+        log("import", "企業の取込の確定をブロック", "blocked", target=stg["filename"],
+            detail="role=" + role_key(acc))
+        flash("企業を作る様式のため、確定できません。", "error")
+        return redirect(url_for("orgs"))
     kenpo_id = stg["kenpo_id"]
     # 上位の選択も検証も、確認画面と同じ関数でもう一度通す（確定だけ緩くならないように）
     picks = _import_picks()

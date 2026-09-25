@@ -23,14 +23,19 @@
       <span class="count"><span id="org-count">{{ comps|length }}</span>社（{{ offs|length }}事業所・{{ depts|length }}部署）</span>
       {% if CAN_MASTER %}
       <div class="actions">
+        {# 企業を作る取込は HIAスタッフ・健保担当者だけ #}
+        {% if can_add %}
         <a class="btn-sm" href="{{ url_for('import_upload', kind='company') }}"
            style="text-decoration:none">企業をCSVで取り込む</a>
+        {% endif %}
         <a class="btn-sm" href="{{ url_for('import_upload', kind='office') }}"
            style="text-decoration:none">事業所をCSVで取り込む</a>
         <a class="btn-sm" href="{{ url_for('import_upload', kind='dept') }}"
            style="text-decoration:none">部署をCSVで取り込む</a>
+        {% if can_add %}
         <a class="btn-sm" href="{{ url_for('import_upload_bulk') }}"
            style="text-decoration:none">企業・事業所・部署一括取込</a>
+        {% endif %}
       </div>
       {% endif %}
     </div>
